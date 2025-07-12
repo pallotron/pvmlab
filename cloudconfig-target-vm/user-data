@@ -1,6 +1,6 @@
-#jinja2
+## template: jinja
 #cloud-config
-ssh_pwauth: True
+ssh_pwauth: true
 users:
   - name: ubuntu
     sudo: "ALL=(ALL) NOPASSWD:ALL"
@@ -8,15 +8,9 @@ users:
     shell: /bin/bash
     ssh_authorized_keys:
       {{ ds.meta_data.public_keys | join('\n') }}
-chpasswd:
-  list: |
-    root:pass
-    ubuntu:pass
-  expire: False
 
-# because ssh_pwthauth: True is not enough for ssh password auth to work
-# on Ubuntu 22.04 and later
-write_files:
-  - path: /etc/ssh/sshd_config.d/99-cloudimg-settings.conf
-    content: |
-      PasswordAuthentication yes
+chpasswd:
+  users:
+    - {name: ubuntu, password: pass, type: text}
+    - {name: root, password: pass, type: text}
+  expire: False

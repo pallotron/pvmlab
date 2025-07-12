@@ -17,5 +17,4 @@ uuidgen
 
 logs/
 
-cloudconfig-provisioner-vm/user-data
 .ssh

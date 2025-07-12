@@ -1,6 +1,6 @@
-#jinja2
+## template: jinja
 #cloud-config
-ssh_pwauth: True
+ssh_pwauth: true
 users:
   - name: ubuntu
     sudo: "ALL=(ALL) NOPASSWD:ALL"
@@ -8,19 +8,20 @@ users:
     shell: /bin/bash
     ssh_authorized_keys:
       {{ ds.meta_data.public_keys | join('\n') }}
+
 chpasswd:
-  list: |
-    root:pass
-    ubuntu:pass
+  users:
+    - {name: ubuntu, password: pass, type: text}
+    - {name: root, password: pass, type: text}
   expire: False
-packages:
-  - iptables-persistent
-  - acpid
+
 runcmd:
+  - 'echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections'
+  - 'echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections'
+  - 'apt-get update'
+  - 'DEBIAN_FRONTEND=noninteractive apt-get -y install acpid iptables-persistent'
   - 'sed -i "/net.ipv4.ip_forward/d" /etc/sysctl.conf'
   - 'echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf'
   - 'sysctl -p'
   - 'iptables -t nat -A POSTROUTING -o enp0s1 -j MASQUERADE'
-  - 'apt-get update'
-  - 'apt-get install -y iptables-persistent'
-  - 'sh -c "iptables-save > /etc/iptables/rules.v4"'
+  - 'iptables-save > /etc/iptables/rules.v4'
