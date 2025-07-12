@@ -1,0 +1,22 @@
+#cloud-config
+ssh_pwauth: True
+users:
+  - name: ubuntu
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    groups: sudo
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFrYzFX1/ClW9vRpofJQA0QHjnp8CGKJuZKP+xRbfAWs
+chpasswd:
+  list: |
+    root:pass
+    ubuntu:pass
+  expire: False
+runcmd:
+  - 'sed -i "/net.ipv4.ip_forward/d" /etc/sysctl.conf'
+  - 'echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf'
+  - 'sysctl -p'
+  - 'iptables -t nat -A POSTROUTING -o enp0s1 -j MASQUERADE'
+  - 'apt-get update'
+  - 'apt-get install -y iptables-persistent'
+  - 'sh -c "iptables-save > /etc/iptables/rules.v4"'
