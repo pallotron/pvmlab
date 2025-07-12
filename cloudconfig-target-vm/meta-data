@@ -1,2 +1,4 @@
 instance-id: iid-cloudimg-002
 local-hostname: target-vm
+public-keys:
+  - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCyKWlKP1/d7w43DzTWHRt9us8yLnnqnCVqyvRvYRWyJnLlEtdb4/yaMW7cPw/HmRVwZpy6VfghLpdXDYtB91npDd5YMU21kXwHa1cMAHeVX3NXc/vNLPWaoLTVy8v4DBoErD6xy0WTfhY/riz+uUU5m0eOdHNPN7NZrmzEKmja1qSqCZpCUU0viRlcMGJbj7ECi0wGAAkaVp7JhZGUN2Mc5bw28fAO2Pe54f9kQW1APJOOsPzSLBKIRIQdCrdQflc+nxrh2VfUdnZftHpZojM8hsJMUg1cR708mHJ8ZF3rSalYv/nQi7FO/JAQFj9mFOvNlJ5X9+6S+izWqk92MzZH afailla@MB-Angelo-Failla

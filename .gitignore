@@ -12,3 +12,10 @@ uuidgen
 
 *.qcow2
 *.iso
+*.pid
+*.monitor
+
+logs/
+
+cloudconfig-provisioner-vm/user-data
+.ssh

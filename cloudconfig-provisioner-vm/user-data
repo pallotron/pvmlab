@@ -1,3 +1,4 @@
+#jinja2
 #cloud-config
 ssh_pwauth: True
 users:
@@ -6,12 +7,15 @@ users:
     groups: sudo
     shell: /bin/bash
     ssh_authorized_keys:
-      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFrYzFX1/ClW9vRpofJQA0QHjnp8CGKJuZKP+xRbfAWs
+      {{ ds.meta_data.public_keys | join('\n') }}
 chpasswd:
   list: |
     root:pass
     ubuntu:pass
   expire: False
+packages:
+  - iptables-persistent
+  - acpid
 runcmd:
   - 'sed -i "/net.ipv4.ip_forward/d" /etc/sysctl.conf'
   - 'echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf'
