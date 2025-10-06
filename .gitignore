@@ -4,7 +4,6 @@
 *.qcow2
 .DS_Store
 .ssh
-GEMINI.md
 cloud_images/
 logs/
 runtime_images/
