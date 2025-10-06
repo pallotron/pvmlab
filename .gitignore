@@ -1,20 +1,11 @@
-# macOS
-.DS_Store
-
-# Downloaded cloud images
-cloud_images/
-
-# Generated runtime files
-runtime_images/
-
-# UUID file
-uuidgen
-
-*.qcow2
 *.iso
-*.pid
 *.monitor
-
-logs/
-
+*.pid
+*.qcow2
+.DS_Store
 .ssh
+GEMINI.md
+cloud_images/
+logs/
+runtime_images/
+uuidgen
