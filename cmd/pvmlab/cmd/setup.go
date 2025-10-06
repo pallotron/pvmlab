@@ -9,8 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"provisioning-vm-lab/internal/brew"
 	"provisioning-vm-lab/internal/config"
+	"provisioning-vm-lab/internal/runner"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
 )
@@ -57,12 +60,43 @@ Make sure launchd is configured to launch the socket_vmnet service.`,
 		}
 		fmt.Println("SSH keys generated successfully.")
 
+		fmt.Println("Generating UUID...")
+		uuidPath := filepath.Join(appDir, "uuidgen")
+		fmt.Printf("Checking for UUID file at: %s\n", uuidPath)
+		if _, err := os.Stat(uuidPath); os.IsNotExist(err) {
+			fmt.Println("UUID file does not exist, creating it...")
+			uuid := uuid.New().String()
+			if err := os.WriteFile(uuidPath, []byte(uuid), 0644); err != nil {
+				fmt.Println("Error generating UUID file:", err)
+				os.Exit(1)
+			}
+			fmt.Println("UUID generated successfully.")
+		} else {
+			fmt.Println("UUID file already exists.")
+		}
+
 		fmt.Println("Checking dependencies...")
 		if err := checkDependencies(); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 		fmt.Println("Dependencies checked successfully.")
+
+		fmt.Println("Checking socket_vmnet service status...")
+		running, err := brew.IsSocketVmnetRunning()
+		if err != nil {
+			fmt.Println("Error checking status:", err)
+			os.Exit(1)
+		}
+		if !running {
+			fmt.Println("socket_vmnet service is not running, attempting to start it.")
+			if err := brew.StartSocketVmnet(); err != nil {
+				fmt.Println("Error starting socket_vmnet service:", err)
+				os.Exit(1)
+			}
+		} else {
+			fmt.Println("socket_vmnet service is already running.")
+		}
 	},
 }
 
@@ -71,7 +105,7 @@ func checkDependencies() error {
 
 	for _, dep := range dependencies {
 		cmd := exec.Command("which", dep)
-		if err := cmd.Run(); err != nil {
+		if err := runner.Run(cmd); err != nil {
 			fmt.Printf("%s not found. Please install it.\n", dep)
 			return err
 		}
@@ -92,7 +126,7 @@ func checkDependencies() error {
 
 	if !foundSocketVmnet {
 		cmd := exec.Command("which", "socket_vmnet")
-		if err := cmd.Run(); err != nil {
+		if err := runner.Run(cmd); err != nil {
 			fmt.Println("socket_vmnet not found in standard paths or /opt. Please install it.")
 			return err
 		}
@@ -117,13 +151,8 @@ func generateSSHKeys(sshDir string) error {
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 	}
 
-	privateKeyFile, err := os.Create(privateKeyPath)
-	if err != nil {
-		return err
-	}
-	defer privateKeyFile.Close()
-
-	if err := pem.Encode(privateKeyFile, privateKeyPEM); err != nil {
+	privateKeyBytes := pem.EncodeToMemory(privateKeyPEM)
+	if err := os.WriteFile(privateKeyPath, privateKeyBytes, 0600); err != nil {
 		return err
 	}
 
