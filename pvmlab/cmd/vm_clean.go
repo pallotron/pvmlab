@@ -1,4 +1,3 @@
-
 package cmd
 
 import (
@@ -34,14 +33,14 @@ var vmCleanCmd = &cobra.Command{
 			fmt.Printf("Warning: could not remove metadata file for %s: %v\n", vmName, err)
 		}
 
-		pathsToRemove := []string{
+		filesToRemove := []string{
 			filepath.Join(appDir, "vms", vmName+".qcow2"),
-			filepath.Join(appDir, "configs", vmName+".iso"),
+			filepath.Join(appDir, "configs", "cloud-init", vmName+".iso"),
 			filepath.Join(appDir, "logs", vmName+".log"),
-			filepath.Join(appDir, "configs", "cloud-init", vmName),
+			filepath.Join(appDir, "pids", vmName+".pid"),
+			filepath.Join(appDir, "monitors", vmName+".sock"),
 		}
-
-		for _, path := range pathsToRemove {
+		for _, path := range filesToRemove {
 			if err := os.RemoveAll(path); err != nil {
 				// Ignore errors if the path doesn't exist
 				if !os.IsNotExist(err) {

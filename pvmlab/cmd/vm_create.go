@@ -119,7 +119,7 @@ The --role flag determines the type of VM to create.
 		fmt.Printf("%s VM disk created successfully.\n", vmName)
 
 		fmt.Println("Generating cloud-config ISO...")
-		isoPath := filepath.Join(appDir, "configs", vmName+".iso")
+		isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
 		if err := cloudinit.CreateISO(vmName, role, appDir, isoPath, ip, macForMetadata); err != nil {
 			fmt.Println(err)
 			os.Exit(1)

@@ -71,21 +71,62 @@ The structure of this directory is as follows:
 
 2.  **Build the CLI:**
     ```bash
-    go build -o pvmlab ./cmd/pvmlab
+    go build -o pvmlab ./pvmlab
     ```
 
 3.  **Install Dependencies & Configure Environment:**
     Run the `setup` command. This will use Homebrew to install required packages and create the `~/.provisioning-vm-lab/` directory structure, including an SSH key for accessing the VMs.
     ```bash
     ./pvmlab setup
+    Creating provisioning-vm-lab directory structure...
+    Directory structure created successfully.
+    Generating SSH keys...
+    SSH keys generated successfully.
+    Generating UUID...
+    Checking for UUID file at: ~/.provisioning-vm-lab/uuidgen
+    UUID file does not exist, creating it...
+    UUID generated successfully.
+    Checking dependencies...
+    Dependencies checked successfully.
+    Checking socket_vmnet service status...
+    Password:
+    socket_vmnet service is already running
     ```
+
+## Installation (Optional)
+
+To make the `pvmlab` command available system-wide, you can install it using `go install`. This will place the binary in your Go bin directory (usually `$HOME/go/bin`), which should be part of your system's `$PATH`.
+
+```bash
+go install ./pvmlab
+```
+After installation, you can run the command as `pvmlab` from any directory.
+
+## Shell Completion
+
+The CLI can generate completion scripts for various shells. This allows you to use the Tab key to auto-complete commands and flags.
+
+**For Bash:**
+Make sure you have `bash-completion` installed. Then, add the completion script to your setup:
+```bash
+# macOS (via Homebrew)
+pvmlab completion bash > $(brew --prefix)/etc/bash_completion.d/pvmlab
+```
+
+**For Zsh:**
+Generate the completion script in a directory that is part of your Zsh `fpath`:
+```bash
+pvmlab completion zsh > "${fpath[1]}/_pvmlab"
+```
+
+You will need to restart your shell for the changes to take effect.
 
 ## Usage
 
 1.  **Start the `socket_vmnet` Service:**
     This service manages the private virtual network. You may be prompted for your password.
     ```bash
-    ./pvmlab service start
+    pvmlab service start
     ```
 
 2.  **Create the VMs:**
@@ -155,3 +196,16 @@ The structure of this directory is as follows:
 | `pvmlab vm logs <name>`      | Tails the console logs for the specified VM.                             |
 | `pvmlab vm clean <name>`     | Stops the VM and deletes its generated files.                            |
 | `pvmlab clean`               | Stops all VMs and services, and removes the artifacts directory.         |
+## Project Structure
+
+The project is a Go CLI application with the following structure:
+
+```
+.
+├── pvmlab/           # Main application package and Cobra command definitions
+├── internal/         # Helper packages for business logic (brew, cloudinit, config, etc.)
+├── go.mod            # Go module definition
+├── go.sum            # Go module dependencies
+├── Makefile          # (Deprecated) Kept for reference or simple tasks
+└── README.md
+```

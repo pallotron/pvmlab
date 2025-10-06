@@ -36,7 +36,7 @@ Make sure launchd is configured to launch the socket_vmnet service.`,
 
 		dirs := []string{
 			filepath.Join(appDir, "vms"),
-			filepath.Join(appDir, "configs"),
+			filepath.Join(appDir, "configs", "cloud-init"),
 			filepath.Join(appDir, "images"),
 			filepath.Join(appDir, "logs"),
 			filepath.Join(appDir, "pids"),

@@ -55,7 +55,11 @@ var vmStartCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		isoPath := filepath.Join(appDir, "configs", vmName+".iso")
+				isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
+		if _, err := os.Stat(isoPath); os.IsNotExist(err) {
+			fmt.Printf("Cloud-init ISO for '%s' not found. Please create the VM first.\n", vmName)
+			os.Exit(1)
+		}
 		pidPath := filepath.Join(appDir, "pids", vmName+".pid")
 		monitorPath := filepath.Join(appDir, "monitors", vmName+".sock")
 		logPath := filepath.Join(appDir, "logs", vmName+".log")
