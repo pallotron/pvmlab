@@ -24,7 +24,7 @@ var vmCreateCmd = &cobra.Command{
 	Long: `Creates a new VM.
 The --role flag determines the type of VM to create.
 - provisioner: creates an ARM64 VM with a static IP (192.168.100.1).
-- target: creates an AMD64 VM with a static IP (192.168.100.2).`,
+- target: creates an ARM64 VM with a static IP (192.168.100.2).`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		vmName := args[0]
@@ -79,16 +79,9 @@ The --role flag determines the type of VM to create.
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		var imageUrl string
-		var imageFileName string
 
-		if role == "provisioner" {
-			imageUrl = config.UbuntuARMImageURL
-			imageFileName = "ubuntu-24.04-server-cloudimg-arm64.img"
-		} else {
-			imageUrl = config.UbuntuAMDImageURL
-			imageFileName = "ubuntu-24.04-server-cloudimg-amd64.img"
-		}
+		imageUrl := config.UbuntuARMImageURL
+		imageFileName := "ubuntu-24.04-server-cloudimg-arm64.img"
 
 		fmt.Println("Downloading Ubuntu cloud image...")
 		imagePath := filepath.Join(appDir, "images", imageFileName)

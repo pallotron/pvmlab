@@ -88,9 +88,13 @@ var vmStartCmd = &cobra.Command{
 			}
 		} else { // target
 			qemuArgs = []string{
-				"qemu-system-x86_64",
+				"qemu-system-aarch64",
+				"-M", "virt",
+				"-cpu", "host",
+				"-accel", "hvf",
 				"-m", "2048",
-				"-drive", "if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-x86_64-code.fd",
+				"-smp", "2",
+				"-drive", "if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
 				"-drive", fmt.Sprintf("file=%s,format=qcow2,if=virtio", vmDiskPath),
 				"-drive", fmt.Sprintf("file=%s,format=raw,if=virtio", isoPath),
 				"-device", fmt.Sprintf("virtio-net-pci,netdev=net0,mac=%s", meta.MAC),
