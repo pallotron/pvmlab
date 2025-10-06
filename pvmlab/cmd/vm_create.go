@@ -32,6 +32,12 @@ The --role flag determines the type of VM to create.
 
 		var ip, macForMetadata string
 
+		appDir, err := config.GetAppDir()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
 		if role == "provisioner" {
 			ip = "192.168.100.1"
 			macForMetadata = "00:00:DE:AD:BE:EF" // Static MAC for the private interface
@@ -72,12 +78,6 @@ The --role flag determines the type of VM to create.
 			} else {
 				macForMetadata = mac
 			}
-		}
-
-		appDir, err := config.GetAppDir()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
 		}
 
 		imageUrl := config.UbuntuARMImageURL

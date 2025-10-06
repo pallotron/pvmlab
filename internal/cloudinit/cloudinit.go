@@ -8,7 +8,6 @@ import (
 	"provisioning-vm-lab/internal/runner"
 )
 
-
 const (
 	provisionerMetaDataTemplate = `instance-id: iid-cloudimg-provisioner
 local-hostname: provisioner
@@ -35,13 +34,18 @@ chpasswd:
 runcmd:
   - 'echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections'
   - 'echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections'
-  - 'apt-get update'
-  - 'DEBIAN_FRONTEND=noninteractive apt-get -y install acpid iptables-persistent'
   - 'sed -i "/net.ipv4.ip_forward/d" /etc/sysctl.conf'
   - 'echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf'
   - 'sysctl -p'
   - 'iptables -t nat -A POSTROUTING -o enp0s1 -j MASQUERADE'
   - 'iptables-save > /etc/iptables/rules.v4'
+  - 'DEBIAN_FRONTEND=noninteractive apt-get -y install acpid iptables-persistent ca-certificates curl gnupg'
+  - 'install -m 0755 -d /etc/apt/keyrings'
+  - 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg'
+  - 'chmod a+r /etc/apt/keyrings/docker.gpg'
+  - 'sh -c ''echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null'''
+  - 'apt-get update'
+  - 'DEBIAN_FRONTEND=noninteractive apt-get -y install docker-ce docker-ce-cli containerd.io'
 `
 	provisionerNetworkConfig = `version: 2
 ethernets:
