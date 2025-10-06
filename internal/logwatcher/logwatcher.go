@@ -36,11 +36,12 @@ func WaitForMessage(vmName, message string, timeout time.Duration) error {
 	for {
 		select {
 		case line := <-t.Lines:
-			if line != nil {
-				if strings.Contains(strings.TrimSpace(line.Text), message) {
-					fmt.Printf("Message '%s' found in log file.\n", message)
-					return nil
-				}
+			if line.Err != nil {
+				return fmt.Errorf("error reading log file: %w", line.Err)
+			}
+			if strings.Contains(strings.TrimSpace(strings.ToLower(line.Text)), strings.ToLower(message)) {
+				fmt.Printf("Message '%s' found in log file.\n", message)
+				return nil
 			}
 		case <-timeoutChan:
 			return fmt.Errorf("timed out waiting for message in log file")

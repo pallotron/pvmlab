@@ -1,4 +1,3 @@
-
 package cmd
 
 import (
@@ -7,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"provisioning-vm-lab/internal/config"
+	"provisioning-vm-lab/internal/metadata"
 
 	"github.com/spf13/cobra"
 )
@@ -15,14 +15,14 @@ import (
 var vmShellCmd = &cobra.Command{
 	Use:   "shell <vm-name>",
 	Short: "Connects to a VM via SSH",
-	Long:  `Connects to a VM via SSH. Currently only supported for the 'provisioner' VM.`,
+	Long:  `Connects to a VM via SSH.`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		vmName := args[0]
 
-		if vmName != "provisioner" {
-			fmt.Println("SSH shell is currently only supported for the 'provisioner' VM.")
-			fmt.Println("Networking for target VMs is TBD.")
+		meta, err := metadata.Load(vmName)
+		if err != nil {
+			fmt.Println("Error loading VM metadata:", err)
 			os.Exit(1)
 		}
 
@@ -33,13 +33,23 @@ var vmShellCmd = &cobra.Command{
 		}
 
 		sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa")
-		sshCmd := exec.Command("ssh", "-i", sshKeyPath, "-p", "2222", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost")
+		var sshCmd *exec.Cmd
+
+		if meta.Role == "provisioner" {
+			fmt.Println("Connecting to provisioner VM via forwarded port 2222...")
+			sshCmd = exec.Command("ssh", "-i", sshKeyPath, "-p", "2222", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost")
+		} else {
+			// TODO: if it's a target VM we need to ssh thru the provisioner. To be done.
+			fmt.Println("Error: Target VM not supported for now. Please ssh from the provisioner VM.")
+			os.Exit(1)
+		}
+
 		sshCmd.Stdout = os.Stdout
 		sshCmd.Stdin = os.Stdin
 		sshCmd.Stderr = os.Stderr
 
 		if err := sshCmd.Run(); err != nil {
-			fmt.Println("Error connecting to VM:", err)
+			// Don't print error on normal SSH exit
 		}
 	},
 }

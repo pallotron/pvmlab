@@ -114,54 +114,55 @@ var vmStartCmd = &cobra.Command{
 		finalCmd := []string{clientPath, socketPath}
 		finalCmd = append(finalCmd, qemuArgs...)
 
-				fmt.Println("Executing command:", strings.Join(finalCmd, " "))
-				cmdRun := exec.Command(finalCmd[0], finalCmd[1:]...)
-				output, err := cmdRun.CombinedOutput()
-				if err != nil {
-					fmt.Printf("Error starting VM '%s': %v\n", vmName, err)
-					fmt.Println("QEMU output:")
-					fmt.Println(string(output))
-					os.Exit(1)
-				}
-		
-				// The command can succeed even if the daemon fails.
-				// A short sleep allows the PID file to be created.
-				time.Sleep(1 * time.Second)
-				running, pidErr := pidfile.IsRunning(vmName)
-				if pidErr != nil || !running {
-					fmt.Printf("VM command executed, but VM '%s' is not running.\n", vmName)
-					if pidErr != nil {
-						fmt.Printf("Error checking PID file: %v\n", pidErr)
-					}
-					fmt.Println("QEMU output (if any):")
-					fmt.Println(string(output))
-					os.Exit(1)
-				}
-		
-				fmt.Printf("%s VM started successfully.\n", vmName)		
-		        if wait {
-		            if err := logwatcher.WaitForMessage(vmName, "cloud-final.service", 5*time.Minute); err != nil {
-		                fmt.Println(err)
-		                // We don't exit here, as the VM is running, but the wait failed.
-		            } else {
-		                // The wait was successful, so we can exit cleanly.
-		                os.Exit(0)
-		            }
-		        }
-		    },
+		fmt.Println("Executing command:", strings.Join(finalCmd, " "))
+		cmdRun := exec.Command(finalCmd[0], finalCmd[1:]...)
+		output, err := cmdRun.CombinedOutput()
+		if err != nil {
+			fmt.Printf("Error starting VM '%s': %v\n", vmName, err)
+			fmt.Println("QEMU output:")
+			fmt.Println(string(output))
+			os.Exit(1)
 		}
-		
-		func getSocketVMNetClientPath() (string, error) {
-		    cmd := exec.Command("brew", "--prefix", "socket_vmnet")
-		    out, err := cmd.Output()
-		    if err != nil {
-		        return "", err
-		    }
-		    prefix := strings.TrimSpace(string(out))
-		    return filepath.Join(prefix, "bin", "socket_vmnet_client"), nil
+
+		// The command can succeed even if the daemon fails.
+		// A short sleep allows the PID file to be created.
+		time.Sleep(1 * time.Second)
+		running, pidErr := pidfile.IsRunning(vmName)
+		if pidErr != nil || !running {
+			fmt.Printf("VM command executed, but VM '%s' is not running.\n", vmName)
+			if pidErr != nil {
+				fmt.Printf("Error checking PID file: %v\n", pidErr)
+			}
+			fmt.Println("QEMU output (if any):")
+			fmt.Println(string(output))
+			os.Exit(1)
 		}
-		
-		func init() {
-		    vmCmd.AddCommand(vmStartCmd)
-		    vmStartCmd.Flags().BoolVar(&wait, "wait", true, "Wait for cloud-init to complete before exiting.")
+
+		fmt.Printf("%s VM started successfully.\n", vmName)
+		// TODO: switch to using QEMU guest agent and unix socket
+		if wait {
+			if err := logwatcher.WaitForMessage(vmName, "cloud-config.target", 5*time.Minute); err != nil {
+				fmt.Println(err)
+				// We don't exit here, as the VM is running, but the wait failed.
+			} else {
+				// The wait was successful, so we can exit cleanly.
+				os.Exit(0)
+			}
 		}
+	},
+}
+
+func getSocketVMNetClientPath() (string, error) {
+	cmd := exec.Command("brew", "--prefix", "socket_vmnet")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	prefix := strings.TrimSpace(string(out))
+	return filepath.Join(prefix, "bin", "socket_vmnet_client"), nil
+}
+
+func init() {
+	vmCmd.AddCommand(vmStartCmd)
+	vmStartCmd.Flags().BoolVar(&wait, "wait", true, "Wait for cloud-init to complete before exiting.")
+}

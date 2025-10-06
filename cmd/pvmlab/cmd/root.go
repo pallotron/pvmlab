@@ -10,9 +10,9 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "pvmlab",
 	Short: "pvmlab is a CLI for managing provisioning VM labs",
-	Long:  `A longer description that spans multiple lines and likely contains examples and usage of using your application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Do Stuff Here
+		// Print the help message if no subcommand is provided
+		cmd.Help()
 	},
 }
 
