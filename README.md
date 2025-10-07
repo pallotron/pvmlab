@@ -20,20 +20,20 @@ All generated artifacts (VM disks, ISOs, logs, etc.) are stored neatly in `~/.pr
 
 The lab is composed of two QEMU virtual machines connected to a private virtual network.
 
-1.  **Provisioner VM:**
-    - **OS:** Ubuntu Server 24.04 (aarch64)
-    - **Role:** `provisioner`, there could be only one provisioner per lab
-    - **Network Interfaces:**
-        - `enp0s1` (WAN): Connects to the internet via QEMU's `user` network (NAT).
-        - `enp0s2` (LAN): Connects to the private network with a static IP of `192.168.100.1`.
-    - **Services:** Configured via `cloud-init` to enable IP forwarding and configure NAT.
-    - **Docker**: Utilizes `Docker` to run the pxeboot stack: DHCP server, TFTP server, and Nginx server.
+**Provisioner VM:**
+- **OS:** Ubuntu Server 24.04 (aarch64)
+- **Role:** `provisioner`, there could be only one provisioner per lab
+- **Network Interfaces:**
+    - `enp0s1` (WAN): Connects to the internet via QEMU's `user` network (NAT).
+    - `enp0s2` (LAN): Connects to the private network with a static IP of `192.168.100.1`.
+- **Services:** Configured via `cloud-init` to enable IP forwarding and configure NAT.
+- **Docker**: Utilizes `Docker` to run the pxeboot stack: DHCP server, TFTP server, and Nginx server.
 
-2.  **Target VM:**
-    - **OS:** Ubuntu Server 24.04 (x86_64)
-    - **Role:** `target`
-    - **Network Interface:**
-        - `eth0`: Connects to the private network and obtains its IP from the dhcpd server running on the provisioner VM.
+**Target VM:**
+- **OS:** Ubuntu Server 24.04 (x86_64)
+- **Role:** `target`
+- **Network Interface:**
+    - `eth0`: Connects to the private network and obtains its IP from the dhcpd server running on the provisioner VM.
 
 ## Artifacts Directory
 
