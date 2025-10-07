@@ -1,4 +1,4 @@
-# Go QEMU Provisioning Lab for macOS
+# pvmlab: A Simple QEMU based provisioning lab for macOS
 
 This project provides a command-line tool, `pvmlab`, to automate the setup of a simple virtual provisioning lab on macOS. It uses `QEMU`, `socket_vmnet`, `cloud-init`, and `Docker` to create and manage a two-VM environment.
 
@@ -320,3 +320,7 @@ The plan is to add `x86_64` support.
 Currently `pvmlab shell <client>` does not work with client VMs that are on the private `socket_vmnet` network.
 You need to `pvmlab shell provisioner` first. Then `ssh ubuntu@<client private IP>`.
 This needs improvements, probably via ssh tunnels on the `provisioner` VM.
+
+### Make the system agnostic to the host OS (currently it's MacOS only)
+Right now this project is heavily forced to run on macOS. This is because of the `socket_vmnet` service.
+The plan is to make this project more generic, so that it can be used on Linux too.
