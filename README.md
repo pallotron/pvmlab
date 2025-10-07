@@ -21,9 +21,12 @@ All generated artifacts (VM disks, ISOs, logs, etc.) are stored neatly in `~/.pr
 ```mermaid
 graph TD
 %% Define style classes for different components
-classDef hostStyle fill:#cde4ff,stroke:#5a96e0,stroke-width:2px,color:#000
-classDef vmStyle fill:#d5f0d5,stroke:#6ab06a,stroke-width:2px,color:#000
-classDef dockerStyle fill:#fff2cc,stroke:#d6b656,stroke-width:2px,color:#000
+classDef hostStyle fill:#cde4ff,stroke:black,stroke-width:2px,color:#000
+classDef vmStyle fill:#d5f0d5,stroke:black,stroke-width:2px,color:#000
+classDef dockerStyle fill:#fff2cc,stroke:black,stroke-width:2px,color:#000
+classDef interfaceStyle fill:#9cced6,stroke:black,stroke-width:2px,color:#000
+classDef cliStyle fill:#d69ca4,stroke:black,stroke-width:2px,color:#000
+classDef socketVmnetStyle fill:#69a3bf,stroke:black,stroke-width:2px,color:#000
 
 subgraph H [Hypervisor Host, ie MacOs]
     cli[pvmlab CLI]
@@ -62,6 +65,9 @@ cli -- manages --> T
 class H hostStyle
 class pxeboot_stack,Docker,pxeboot_services dockerStyle
 class V,T vmStyle
+class target_vm_enp0s1,provisioner_vm_enp0s1,provisioner_vm_enp0s2,provisioner_vm_enp0s3,en0,virtual_net0_shared,virtual_net1_private interfaceStyle
+class cli cliStyle
+class N socketVmnetStyle
 linkStyle default stroke:black
 ```
 
