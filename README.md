@@ -30,7 +30,7 @@ The lab is composed of two QEMU virtual machines connected to a private virtual 
 - **Docker**: Utilizes `Docker` to run the pxeboot stack: DHCP server, TFTP server, and Nginx server.
 
 **Target VM:**
-- **OS:** Ubuntu Server 24.04 (x86_64)
+- **OS:** Ubuntu Server 24.04 (aarch64)
 - **Role:** `target`
 - **Network Interface:**
     - `eth0`: Connects to the private network and obtains its IP from the dhcpd server running on the provisioner VM.
@@ -286,6 +286,8 @@ The project is a Go CLI application with the following structure:
 
 ## TODO:
 
+
+### `pxeboot_stack`
 The `pxeboot_stack` Docker container currently runs dnsmasq for DHCP, TFTP.
 But the plan is to:
 - replace `dnsmasq` DHCP with a personalised version of Meta's dhcplb: https://github.com/metacloud/dhcplb
@@ -295,3 +297,7 @@ But the plan is to:
     - ipxe script to download the kernel and initrd from nginx
     - OS installer ramdisks
     - disk images
+
+### Architectures
+Currently everythign is `aarch64`.
+The plan is to add `x86_64` support.
