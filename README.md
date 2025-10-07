@@ -18,6 +18,53 @@ All generated artifacts (VM disks, ISOs, logs, etc.) are stored neatly in `~/.pr
 
 ## Architecture
 
+```mermaid
+graph TD
+%% Define style classes for different components
+classDef hostStyle fill:#cde4ff,stroke:#5a96e0,stroke-width:2px,color:#000
+classDef vmStyle fill:#d5f0d5,stroke:#6ab06a,stroke-width:2px,color:#000
+classDef dockerStyle fill:#fff2cc,stroke:#d6b656,stroke-width:2px,color:#000
+
+subgraph H [Hypervisor Host, ie MacOs]
+    cli[pvmlab CLI]
+    en0
+    subgraph V [Provisioner VM]
+        provisioner_vm_enp0s1(enp0s1)
+        provisioner_vm_enp0s2(enp0s2)
+        Docker[Docker daemon]
+        subgraph "pxeboot_stack" [pxeboot_stack container]
+            pxeboot_services
+        end
+    end
+    subgraph T [Target VM]
+        target_vm_enp0s1(enp0s1)
+    end
+    subgraph N [socket_vmnet]
+        virtual_net1_private(net1 vmnet.host)
+        virtual_net0_shared(net0 vmnet.shared)
+    end
+end
+
+
+en0 <----> Internet
+Docker -- manages --> pxeboot_stack
+provisioner_vm_enp0s1 <--> virtual_net0_shared
+provisioner_vm_enp0s2 <-- provisioning traffic --> virtual_net1_private
+provisioner_vm_enp0s2 <-- Internet NAT for Target VM --> provisioner_vm_enp0s1
+target_vm_enp0s1 <-- provisioing traffic --> virtual_net1_private
+pxeboot_services <-- bind to --> provisioner_vm_enp0s2
+virtual_net0_shared <--> en0
+cli -- manages --> V
+cli -- manages --> T
+
+
+%% Apply the defined classes to the nodes
+class H hostStyle
+class pxeboot_stack,Docker,pxeboot_services dockerStyle
+class V,T vmStyle
+linkStyle default stroke:black
+```
+
 The lab is composed of two QEMU virtual machines connected to a private virtual network.
 
 **Provisioner VM:**
