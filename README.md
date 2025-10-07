@@ -1,6 +1,6 @@
 # Go QEMU Provisioning Lab for macOS
 
-This project provides a command-line tool, `pvmlab`, to automate the setup of a simple virtual provisioning lab on macOS. It uses QEMU, `socket_vmnet`, and `cloud-init` to create and manage a two-VM environment.
+This project provides a command-line tool, `pvmlab`, to automate the setup of a simple virtual provisioning lab on macOS. It uses `QEMU`, `socket_vmnet`, `cloud-init`, and `Docker` to create and manage a two-VM environment.
 
 All generated artifacts (VM disks, ISOs, logs, etc.) are stored neatly in `~/.provisioning-vm-lab/`, keeping the project repository clean.
 
@@ -10,10 +10,11 @@ All generated artifacts (VM disks, ISOs, logs, etc.) are stored neatly in `~/.pr
 - **Clean Project Directory:** All generated files are stored outside the project's directory in `~/.provisioning-vm-lab/`.
 - **Two-VM Architecture:**
     - **Provisioner VM:** An `aarch64` Ubuntu server that provides network services.
-    - **Target VM:** An `x86_64` Ubuntu server that is configured by the lab.
+    - **Target VM:** An `x86_64` Ubuntu server that is configured by the lab. (TODO)
 - **Isolated Provisioning Network:** Utilizes `socket_vmnet` to create a private host-only network between the VMs.
 - **Internet Access via NAT:** The provisioner VM has internet access and acts as a gateway for the target VM.
 - **Declarative VM Configuration:** Uses `cloud-init` to declaratively configure both VMs on first boot.
+- **Docker Containerization:** Utilizes `Docker` to run the pxeboot stack: DHCP server, TFTP server, and Nginx server.
 
 ## Architecture
 
@@ -21,18 +22,18 @@ The lab is composed of two QEMU virtual machines connected to a private virtual 
 
 1.  **Provisioner VM:**
     - **OS:** Ubuntu Server 24.04 (aarch64)
-    - **Role:** `provisioner`
+    - **Role:** `provisioner`, there could be only one provisioner per lab
     - **Network Interfaces:**
         - `enp0s1` (WAN): Connects to the internet via QEMU's `user` network (NAT).
         - `enp0s2` (LAN): Connects to the private network with a static IP of `192.168.100.1`.
     - **Services:** Configured via `cloud-init` to enable IP forwarding and configure NAT.
+    - **Docker**: Utilizes `Docker` to run the pxeboot stack: DHCP server, TFTP server, and Nginx server.
 
 2.  **Target VM:**
     - **OS:** Ubuntu Server 24.04 (x86_64)
     - **Role:** `target`
     - **Network Interface:**
-        - `eth0`: Connects to the private network with a static IP of `192.168.100.2`.
-    - **Configuration:** Configured via `cloud-init` to use the provisioner VM (`192.168.100.1`) as its default gateway.
+        - `eth0`: Connects to the private network and obtains its IP from the dhcpd server running on the provisioner VM.
 
 ## Artifacts Directory
 
@@ -42,71 +43,66 @@ The structure of this directory is as follows:
 
 ```
 ~/.provisioning-vm-lab/
-├── configs/      # Generated cloud-init ISO files (.iso)
-├── images/       # Downloaded Ubuntu cloud images
-├── logs/         # VM console logs
-├── monitors/     # QEMU monitor sockets
-├── pids/         # VM process ID files
-├── ssh/          # Generated SSH key pair (vm_rsa, vm_rsa.pub)
-└── vms/          # VM disk images (.qcow2)
+├── configs/        # Generated cloud-init ISO files (.iso) for each VM
+├── docker_images/  # Docker images saved as .tar files to be shared with the provisioner VM
+├── images/         # Downloaded Ubuntu cloud image templates
+├── logs/           # VM console logs
+├── monitors/       # QEMU monitor sockets for interacting with the hypervisor
+├── pids/           # Process ID files for running VMs
+├── ssh/            # Generated SSH key pair (vm_rsa, vm_rsa.pub) for VM access
+└── vms/            # VM disk images (.qcow2) created from the base images
 ```
 
 ## Prerequisites
 
+Things you need to install yourself:
 - macOS
 - [Homebrew](https://brew.sh/)
-- Go (to build the CLI)
+- The Go language ecossytem (to build the CLI): use `brew install go`
+
+These will be installed during the setup process:
 - QEMU (`qemu`)
 - CDRTools (`cdrtools`)
 - `socat`
 - `socket_vmnet`
+- `docker` installed on your MacOS machine
 
-## Setup
+## Installation
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository-url>
-    cd <repository-directory>
-    ```
-
-2.  **Build the CLI:**
-    ```bash
-    go build -o pvmlab ./pvmlab
-    ```
-
-3.  **Install Dependencies & Configure Environment:**
-    Run the `setup` command. This will use Homebrew to install required packages and create the `~/.provisioning-vm-lab/` directory structure, including an SSH key for accessing the VMs.
-    ```bash
-    ./pvmlab setup
-    Creating provisioning-vm-lab directory structure...
-    Directory structure created successfully.
-    Generating SSH keys...
-    SSH keys generated successfully.
-    Generating UUID...
-    Checking for UUID file at: ~/.provisioning-vm-lab/uuidgen
-    UUID file does not exist, creating it...
-    UUID generated successfully.
-    Checking dependencies...
-    Dependencies checked successfully.
-    Checking socket_vmnet service status...
-    Password:
-    socket_vmnet service is already running
-    ```
-
-## Installation (Optional)
-
-To make the `pvmlab` command available system-wide, you can install it using `go install`. This will place the binary in your Go bin directory (usually `$HOME/go/bin`), which should be part of your system's `$PATH`.
+To make the `pvmlab` command available system-wide from anywhere, you can install it directly from GitHub. This will download, build, and place the binary in your Go bin directory (usually `$HOME/go/bin`), which should be part of your system's `$PATH`.
 
 ```bash
-go install ./pvmlab
+go install github.com/pallotron/provisioning-vm-lab/pvmlab@latest
 ```
 After installation, you can run the command as `pvmlab` from any directory.
+
+Run the `setup` command. This will use Homebrew to install required packages and create the `~/.provisioning-vm-lab/` directory structure, including an SSH key for accessing the VMs.
+
+It might require sudo password:
+
+```bash
+$ pvmlab setup
+Creating provisioning-vm-lab directory structure...
+Directory structure created successfully.
+Generating SSH keys...
+SSH keys generated successfully.
+Generating UUID...
+Checking for UUID file at: ~/.provisioning-vm-lab/uuidgen
+UUID file does not exist, creating it...
+UUID generated successfully.
+Checking dependencies...
+Dependencies checked successfully.
+Checking socket_vmnet service status...
+Password:
+socket_vmnet service is already running
+```
 
 ## Shell Completion
 
 The CLI can generate completion scripts for various shells. This allows you to use the Tab key to auto-complete commands and flags.
 
 **For Bash:**
+
 Make sure you have `bash-completion` installed. Then, add the completion script to your setup:
 ```bash
 # macOS (via Homebrew)
@@ -114,6 +110,7 @@ pvmlab completion bash > $(brew --prefix)/etc/bash_completion.d/pvmlab
 ```
 
 **For Zsh:**
+
 Generate the completion script in a directory that is part of your Zsh `fpath`:
 ```bash
 pvmlab completion zsh > "${fpath[1]}/_pvmlab"
@@ -123,63 +120,107 @@ You will need to restart your shell for the changes to take effect.
 
 ## Usage
 
-1.  **Start the `socket_vmnet` Service:**
-    This service manages the private virtual network. You may be prompted for your password.
-    ```bash
-    pvmlab service start
-    ```
+**Start the `socket_vmnet` Service:**
 
-2.  **Create the VMs:**
-    This command downloads cloud images, creates VM disks, and generates cloud-init configurations in the `~/.provisioning-vm-lab/` directory.
-    ```bash
-    # Create the provisioner
-    ./pvmlab vm create provisioner --role provisioner
+This service manages the private virtual network. You may be prompted for your password.
+```bash
+pvmlab socket_vmnet start
+```
 
-    # Create a target VM
-    ./pvmlab vm create target1 --role target
-    ```
+**Create the VMs:**
 
-3.  **Start the VMs:**
-    ```bash
-    ./pvmlab vm start provisioner
-    ./pvmlab vm start target1
-    ```
+This command downloads cloud images, creates VM disks, and generates cloud-init configurations in the `~/.provisioning-vm-lab/` directory.
 
-4.  **Access the VMs:**
-    - **Provisioner VM:**
-      ```bash
-      ./pvmlab vm shell provisioner
-      ```
-    - **Target VM:** First, SSH into the provisioner, then connect to the target's private IP:
-      ```bash
-      # From your Mac
-      ./pvmlab vm shell provisioner
+```bash
+# Create the provisioner
+pvmlab vm create provisioner --role provisioner
 
-      # From inside the provisioner VM
-      ssh ubuntu@192.168.100.2
-      ```
+# Create a target VM
+pvmlab vm create target1
+```
 
-5.  **Monitor Logs:**
-    ```bash
-    ./pvmlab vm logs provisioner
-    ./pvmlab vm logs target1
-    ```
+**Start the VMs:**
+```bash
+pvmlab vm start provisioner
+pvmlab vm start target1
+```
 
-6.  **Stopping the VMs:**
-    ```bash
-    ./pvmlab vm stop provisioner
-    ./pvmlab vm stop target1
-    ```
+**Access the VMs:**
+- **Provisioner VM:**
+```bash
+pvmlab vm shell provisioner
+```
+- **Target VM:** First, SSH into the provisioner, then connect to the target's private IP:
+```bash
+# From your Mac
+pvmlab vm shell provisioner
+# From inside the provisioner VM
+ssh ubuntu@<private IP from DHCPD>
+```
 
-7.  **Cleanup:**
-    To stop a VM and remove its files from `~/.provisioning-vm-lab/`:
-    ```bash
-    ./pvmlab vm clean provisioner
-    ```
-    To clean up everything, including the `socket_vmnet` service and the entire `~/.provisioning-vm-lab/` directory:
-    ```bash
-    ./pvmlab clean
-    ```
+**Monitor Logs:**
+```bash
+pvmlab vm logs provisioner
+pvmlab vm logs target1
+```
+
+**Stopping the VMs:**
+```bash
+pvmlab vm stop provisioner
+pvmlab vm stop target1
+```
+
+**Cleanup:**
+To stop a VM and remove its files from `~/.provisioning-vm-lab/`:
+```bash
+pvmlab vm clean provisioner
+```
+To clean up everything, including the `socket_vmnet` service and the entire `~/.provisioning-vm-lab/` directory:
+```bash
+pvmlab clean
+```
+
+### Interacting with the pxeboot Container
+
+The provisioner VM has a Docker container running the pxeboot stack.
+The container is defined in `pxeboot_stack/Dockerfile`.
+
+
+All container management is done **from within the provisioner VM** using standard Docker commands.
+
+**Get a Shell Inside the Container:**
+
+For debugging, you can get an interactive shell.
+```bash
+docker exec -it pxeboot_stack /bin/sh
+```
+
+**Manage Container Lifecycle:**
+```bash
+# Stop the container
+docker stop pxeboot_stack
+
+# Start the container
+docker start pxeboot_stack
+
+# Restart the container
+docker restart pxeboot_stack
+```
+
+**Clean Up Unused Images:**
+After reloading the image several times, you may have dangling (untagged) images. You can clean them up to save space.
+```bash
+# First, remove any stopped containers that may reference old images
+docker container prune
+
+# Then, remove dangling images
+docker image prune
+```
+
+**Tail the dnsmasq-specific log file**:
+```bash
+docker exec pxeboot_stack tail -f /var/log/dnsmasq.log
+```
 
 ## CLI Commands
 
@@ -196,16 +237,61 @@ You will need to restart your shell for the changes to take effect.
 | `pvmlab vm logs <name>`      | Tails the console logs for the specified VM.                             |
 | `pvmlab vm clean <name>`     | Stops the VM and deletes its generated files.                            |
 | `pvmlab clean`               | Stops all VMs and services, and removes the artifacts directory.         |
+
+## Development Environment
+
+If you want to contribute to the project, you'll need to set up a development environment:
+
+Clone the repository:
+```bash
+git clone https://github.com/pallotron/provisioning-vm-lab
+cd provisioning-vm-lab
+```
+
+Build the CLI:
+```bash
+go build -o pvmlab ./pvmlab
+```
+
+Install Dependencies & Configure Environment: same as the pvmlab `setup` command above.
+
 ## Project Structure
 
 The project is a Go CLI application with the following structure:
 
 ```
 .
-├── pvmlab/           # Main application package and Cobra command definitions
-├── internal/         # Helper packages for business logic (brew, cloudinit, config, etc.)
-├── go.mod            # Go module definition
-├── go.sum            # Go module dependencies
-├── Makefile          # (Deprecated) Kept for reference or simple tasks
+├── internal/               # Internal packages not intended for reuse
+│   ├── brew/
+│   ├── cloudinit/
+│   ├── config/
+│   ├── downloader/
+│   ├── logwatcher/
+│   ├── metadata/
+│   ├── pidfile/
+│   ├── runner/
+│   └── socketvmnet/
+├── pvmlab/                 # Main application package
+│   ├── cmd/                # Cobra command definitions
+│   └── main.go
+├── pxeboot_stack/          # Source for the Docker container running the pxeboot stack
+│   ├── Dockerfile
+│   ├── Makefile
+│   ├── dnsmasq.conf
+│   └── supervisord.conf
+├── go.mod                  # Go module definition
+├── go.sum                  # Go module dependencies
 └── README.md
 ```
+
+## TODO:
+
+The `pxeboot_stack` Docker container currently runs dnsmasq for DHCP, TFTP.
+But the plan is to:
+- replace `dnsmasq` DHCP with a personalised version of Meta's dhcplb: https://github.com/metacloud/dhcplb
+- keep `dnsmasq` for TFTP
+- add `nginx` for webserver to serve:
+    - initrd and vmlinuz (kernel) files
+    - ipxe script to download the kernel and initrd from nginx
+    - OS installer ramdisks
+    - disk images
