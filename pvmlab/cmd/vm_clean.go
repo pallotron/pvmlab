@@ -22,10 +22,26 @@ var vmCleanCmd = &cobra.Command{
 		// First, stop the VM if it's running
 		vmStopCmd.Run(cmd, args)
 
+		meta, err := metadata.Load(vmName)
+		if err != nil {
+			fmt.Printf("Warning: could not read metadata for %s: %v\n", vmName, err)
+		}
+
 		appDir, err := config.GetAppDir()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
+		}
+
+		if meta != nil && meta.Role == "provisioner" {
+			dockerImagesDir := filepath.Join(appDir, "docker_images")
+			dockerTarball := filepath.Join(dockerImagesDir, "pxeboot_stack.tar")
+			if err := os.RemoveAll(dockerTarball); err != nil {
+				// Ignore errors if the path doesn't exist
+				if !os.IsNotExist(err) {
+					fmt.Println("Error removing path:", err)
+				}
+			}
 		}
 
 		// Remove the metadata file

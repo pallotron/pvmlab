@@ -47,14 +47,11 @@ write_files:
       echo "Done."
 
 runcmd:
-  - 'echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections'
-  - 'echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections'
   - 'sed -i "/net.ipv4.ip_forward/d" /etc/sysctl.conf'
   - 'echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf'
   - 'sysctl -p'
-  - 'iptables -t nat -A POSTROUTING -o enp0s1 -j MASQUERADE'
-  - 'iptables-save > /etc/iptables/rules.v4'
   - 'DEBIAN_FRONTEND=noninteractive apt-get -y install acpid iptables-persistent ca-certificates curl gnupg'
+
   - 'install -m 0755 -d /etc/apt/keyrings'
   - 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg'
   - 'chmod a+r /etc/apt/keyrings/docker.gpg'
@@ -65,6 +62,12 @@ runcmd:
   - 'mount -t 9p -o trans=virtio,version=9p2000.L host_share_docker_images /mnt/host/docker_images'
   - 'docker load -i /mnt/host/docker_images/pxeboot_stack.tar'
   - 'docker run -d --name pxeboot_stack --net=host --privileged pxeboot_stack:latest'
+
+  - 'echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections'
+  - 'echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections'
+  - 'DEBIAN_FRONTEND=noninteractive apt-get -y install iptables-persistent'
+  - 'iptables -t nat -A POSTROUTING -o enp0s1 -j MASQUERADE'
+  - 'iptables-save > /etc/iptables/rules.v4'
 `
 	provisionerNetworkConfig = `version: 2
 ethernets:
@@ -136,7 +139,7 @@ func CreateISO(vmName, role, appDir, isoPath, ip, mac string) error {
 		}
 		metaData = fmt.Sprintf(targetMetaDataTemplate, vmName, vmName, string(sshKey))
 		userData = targetUserData
-		networkConfig = fmt.Sprintf(targetNetworkConfigTemplate, mac, ip)
+		networkConfig = fmt.Sprintf(targetNetworkConfigTemplate, mac)
 		vendorData = targetVendorData
 	}
 

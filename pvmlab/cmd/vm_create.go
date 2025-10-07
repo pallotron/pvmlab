@@ -119,6 +119,8 @@ The --role flag determines the type of VM to create.
 		}
 		fmt.Println("Cloud-config ISO generated successfully.")
 
+		// TODO: pull the pxeboot_stack docker image from a release on github if we are not running in a dev environment
+		// (as in, we do not find the pxeboot_stack directory in CWD)
 		if role == "provisioner" {
 			dockerImagesDir := filepath.Join(appDir, "docker_images")
 			dockerImageTar := filepath.Join(dockerImagesDir, "pxeboot_stack.tar")
