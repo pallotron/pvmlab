@@ -19,6 +19,8 @@ COPY --from=ipxe-builder /ipxe-binaries/* /tftpboot/
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY dnsmasq.conf /etc/dnsmasq.conf
 
+RUN touch /var/log/dnsmasq.log && chmod 666 /var/log/dnsmasq.log
+
 
 
 EXPOSE 67/udp

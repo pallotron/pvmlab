@@ -31,6 +31,21 @@ chpasswd:
     - {name: root, password: pass, type: text}
   expire: False
 
+write_files:
+  - path: /usr/local/bin/pxeboot_stack_reload.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -e
+      echo "Stopping and removing old container..."
+      docker stop pxeboot_stack || true
+      docker rm pxeboot_stack || true
+      echo "Loading new image from /mnt/host/docker_images/pxeboot_stack.tar..."
+      docker load -i /mnt/host/docker_images/pxeboot_stack.tar
+      echo "Starting new container..."
+      docker run -d --name pxeboot_stack --net=host --privileged pxeboot_stack:latest
+      echo "Done."
+
 runcmd:
   - 'echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections'
   - 'echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections'
@@ -46,6 +61,10 @@ runcmd:
   - 'sh -c ''echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null'''
   - 'apt-get update'
   - 'DEBIAN_FRONTEND=noninteractive apt-get -y install docker-ce docker-ce-cli containerd.io'
+  - 'mkdir -p /mnt/host/docker_images'
+  - 'mount -t 9p -o trans=virtio,version=9p2000.L host_share_docker_images /mnt/host/docker_images'
+  - 'docker load -i /mnt/host/docker_images/pxeboot_stack.tar'
+  - 'docker run -d --name pxeboot_stack --net=host --privileged pxeboot_stack:latest'
 `
 	provisionerNetworkConfig = `version: 2
 ethernets:
@@ -87,14 +106,7 @@ chpasswd:
     static-interface:
       match:
         macaddress: "%s"
-      dhcp4: false
-      addresses:
-        - %s/24
-      routes:
-        - to: 0.0.0.0/0
-          via: 192.168.100.1
-      nameservers:
-        addresses: [8.8.8.8]
+      dhcp4: true
 `
 	targetVendorData = ``
 )

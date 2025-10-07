@@ -55,7 +55,7 @@ var vmStartCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-				isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
+		isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
 		if _, err := os.Stat(isoPath); os.IsNotExist(err) {
 			fmt.Printf("Cloud-init ISO for '%s' not found. Please create the VM first.\n", vmName)
 			os.Exit(1)
@@ -66,6 +66,7 @@ var vmStartCmd = &cobra.Command{
 
 		var qemuArgs []string
 		if meta.Role == "provisioner" {
+			dockerImagesPath := filepath.Join(appDir, "docker_images")
 			qemuArgs = []string{
 				"qemu-system-aarch64",
 				"-M", "virt",
@@ -80,6 +81,7 @@ var vmStartCmd = &cobra.Command{
 				"-netdev", "user,id=net0,hostfwd=tcp::2222-:22",
 				"-device", fmt.Sprintf("virtio-net-pci,netdev=net1,mac=%s", meta.MAC),
 				"-netdev", "socket,id=net1,fd=3",
+				"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_docker_images,security_model=passthrough", dockerImagesPath),
 				"-display", "none",
 				"-daemonize",
 				"-pidfile", pidPath,

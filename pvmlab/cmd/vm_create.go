@@ -119,6 +119,28 @@ The --role flag determines the type of VM to create.
 		}
 		fmt.Println("Cloud-config ISO generated successfully.")
 
+		if role == "provisioner" {
+			dockerImagesDir := filepath.Join(appDir, "docker_images")
+			dockerImageTar := filepath.Join(dockerImagesDir, "pxeboot_stack.tar")
+
+			if _, err := os.Stat(dockerImageTar); os.IsNotExist(err) {
+				fmt.Println("Building and saving pxeboot_stack docker image...")
+				if err := os.MkdirAll(dockerImagesDir, 0755); err != nil {
+					fmt.Printf("Error creating docker_images directory: %v\n", err)
+					os.Exit(1)
+				}
+				cmdRun := exec.Command("make", "save")
+				cmdRun.Dir = "pxeboot_stack"
+				if err := runner.Run(cmdRun); err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+				fmt.Println("pxeboot_stack docker image built and saved successfully.")
+			} else {
+				fmt.Println("pxeboot_stack docker image already exists, skipping build.")
+			}
+		}
+
 		if err := metadata.Save(vmName, role, ip, macForMetadata); err != nil {
 			fmt.Printf("Warning: failed to save VM metadata: %v\n", err)
 		}

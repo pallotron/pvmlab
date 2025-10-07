@@ -1,10 +1,3 @@
-*.iso
-*.monitor
-*.pid
-*.qcow2
 .DS_Store
 .ssh
-cloud_images/
-logs/
-runtime_images/
-uuidgen
+pxeboot_stack/pxeboot_stack-latest.tar
