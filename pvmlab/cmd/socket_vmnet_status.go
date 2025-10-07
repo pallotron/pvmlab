@@ -29,5 +29,5 @@ var socketVmnetServiceStatusCmd = &cobra.Command{
 }
 
 func init() {
-	socketVmnetServiceCmd.AddCommand(socketVmnetServiceStatusCmd)
+	socketVmnetCmd.AddCommand(socketVmnetServiceStatusCmd)
 }

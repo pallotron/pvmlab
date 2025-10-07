@@ -20,5 +20,5 @@ var serviceStartCmd = &cobra.Command{
 }
 
 func init() {
-	socketVmnetServiceCmd.AddCommand(serviceStartCmd)
+	socketVmnetCmd.AddCommand(serviceStartCmd)
 }

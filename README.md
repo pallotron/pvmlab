@@ -145,12 +145,19 @@ pvmlab vm start provisioner
 pvmlab vm start target1
 ```
 
-**Access the VMs:**
-**Provisioner VM:**
+**List VMs:**
+```bash
+pvmlab vm list
+NAME          ROLE          PRIVATE IP      SSH ACCESS                         MAC                 STATUS
+provisioner   provisioner   192.168.100.1   localhost:2222                     00:00:DE:AD:BE:EF   Running
+client        target        192.168.100.2   192.168.100.2 (from provisioner)   be:30:76:b7:d2:fa   Running
+```
+
+**Access the Provisioner VM:**
 ```bash
 pvmlab vm shell provisioner
 ```
-**Target VM:**
+**Access a Target VM:**
 First, SSH into the provisioner, then connect to the target's private IP:
 ```bash
 # From your Mac
@@ -228,9 +235,9 @@ docker exec pxeboot_stack tail -f /var/log/dnsmasq.log
 | Command                      | Description                                                              |
 | ---------------------------- | ------------------------------------------------------------------------ |
 | `pvmlab setup`               | Installs dependencies and creates the artifacts directory.               |
-| `pvmlab service start`       | Starts the `socket_vmnet` background service.                            |
-| `pvmlab service stop`        | Stops the `socket_vmnet` service.                                        |
-| `pvmlab service status`      | Checks the status of the `socket_vmnet` service.                         |
+| `pvmlab socket_vmnet start`       | Starts the `socket_vmnet` background service.                            |
+| `pvmlab socket_vmnet stop`        | Stops the `socket_vmnet` service.                                        |
+| `pvmlab socket_vmnet status`      | Checks the status of the `socket_vmnet` service.                         |
 | `pvmlab vm create <name>`    | Creates a new VM. Requires `--role`.                                     |
 | `pvmlab vm start <name>`     | Starts the specified VM.                                                 |
 | `pvmlab vm stop <name>`      | Stops the specified VM.                                                  |
@@ -249,10 +256,15 @@ git clone https://github.com/pallotron/provisioning-vm-lab
 cd provisioning-vm-lab
 ```
 
-Build the CLI:
+Set things up same as the pvmlab `setup` command above:
 ```bash
-go build -o pvmlab ./pvmlab
+go run ./pvmlab/cmd/main.go setup
 ```
+
+When you make modifications to the code, run the CLI:
+```bash
+go run ./pvmlab/main.go [options]
+``` 
 
 Install Dependencies & Configure Environment: same as the pvmlab `setup` command above.
 
@@ -298,6 +310,7 @@ But the plan is to:
     - OS installer ramdisks
     - disk images
 - Need to expose an gRPC API to provision/remove host reservations inside the `dhcplb` instance.
+- The `vm list` command should get the private IP of the clients by talking to `dhcplb`.
 
 ### Architectures
 Currently everythign is `aarch64`.
