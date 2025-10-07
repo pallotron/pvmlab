@@ -146,15 +146,16 @@ pvmlab vm start target1
 ```
 
 **Access the VMs:**
-- **Provisioner VM:**
+**Provisioner VM:**
 ```bash
 pvmlab vm shell provisioner
 ```
-- **Target VM:** First, SSH into the provisioner, then connect to the target's private IP:
+**Target VM:**
+First, SSH into the provisioner, then connect to the target's private IP:
 ```bash
 # From your Mac
 pvmlab vm shell provisioner
-# From inside the provisioner VM
+# From inside the provisioner VM, take the IP from dnsmasq (this will improve)
 ssh ubuntu@<private IP from DHCPD>
 ```
 
@@ -286,18 +287,23 @@ The project is a Go CLI application with the following structure:
 
 ## TODO:
 
-
 ### `pxeboot_stack`
 The `pxeboot_stack` Docker container currently runs dnsmasq for DHCP, TFTP.
 But the plan is to:
-- replace `dnsmasq` DHCP with a personalised version of Meta's dhcplb: https://github.com/metacloud/dhcplb
+- replace `dnsmasq` DHCP with a personalised version of Meta's [`dhcplb`](https://github.com/metacloud/dhcplb).
 - keep `dnsmasq` for TFTP
 - add `nginx` for webserver to serve:
     - initrd and vmlinuz (kernel) files
     - ipxe script to download the kernel and initrd from nginx
     - OS installer ramdisks
     - disk images
+- Need to expose an gRPC API to provision/remove host reservations inside the `dhcplb` instance.
 
 ### Architectures
 Currently everythign is `aarch64`.
 The plan is to add `x86_64` support.
+
+### Client VMs accessibility
+Currently `pvmlab shell <client>` does not work with client VMs that are on the private `socket_vmnet` network.
+You need to `pvmlab shell provisioner` first. Then `ssh ubuntu@<client private IP>`.
+This needs improvements, probably via ssh tunnels on the `provisioner` VM.
