@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- make install: yes -->
+<plist version="1.0">
+	<dict>
+		<key>Label</key>
+		<string>io.github.lima-vm.socket_vmnet</string>
+		<key>Program</key>
+		<string>/opt/socket_vmnet/bin/socket_vmnet</string>
+		<key>ProgramArguments</key>
+		<array>
+			<string>/opt/socket_vmnet/bin/socket_vmnet</string>
+			<string>--vmnet-gateway=192.168.105.1</string>
+			<string>/var/run/socket_vmnet</string>
+		</array>
+		<key>StandardErrorPath</key>
+		<string>/var/log/socket_vmnet/stderr</string>
+		<key>StandardOutPath</key>
+		<string>/var/log/socket_vmnet/stdout</string>
+		<key>RunAtLoad</key>
+		<true />
+		<key>KeepAlive</key>
+		<true />
+		<key>UserName</key>
+		<string>root</string>
+		<!-- Avoid resource limits harming performance -->
+		<key>ProcessType</key>
+		<string>Interactive</string>
+	</dict>
+</plist>

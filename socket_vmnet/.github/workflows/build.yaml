@@ -1,0 +1,72 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - master
+      - 'release/**'
+  pull_request:
+  schedule:
+    - cron: '0 0 * * *'  # Runs every night at midnight UTC
+
+permissions:
+  contents: read
+
+jobs:
+  clang-format-check:
+    name: Clang Format Check
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Install Clang Format
+        run: |
+          brew update
+          brew install clang-format
+          clang-format --version
+
+      - name: Run Clang Format Check
+        run: |
+          # Format all source - if the source is formatted properly this will do nothing
+          clang-format -i *.c *.h client/*.c
+
+          # Do we have unwanted changes?
+          if ! git diff-index --quiet HEAD; then
+              # Show the changes
+              echo "ERROR: Code is not properly formatted."
+              echo
+              git --no-pager diff
+
+              echo
+              echo "Please run clang-format locally and commit the changes."
+              exit 1
+          fi
+
+  build:
+    name: Build
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - macos-14
+          - macos-15
+          - macos-15-intel
+          - macos-26
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 1
+      - name: Build
+        run: make
+      - name: Run markdownlint with auto-fix
+        uses: DavidAnson/markdownlint-cli2-action@992badcdf24e3b8eb7e87ff9287fe931bcb00c6e # v20.0.0
+        with:
+          fix: true # Enabled to improve reported errors
+          globs: '**/*.md'
+          config: '.markdownlint.json'
+          
