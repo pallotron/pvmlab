@@ -1,6 +1,4 @@
-# Top-level Makefile to build socket_vmnet
 .DEFAULT_GOAL := all
-# NETWORK_UUID := $(shell uuidgen)
 
 build.socket_vmnet:
 	logger echo "Building socket_vmnet..."
