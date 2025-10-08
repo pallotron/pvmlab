@@ -64,6 +64,14 @@ var vmStartCmd = &cobra.Command{
 		monitorPath := filepath.Join(appDir, "monitors", vmName+".sock")
 		logPath := filepath.Join(appDir, "logs", vmName+".log")
 
+		// TODO:
+		// we should have options to not run things daemonized, this should go in the vm start command.
+		// e.g. vm start --no-daemonize <vm-name>
+		// This can be done by using:
+		// 	-nographic
+		// 	-chardev stdio,id=char0,mux=on,logfile=path/to/file.log,signal=off
+		// 	-serial chardev:char0
+		// and removing -daemonize
 		var qemuArgs []string
 		if meta.Role == "provisioner" {
 			dockerImagesPath := filepath.Join(appDir, "docker_images")

@@ -21,8 +21,6 @@ COPY dnsmasq.conf /etc/dnsmasq.conf
 
 RUN touch /var/log/dnsmasq.log && chmod 666 /var/log/dnsmasq.log
 
-
-
 EXPOSE 67/udp
 EXPOSE 69/udp
 
