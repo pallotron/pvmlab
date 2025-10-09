@@ -14,9 +14,11 @@ const (
 	UbuntuAMDImageURL = "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img"
 )
 
+var userHomeDir = os.UserHomeDir
+
 // GetAppDir returns the path to the application's hidden directory.
 func GetAppDir() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := userHomeDir()
 	if err != nil {
 		return "", err
 	}
