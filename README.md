@@ -29,29 +29,26 @@ classDef cliStyle fill:#d69ca4,stroke:black,stroke-width:2px,color:#000
 classDef socketVmnetStyle fill:#69a3bf,stroke:black,stroke-width:2px,color:#000
 classDef backgroundStyle fill:white,stroke:black,stroke-width:2px,color:#000
 
-subgraph G [ ]
-    subgraph H [Hypervisor Host, ie MacOs]
-        cli[pvmlab CLI]
-        en0
-        subgraph V [Provisioner VM]
-            provisioner_vm_enp0s1(enp0s1)
-            provisioner_vm_enp0s2(enp0s2)
-            Docker[Docker daemon]
-            subgraph "pxeboot_stack" [pxeboot_stack container]
-                pxeboot_services
-            end
-        end
-        subgraph T [Target VM]
-            target_vm_enp0s1(enp0s1)
-        end
-        subgraph N [socket_vmnet<br/>Apple vmnet framework]
-            virtual_net1_private(net1 vmnet.host)
-            virtual_net0_shared(net0 vmnet.shared)
+subgraph H [Hypervisor Host, ie MacOs]
+    cli[pvmlab CLI]
+    en0
+    subgraph V [Provisioner VM]
+        provisioner_vm_enp0s1(enp0s1)
+        provisioner_vm_enp0s2(enp0s2)
+        Docker[Docker daemon]
+        subgraph "pxeboot_stack" [pxeboot_stack container]
+            pxeboot_services
         end
     end
-    Internet
+    subgraph T [Target VM]
+        target_vm_enp0s1(enp0s1)
+    end
+    subgraph N [socket_vmnet<br/>Apple vmnet framework]
+        virtual_net1_private(net1 vmnet.host)
+        virtual_net0_shared(net0 vmnet.shared)
+    end
 end
-
+Internet
 
 en0 <----> Internet
 Docker -- manages --> pxeboot_stack
@@ -64,10 +61,8 @@ virtual_net0_shared <--> en0
 cli -- manages via QEMU --> V
 cli -- manages via QEMU --> T
 
-
 %% Apply the defined classes to the nodes
 class H hostStyle
-class G backgroundStyle
 class pxeboot_stack,Docker,pxeboot_services dockerStyle
 class V,T vmStyle
 class target_vm_enp0s1,provisioner_vm_enp0s1,provisioner_vm_enp0s2,provisioner_vm_enp0s3,en0,virtual_net0_shared,virtual_net1_private interfaceStyle
