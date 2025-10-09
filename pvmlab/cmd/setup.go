@@ -70,7 +70,7 @@ Make sure launchd is configured to launch the socket_vmnet service.`,
 }
 
 func checkDependencies() error {
-	dependencies := []string{"brew", "mkisofs", "socat", "qemu-system-aarch64"}
+	dependencies := []string{"brew", "mkisofs", "socat", "qemu-system-aarch64", "docker"}
 
 	for _, dep := range dependencies {
 		cmd := exec.Command("which", dep)

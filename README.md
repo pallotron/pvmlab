@@ -129,10 +129,15 @@ These will be installed during the setup process:
 - QEMU (`qemu`)
 - CDRTools (`cdrtools`)
 - `socat`
-- `socket_vmnet`
 - `docker` installed on your MacOS machine
 
 ## Installation
+
+Install dependencies:
+
+```bash
+brew install socat socket_vmnet cdrtools qemu
+```
 
 Clone the repository:
 

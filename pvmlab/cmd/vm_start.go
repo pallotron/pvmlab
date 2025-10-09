@@ -178,13 +178,25 @@ var vmStartCmd = &cobra.Command{
 }
 
 func getSocketVMNetClientPath() (string, error) {
-	cmd := exec.Command("brew", "--prefix", "socket_vmnet")
+	// Check standard installation paths for socket_vmnet_client
+	paths := []string{
+		"/opt/socket_vmnet/bin/socket_vmnet_client",
+		"/opt/homebrew/opt/socket_vmnet/bin/socket_vmnet_client",
+	}
+
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+
+	// Fallback to `which` if not found in standard paths
+	cmd := exec.Command("which", "socket_vmnet_client")
 	out, err := cmd.Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("socket_vmnet_client not found in standard paths or via 'which'. Please install it")
 	}
-	prefix := strings.TrimSpace(string(out))
-	return filepath.Join(prefix, "bin", "socket_vmnet_client"), nil
+	return strings.TrimSpace(string(out)), nil
 }
 
 func init() {
