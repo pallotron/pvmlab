@@ -31,11 +31,9 @@ classDef backgroundStyle fill:white,stroke:black,stroke-width:2px,color:#000
 
 subgraph G [ ]
     subgraph H [Hypervisor Host, ie MacOs]
-        direction TB
         cli[pvmlab CLI]
         en0
         subgraph V [Provisioner VM]
-            direction TB
             provisioner_vm_enp0s1(enp0s1)
             provisioner_vm_enp0s2(enp0s2)
             Docker[Docker daemon]
@@ -44,11 +42,9 @@ subgraph G [ ]
             end
         end
         subgraph T [Target VM]
-            direction TB
             target_vm_enp0s1(enp0s1)
         end
         subgraph N [socket_vmnet<br/>Apple vmnet framework]
-            direction TB
             virtual_net1_private(net1 vmnet.host)
             virtual_net0_shared(net0 vmnet.shared)
         end
