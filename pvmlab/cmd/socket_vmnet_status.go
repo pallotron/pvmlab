@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"provisioning-vm-lab/internal/brew"
+	"provisioning-vm-lab/internal/socketvmnet"
 
 	"github.com/spf13/cobra"
 )
@@ -14,16 +14,16 @@ var socketVmnetServiceStatusCmd = &cobra.Command{
 	Long:  `Checks the status of the socket_vmnet service using brew services.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Checking socket_vmnet service status... (this may require sudo password)")
-		running, err := brew.IsSocketVmnetRunning()
+		running, err := socketvmnet.IsSocketVmnetRunning()
 		if err != nil {
 			fmt.Println("Error checking status:", err)
 			return
 		}
 
 		if running {
-			fmt.Println("socket_vmnet service is running.")
+			fmt.Printf("%s service is running.\n", socketvmnet.ServiceName)
 		} else {
-			fmt.Println("socket_vmnet service is stopped.")
+			fmt.Printf("%s service is stopped.", socketvmnet.ServiceName)
 		}
 	},
 }

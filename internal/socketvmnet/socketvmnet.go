@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+const (
+	// ServiceName is the name of the socket_vmnet service.
+	ServiceName = "io.github.pallotron.pvmlab.socket_vmnet"
+)
+
 // GetSocketPath returns the path to the socket_vmnet socket.
 func GetSocketPath() (string, error) {
 	// TODO: when https://github.com/lima-vm/socket_vmnet/pull/140 is merged
@@ -23,7 +28,7 @@ func GetSocketPath() (string, error) {
 
 // IsSocketVmnetRunning checks if the socket_vmnet service is running.
 func IsSocketVmnetRunning() (bool, error) {
-	cmd := exec.Command("sudo", "launchctl", "list", "io.github.pallotron.pvmlab.socket_vmnet")
+	cmd := exec.Command("sudo", "launchctl", "list", ServiceName)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
@@ -33,11 +38,21 @@ func IsSocketVmnetRunning() (bool, error) {
 		if _, ok := err.(*exec.ExitError); ok {
 			return false, nil
 		}
-		return false, fmt.Errorf("error checking socket_vmnet service status: %w", err)
+		return false, fmt.Errorf("error checking %s service status: %w", ServiceName)
 	}
 
 	// If the service is running, the output will contain a PID.
 	return strings.Contains(out.String(), "PID"), nil
+}
+
+func StartSocketVmnet() error {
+	cmd := exec.Command("sudo", "launchctl", "start", ServiceName)
+	return cmd.Run()
+}
+
+func StopSocketVmnet() error {
+	cmd := exec.Command("sudo", "launchctl", "stop", ServiceName)
+	return cmd.Run()
 }
 
 // CheckSocketVmnet checks if the socket_vmnet service is running and warns the user if it is not.
@@ -47,9 +62,7 @@ func CheckSocketVmnet() error {
 		return err
 	}
 	if !running {
-		fmt.Println("Warning: socket_vmnet service is not running.")
-		fmt.Println("For more details, see the project's README.md on github or the project Makefile")
-
+		return fmt.Errorf("%s service is not running", ServiceName)
 	}
 	return nil
 }

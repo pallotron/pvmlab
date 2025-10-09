@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"provisioning-vm-lab/internal/brew"
+	"provisioning-vm-lab/internal/socketvmnet"
 
 	"github.com/spf13/cobra"
 )
@@ -13,7 +13,7 @@ var serviceStartCmd = &cobra.Command{
 	Short: "Starts the socket_vmnet service",
 	Long:  `Starts the socket_vmnet service using brew services.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := brew.StartSocketVmnet(); err != nil {
+		if err := socketvmnet.StartSocketVmnet(); err != nil {
 			fmt.Println("Error starting socket_vmnet service:", err)
 		}
 	},

@@ -122,32 +122,52 @@ These will be installed during the setup process:
 
 ## Installation
 
-To make the `pvmlab` command available system-wide from anywhere, you can install it directly from GitHub. This will download, build, and place the binary in your Go bin directory (usually `$HOME/go/bin`), which should be part of your system's `$PATH`.
+Clone the repository:
 
 ```bash
-go install github.com/pallotron/provisioning-vm-lab/pvmlab@latest
+git clone https://github.com/pallotron/provisioning-vm-lab.git
 ```
+
+Install all the things! (pvmlab CLI, socket_vmnet daemons, pxeboot stack docker container...):
+
+```bash
+make all
+```
+
+Source the completion script.
+If you use `zsh`:
+
+```bash
+source /opt/homebrew/share/zsh-completions/_pvmlab
+```
+
+If you use `bash`:
+
+```bash
+source /opt/homebrew/share/bash-completion/completions/pvmlab
+```
+
 After installation, you can run the command as `pvmlab` from any directory.
+Verify your `GOPATH` and `PATH` variables are correct and you can see the binary:
+
+```bash
+which pvmlab
+/Users/afailla/.gvm/pkgsets/go1.25.1/global/bin/pvmlab
+```
 
 Run the `setup` command. This will use Homebrew to install required packages and create the `~/.provisioning-vm-lab/` directory structure, including an SSH key for accessing the VMs.
 
 It might require sudo password:
 
 ```bash
-$ pvmlab setup
+❯ pvmlab setup
 Creating provisioning-vm-lab directory structure...
 Directory structure created successfully.
 Generating SSH keys...
 SSH keys generated successfully.
-Generating UUID...
-Checking for UUID file at: ~/.provisioning-vm-lab/uuidgen
-UUID file does not exist, creating it...
-UUID generated successfully.
 Checking dependencies...
 Dependencies checked successfully.
 Checking socket_vmnet service status...
-Password:
-socket_vmnet service is already running
 ```
 
 ## Shell Completion
@@ -298,28 +318,6 @@ docker exec pxeboot_stack tail -f /var/log/dnsmasq.log
 | `pvmlab vm logs <name>`      | Tails the console logs for the specified VM.                             |
 | `pvmlab vm clean <name>`     | Stops the VM and deletes its generated files.                            |
 | `pvmlab clean`               | Stops all VMs and services, and removes the artifacts directory.         |
-
-## Development Environment
-
-If you want to contribute to the project, you'll need to set up a development environment:
-
-Clone the repository:
-```bash
-git clone https://github.com/pallotron/provisioning-vm-lab
-cd provisioning-vm-lab
-```
-
-Set things up same as the pvmlab `setup` command above:
-```bash
-go run ./pvmlab/cmd/main.go setup
-```
-
-When you make modifications to the code, run the CLI:
-```bash
-go run ./pvmlab/main.go [options]
-``` 
-
-Install Dependencies & Configure Environment: same as the pvmlab `setup` command above.
 
 ## Project Structure
 
