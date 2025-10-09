@@ -19,6 +19,14 @@ All generated artifacts (VM disks, ISOs, logs, etc.) are stored neatly in `~/.pr
 ## Architecture
 
 ```mermaid
+---
+config:
+    layout: elk
+    theme: dark
+    elk:
+        mergeEdges: true
+        nodePlacementStrategy: NETWORK_SIMPLEX
+---
 flowchart TD
 %% Define style classes for different components
 classDef hostStyle fill:#cde4ff,stroke:black,stroke-width:2px,color:#000
@@ -43,8 +51,8 @@ subgraph H [Hypervisor Host, ie MacOs]
         target_vm_enp0s1(enp0s1)
     end
     subgraph N [socket_vmnet<br/>Apple vmnet framework]
-        virtual_net1_private(net1 vmnet.host)
-        virtual_net0_shared(net0 vmnet.shared)
+        virtual_net1_private(net1 vmnet.host - no dhcp)
+        virtual_net0_shared(net0 vmnet.shared - macos dhcp)
     end
 end
 Internet
