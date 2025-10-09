@@ -19,10 +19,6 @@ All generated artifacts (VM disks, ISOs, logs, etc.) are stored neatly in `~/.pr
 ## Architecture
 
 ```mermaid
----
-config:
-    layout: elk
----
 flowchart TD
 %% Define style classes for different components
 classDef hostStyle fill:#cde4ff,stroke:black,stroke-width:2px,color:#000
