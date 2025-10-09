@@ -9,9 +9,11 @@ import (
 )
 
 type Metadata struct {
-	Role string `json:"role"`
-	IP   string `json:"ip,omitempty"`
-	MAC  string `json:"mac,omitempty"`
+	Role             string `json:"role"`
+	IP               string `json:"ip,omitempty"`
+	MAC              string `json:"mac,omitempty"`
+	PxeBootStackTar  string `json:"pxe_boot_stack_tar,omitempty"`
+	DockerImagesPath string `json:"docker_images_path,omitempty"`
 }
 
 func getVMsDir() (string, error) {
@@ -22,16 +24,28 @@ func getVMsDir() (string, error) {
 	return filepath.Join(appDir, "vms"), nil
 }
 
-func Save(vmName, role, ip, mac string) error {
+// Save saves the VM's metadata to a file.
+func Save(vmName, role, ip, mac, pxeBootStackTar, dockerImagesPath string) error {
+	meta := Metadata{
+		Role:             role,
+		IP:               ip,
+		MAC:              mac,
+		PxeBootStackTar:  pxeBootStackTar,
+		DockerImagesPath: dockerImagesPath,
+	}
+
+	data, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+
 	vmsDir, err := getVMsDir()
 	if err != nil {
 		return err
 	}
 
-	meta := Metadata{Role: role, IP: ip, MAC: mac}
-	data, err := json.MarshalIndent(meta, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal metadata: %w", err)
+	if err := os.MkdirAll(vmsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create vms directory: %w", err)
 	}
 
 	metaPath := filepath.Join(vmsDir, vmName+".json")
@@ -86,6 +100,18 @@ func FindProvisioner() (string, error) {
 		}
 	}
 
+	return "", nil
+}
+
+func FindVM(vmName string) (string, error) {
+	vmsDir, err := getVMsDir()
+	if err != nil {
+		return "", err
+	}
+	metaPath := filepath.Join(vmsDir, vmName+".json")
+	if _, err := os.Stat(metaPath); err == nil {
+		return vmName, nil
+	}
 	return "", nil
 }
 

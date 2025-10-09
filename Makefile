@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := all
 
-all: install-pvmlab build.socket_vmnet install.completions install.socket_vmnet install.launchd
+all: install-pvmlab build.socket_vmnet install.completions install.socket_vmnet install.launchd build-pxeboot-stack-container
 clean: clean.socket_vmnet
 	make -C socket_vmnet clean
 

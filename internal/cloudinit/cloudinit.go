@@ -14,7 +14,7 @@ local-hostname: provisioner
 public-keys:
   - "%s"
 `
-	provisionerUserData = `## template: jinja
+	provisionerUserDataTemplate = `## template: jinja
 #cloud-config
 ssh_pwauth: true
 users:
@@ -40,8 +40,8 @@ write_files:
       echo "Stopping and removing old container..."
       docker stop pxeboot_stack || true
       docker rm pxeboot_stack || true
-      echo "Loading new image from /mnt/host/docker_images/pxeboot_stack.tar..."
-      docker load -i /mnt/host/docker_images/pxeboot_stack.tar
+      echo "Loading new image from /mnt/host/docker_images/%s..."
+      docker load -i /mnt/host/docker_images/%s
       echo "Starting new container..."
       docker run -d --name pxeboot_stack --net=host --privileged pxeboot_stack:latest
       echo "Done."
@@ -60,7 +60,7 @@ runcmd:
   - 'DEBIAN_FRONTEND=noninteractive apt-get -y install docker-ce docker-ce-cli containerd.io'
   - 'mkdir -p /mnt/host/docker_images'
   - 'mount -t 9p -o trans=virtio,version=9p2000.L host_share_docker_images /mnt/host/docker_images'
-  - 'docker load -i /mnt/host/docker_images/pxeboot_stack.tar'
+  - 'docker load -i /mnt/host/docker_images/%s'
   - 'docker run -d --name pxeboot_stack --net=host --privileged pxeboot_stack:latest'
 
   - 'echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections'
@@ -75,7 +75,7 @@ ethernets:
     dhcp4: true
   enp0s2:
     dhcp4: false
-    addresses: [192.168.100.1/24]
+    addresses: [%s/24]
 `
 	provisionerVendorData = ``
 )
@@ -114,7 +114,7 @@ chpasswd:
 	targetVendorData = ``
 )
 
-func CreateISO(vmName, role, appDir, isoPath, ip, mac string) error {
+func CreateISO(vmName, role, appDir, isoPath, ip, mac, pxeBootStackTar string) error {
 	sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa.pub")
 	sshKey, err := os.ReadFile(sshKeyPath)
 	if err != nil {
@@ -128,14 +128,18 @@ func CreateISO(vmName, role, appDir, isoPath, ip, mac string) error {
 
 	var metaData, userData, networkConfig, vendorData string
 
+	// TODO: find better way to apply templates than fmt.Sprintf
 	if role == "provisioner" {
+		if ip == "" {
+			return fmt.Errorf("ip is required for provisioner VMs templates")
+		}
 		metaData = fmt.Sprintf(provisionerMetaDataTemplate, string(sshKey))
-		userData = provisionerUserData
-		networkConfig = provisionerNetworkConfig
+		userData = fmt.Sprintf(provisionerUserDataTemplate, pxeBootStackTar, pxeBootStackTar, pxeBootStackTar)
+		networkConfig = fmt.Sprintf(provisionerNetworkConfig, ip)
 		vendorData = provisionerVendorData
 	} else {
-		if ip == "" || mac == "" {
-			return fmt.Errorf("ip and mac are required for target VMs")
+		if mac == "" {
+			return fmt.Errorf("mac is required for target VMs templates")
 		}
 		metaData = fmt.Sprintf(targetMetaDataTemplate, vmName, vmName, string(sshKey))
 		userData = targetUserData

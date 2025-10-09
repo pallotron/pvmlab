@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var role, mac string
+var ip, role, mac, pxebootStackTar, dockerImagesPath string
 
 // vmCreateCmd represents the create command
 var vmCreateCmd = &cobra.Command{
@@ -23,14 +23,25 @@ var vmCreateCmd = &cobra.Command{
 	Short: "Creates a new VM",
 	Long: `Creates a new VM.
 The --role flag determines the type of VM to create.
-- provisioner: creates an ARM64 VM with a static IP (192.168.100.1).
-- target: creates an ARM64 VM with a static IP (192.168.100.2).`,
+- provisioner: runs pxeboot stack container
+- target: runs the target VM and gets IP from the DHCP server running on the provisioner VM`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		vmName := args[0]
 		fmt.Printf("Creating VM: %s with role: %s\n", vmName, role)
 
-		var ip, macForMetadata string
+		// role can be either provisioner or target
+		if role != "provisioner" && role != "target" {
+			fmt.Printf("Error: --role must be either 'provisioner' or 'target'.\n")
+			os.Exit(1)
+		}
+
+		var macForMetadata, finalDockerImagesPath string
+
+		if role == "provisioner" && ip == "" {
+			fmt.Printf("Error: --ip must be specified for provisioner VMs.\n")
+			os.Exit(1)
+		}
 
 		appDir, err := config.GetAppDir()
 		if err != nil {
@@ -39,8 +50,6 @@ The --role flag determines the type of VM to create.
 		}
 
 		if role == "provisioner" {
-			ip = "192.168.100.1"
-			macForMetadata = "00:00:DE:AD:BE:EF" // Static MAC for the private interface
 			existingProvisioner, err := metadata.FindProvisioner()
 			if err != nil {
 				fmt.Printf("Error checking for existing provisioner: %v\n", err)
@@ -50,34 +59,40 @@ The --role flag determines the type of VM to create.
 				fmt.Printf("Error: A provisioner VM named '%s' already exists. Only one provisioner is allowed.\n", existingProvisioner)
 				os.Exit(1)
 			}
+			if dockerImagesPath != "" {
+				absPath, err := filepath.Abs(dockerImagesPath)
+				if err != nil {
+					fmt.Printf("Error resolving path specified by --docker-images-path: %v\n", err)
+					os.Exit(1)
+				}
+				finalDockerImagesPath = absPath
+			} else {
+				finalDockerImagesPath = filepath.Join(appDir, "docker_images")
+			}
 		} else { // target
-			ip = "192.168.100.2"
-			// Check if a VM with this IP already exists
-			allMeta, err := metadata.GetAll()
+			existingVM, err := metadata.FindVM(vmName)
 			if err != nil {
-				fmt.Printf("Error checking for existing VMs: %v\n", err)
+				fmt.Printf("Error checking for existing VM: %v\n", err)
 				os.Exit(1)
 			}
-			for name, meta := range allMeta {
-				if meta.IP == ip {
-					fmt.Printf("Error: A target VM named '%s' already exists with the IP %s. Only one target is supported for now.\n", name, ip)
-					os.Exit(1)
-				}
+			if existingVM != "" {
+				fmt.Printf("Error: A VM named '%s' already exists. Only one target VM is allowed.\n", existingVM)
+				os.Exit(1)
 			}
+		}
 
-			if mac == "" {
-				buf := make([]byte, 6)
-				_, err := rand.Read(buf)
-				if err != nil {
-					fmt.Println("failed to generate random mac address", err)
-					os.Exit(1)
-				}
-				buf[0] = (buf[0] | 2) & 0xfe
-				macForMetadata = fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5])
-				fmt.Printf("Generated random MAC address: %s\n", macForMetadata)
-			} else {
-				macForMetadata = mac
+		if mac == "" {
+			buf := make([]byte, 6)
+			_, err := rand.Read(buf)
+			if err != nil {
+				fmt.Println("failed to generate random mac address", err)
+				os.Exit(1)
 			}
+			buf[0] = (buf[0] | 2) & 0xfe
+			macForMetadata = fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5])
+			fmt.Printf("Generated random MAC address: %s\n", macForMetadata)
+		} else {
+			macForMetadata = mac
 		}
 
 		imageUrl := config.UbuntuARMImageURL
@@ -113,37 +128,13 @@ The --role flag determines the type of VM to create.
 
 		fmt.Println("Generating cloud-config ISO...")
 		isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
-		if err := cloudinit.CreateISO(vmName, role, appDir, isoPath, ip, macForMetadata); err != nil {
+		if err := cloudinit.CreateISO(vmName, role, appDir, isoPath, ip, macForMetadata, pxebootStackTar); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 		fmt.Println("Cloud-config ISO generated successfully.")
 
-		// TODO: pull the pxeboot_stack docker image from a release on github if we are not running in a dev environment
-		// (as in, we do not find the pxeboot_stack directory in CWD)
-		if role == "provisioner" {
-			dockerImagesDir := filepath.Join(appDir, "docker_images")
-			dockerImageTar := filepath.Join(dockerImagesDir, "pxeboot_stack.tar")
-
-			if _, err := os.Stat(dockerImageTar); os.IsNotExist(err) {
-				fmt.Println("Building and saving pxeboot_stack docker image...")
-				if err := os.MkdirAll(dockerImagesDir, 0755); err != nil {
-					fmt.Printf("Error creating docker_images directory: %v\n", err)
-					os.Exit(1)
-				}
-				cmdRun := exec.Command("make", "save")
-				cmdRun.Dir = "pxeboot_stack"
-				if err := runner.Run(cmdRun); err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-				fmt.Println("pxeboot_stack docker image built and saved successfully.")
-			} else {
-				fmt.Println("pxeboot_stack docker image already exists, skipping build.")
-			}
-		}
-
-		if err := metadata.Save(vmName, role, ip, macForMetadata); err != nil {
+		if err := metadata.Save(vmName, role, ip, macForMetadata, pxebootStackTar, finalDockerImagesPath); err != nil {
 			fmt.Printf("Warning: failed to save VM metadata: %v\n", err)
 		}
 	},
@@ -151,6 +142,14 @@ The --role flag determines the type of VM to create.
 
 func init() {
 	vmCmd.AddCommand(vmCreateCmd)
-	vmCreateCmd.Flags().StringVar(&role, "role", "target", "The role of the VM (provisioner or target)")
-	vmCreateCmd.Flags().StringVar(&mac, "mac", "", "The MAC address of the VM (optional for targets)")
+	vmCreateCmd.Flags().StringVar(&role, "role", "target", "The role of the VM ('provisioner' or 'target')")
+	vmCreateCmd.Flags().StringVar(&mac, "mac", "", "The MAC address of the VM (Required for Target VMs)")
+	vmCreateCmd.Flags().StringVar(
+		&pxebootStackTar,
+		"docker-pxeboot-stack-tar",
+		"pxeboot_stack.tar",
+		"Path to the pxeboot stack docker tar file (Required for the provisioner VM)",
+	)
+	vmCreateCmd.Flags().StringVar(&dockerImagesPath, "docker-images-path", "", "Path to docker images to share with the provisioner VM. Defaults to ~/.provisioning-vm-lab/docker_images")
+	vmCreateCmd.Flags().StringVar(&ip, "ip", "", "The IP address of the VM (Required for Provisioner and Target VMs)")
 }

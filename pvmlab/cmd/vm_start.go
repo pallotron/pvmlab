@@ -74,7 +74,14 @@ var vmStartCmd = &cobra.Command{
 		// and removing -daemonize
 		var qemuArgs []string
 		if meta.Role == "provisioner" {
-			dockerImagesPath := filepath.Join(appDir, "docker_images")
+			var finalDockerImagesPath string
+			if meta.DockerImagesPath != "" {
+				finalDockerImagesPath = meta.DockerImagesPath
+			} else {
+				// Backwards compatibility for VMs created before this change.
+				finalDockerImagesPath = filepath.Join(appDir, "docker_images")
+			}
+
 			qemuArgs = []string{
 				"qemu-system-aarch64",
 				"-M", "virt",
@@ -89,7 +96,7 @@ var vmStartCmd = &cobra.Command{
 				"-netdev", "user,id=net0,hostfwd=tcp::2222-:22",
 				"-device", fmt.Sprintf("virtio-net-pci,netdev=net1,mac=%s", meta.MAC),
 				"-netdev", "socket,id=net1,fd=3",
-				"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_docker_images,security_model=passthrough", dockerImagesPath),
+				"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_docker_images,security_model=passthrough", finalDockerImagesPath),
 				"-display", "none",
 				"-daemonize",
 				"-pidfile", pidPath,
