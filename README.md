@@ -52,9 +52,9 @@ end
 en0 <----> Internet
 Docker -- manages --> pxeboot_stack
 provisioner_vm_enp0s1 <--> virtual_net0_shared
-provisioner_vm_enp0s2 <-- provisioning traffic --> virtual_net1_private
+provisioner_vm_enp0s2 <-- provisionng traffic --> virtual_net1_private
 provisioner_vm_enp0s2 <-- Internet NAT for Target VM --> provisioner_vm_enp0s1
-target_vm_enp0s1 <-- provisioing traffic --> virtual_net1_private
+target_vm_enp0s1 <-- provisioning traffic --> virtual_net1_private
 pxeboot_services <-- bind to --> provisioner_vm_enp0s2
 virtual_net0_shared <--> en0
 cli -- manages --> V

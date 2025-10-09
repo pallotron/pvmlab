@@ -1,5 +1,9 @@
 .DEFAULT_GOAL := all
 
+all: build.socket_vmnet install.socket_vmnet install.launchd
+clean: clean.socket_vmnet
+	make -C socket_vmnet clean
+
 build.socket_vmnet:
 	logger echo "Building socket_vmnet..."
 	make -C socket_vmnet all
@@ -14,6 +18,8 @@ install.socket_vmnet: build.socket_vmnet
 
 define load_launchd
 	# Hint: try `launchctl enable system/$(1)` if the `launchctl bootstrap` command below fails
+	logger "Stopping launchd service $(1) if running..."
+	sudo launchctl bootout system "/Library/LaunchDaemons/$(1).plist" || true
 	logger "Installing launchd service for socket_vmnet in /Library/LaunchDaemons/$(1).plist"
 	sudo cp launchd/$(1).plist  /Library/LaunchDaemons/$(1).plist
 	sudo launchctl bootstrap system "/Library/LaunchDaemons/$(1).plist" || true
