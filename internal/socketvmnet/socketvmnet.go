@@ -26,9 +26,11 @@ func GetSocketPath() (string, error) {
 	return "/var/run/vmlab.socket_vmnet", nil
 }
 
+var execCommand = exec.Command
+
 // IsSocketVmnetRunning checks if the socket_vmnet service is running.
 func IsSocketVmnetRunning() (bool, error) {
-	cmd := exec.Command("sudo", "launchctl", "list", ServiceName)
+	cmd := execCommand("sudo", "launchctl", "list", ServiceName)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
@@ -46,12 +48,12 @@ func IsSocketVmnetRunning() (bool, error) {
 }
 
 func StartSocketVmnet() error {
-	cmd := exec.Command("sudo", "launchctl", "start", ServiceName)
+	cmd := execCommand("sudo", "launchctl", "start", ServiceName)
 	return cmd.Run()
 }
 
 func StopSocketVmnet() error {
-	cmd := exec.Command("sudo", "launchctl", "stop", ServiceName)
+	cmd := execCommand("sudo", "launchctl", "stop", ServiceName)
 	return cmd.Run()
 }
 
