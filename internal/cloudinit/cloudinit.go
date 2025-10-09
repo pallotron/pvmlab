@@ -1,18 +1,23 @@
 package cloudinit
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"provisioning-vm-lab/internal/runner"
+	"strings"
+	"text/template"
 )
 
 const (
 	provisionerMetaDataTemplate = `instance-id: iid-cloudimg-provisioner
 local-hostname: provisioner
 public-keys:
-  - "%s"
+  - "[[ .SshKey ]]"
+pxe_boot_stack_tar: "[[ .PxeBootStackTar ]]"
+pxe_boot_stack_name: "[[ .PxeBootStackName ]]"
 `
 	provisionerUserDataTemplate = `## template: jinja
 #cloud-config
@@ -38,12 +43,12 @@ write_files:
       #!/bin/bash
       set -e
       echo "Stopping and removing old container..."
-      docker stop pxeboot_stack || true
-      docker rm pxeboot_stack || true
-      echo "Loading new image from /mnt/host/docker_images/%s..."
-      docker load -i /mnt/host/docker_images/%s
+      docker stop {{ ds.meta_data.pxe_boot_stack_name }} || true
+      docker rm {{ ds.meta_data.pxe_boot_stack_name }} || true
+      echo "Loading new image from /mnt/host/docker_images/{{ ds.meta_data.pxe_boot_stack_tar }}..."
+      docker load -i /mnt/host/docker_images/{{ ds.meta_data.pxe_boot_stack_tar }}
       echo "Starting new container..."
-      docker run -d --name pxeboot_stack --net=host --privileged pxeboot_stack:latest
+      docker run -d --name {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged {{ ds.meta_data.pxe_boot_stack_name }}:latest
       echo "Done."
 
 runcmd:
@@ -60,8 +65,8 @@ runcmd:
   - 'DEBIAN_FRONTEND=noninteractive apt-get -y install docker-ce docker-ce-cli containerd.io'
   - 'mkdir -p /mnt/host/docker_images'
   - 'mount -t 9p -o trans=virtio,version=9p2000.L host_share_docker_images /mnt/host/docker_images'
-  - 'docker load -i /mnt/host/docker_images/%s'
-  - 'docker run -d --name pxeboot_stack --net=host --privileged pxeboot_stack:latest'
+  - 'docker load -i /mnt/host/docker_images/{{ ds.meta_data.pxe_boot_stack_tar }}'
+  - 'docker run -d --name {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged {{ ds.meta_data.pxe_boot_stack_name }}:latest'
 
   - 'echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections'
   - 'echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections'
@@ -69,22 +74,23 @@ runcmd:
   - 'iptables -t nat -A POSTROUTING -o enp0s1 -j MASQUERADE'
   - 'iptables-save > /etc/iptables/rules.v4'
 `
-	provisionerNetworkConfig = `version: 2
+	// jinja templates not supported for network-config in cloud-init/cloud-config
+	provisionerNetworkConfigTemplate = `version: 2
 ethernets:
   enp0s1:
     dhcp4: true
   enp0s2:
     dhcp4: false
-    addresses: [%s/24]
+    addresses: ["[[ .Ip ]]/24"]
 `
 	provisionerVendorData = ``
 )
 
 const (
-	targetMetaDataTemplate = `instance-id: iid-cloudimg-%s
-local-hostname: %s
+	targetMetaDataTemplate = `instance-id: iid-cloudimg-[[ .VmName ]]
+local-hostname: [[ .VmName ]]
 public-keys:
-  - "%s"
+  - "[[ .SshKey ]]"
 `
 	targetUserData = `## template: jinja
 #cloud-config
@@ -103,23 +109,38 @@ chpasswd:
     - {name: root, password: pass, type: text}
   expire: False
 `
+
+	// jinja templates not supported for network-config in cloud-init/cloud-config
 	targetNetworkConfigTemplate = `network:
   version: 2
   ethernets:
     static-interface:
       match:
-        macaddress: "%s"
+        macaddress: "[[ .Mac ]]"
       dhcp4: true
 `
 	targetVendorData = ``
 )
 
+func executeTemplate(name, tmplStr string, data interface{}) (string, error) {
+	tmpl, err := template.New(name).Delims("[[", "]]").Parse(tmplStr)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
 func CreateISO(vmName, role, appDir, isoPath, ip, mac, pxeBootStackTar string) error {
 	sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa.pub")
-	sshKey, err := os.ReadFile(sshKeyPath)
+	sshKeyBytes, err := os.ReadFile(sshKeyPath)
 	if err != nil {
 		return err
 	}
+	sshKey := strings.TrimSpace(string(sshKeyBytes))
 
 	configDir := filepath.Join(appDir, "configs", "cloud-init", vmName)
 	if err := os.MkdirAll(configDir, 0755); err != nil {
@@ -128,22 +149,55 @@ func CreateISO(vmName, role, appDir, isoPath, ip, mac, pxeBootStackTar string) e
 
 	var metaData, userData, networkConfig, vendorData string
 
-	// TODO: find better way to apply templates than fmt.Sprintf
 	if role == "provisioner" {
 		if ip == "" {
 			return fmt.Errorf("ip is required for provisioner VMs templates")
 		}
-		metaData = fmt.Sprintf(provisionerMetaDataTemplate, string(sshKey))
-		userData = fmt.Sprintf(provisionerUserDataTemplate, pxeBootStackTar, pxeBootStackTar, pxeBootStackTar)
-		networkConfig = fmt.Sprintf(provisionerNetworkConfig, ip)
+		pxeBootStackName := strings.TrimSuffix(pxeBootStackTar, filepath.Ext(pxeBootStackTar))
+		data := struct {
+			SshKey           string
+			PxeBootStackTar  string
+			PxeBootStackName string
+			Ip               string
+		}{
+			SshKey:           sshKey,
+			PxeBootStackTar:  pxeBootStackTar,
+			PxeBootStackName: pxeBootStackName,
+			Ip:               ip,
+		}
+
+		metaData, err = executeTemplate("provisionerMetaData", provisionerMetaDataTemplate, data)
+		if err != nil {
+			return err
+		}
+		userData = provisionerUserDataTemplate
+		networkConfig, err = executeTemplate("provisionerNetworkConfig", provisionerNetworkConfigTemplate, data)
+		if err != nil {
+			return err
+		}
 		vendorData = provisionerVendorData
 	} else {
 		if mac == "" {
 			return fmt.Errorf("mac is required for target VMs templates")
 		}
-		metaData = fmt.Sprintf(targetMetaDataTemplate, vmName, vmName, string(sshKey))
+		data := struct {
+			VmName string
+			SshKey string
+			Mac    string
+		}{
+			VmName: vmName,
+			SshKey: sshKey,
+			Mac:    mac,
+		}
+		metaData, err = executeTemplate("targetMetaData", targetMetaDataTemplate, data)
+		if err != nil {
+			return err
+		}
 		userData = targetUserData
-		networkConfig = fmt.Sprintf(targetNetworkConfigTemplate, mac)
+		networkConfig, err = executeTemplate("targetNetworkConfig", targetNetworkConfigTemplate, data)
+		if err != nil {
+			return err
+		}
 		vendorData = targetVendorData
 	}
 
