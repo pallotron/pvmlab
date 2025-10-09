@@ -13,7 +13,7 @@ import (
 
 // WaitForMessage tails the console log for a VM and waits for a specific message.
 func WaitForMessage(vmName, message string, timeout time.Duration) error {
-	appDir, err := config.GetAppDir()
+	appDir, err := config.GetAppDirFunc()
 	if err != nil {
 		return err
 	}
