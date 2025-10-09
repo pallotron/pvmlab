@@ -17,7 +17,7 @@ type Metadata struct {
 }
 
 func getVMsDir() (string, error) {
-	appDir, err := config.GetAppDir()
+	appDir, err := config.GetAppDirFunc()
 	if err != nil {
 		return "", err
 	}

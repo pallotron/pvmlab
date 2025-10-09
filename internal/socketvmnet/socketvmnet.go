@@ -38,7 +38,7 @@ func IsSocketVmnetRunning() (bool, error) {
 		if _, ok := err.(*exec.ExitError); ok {
 			return false, nil
 		}
-		return false, fmt.Errorf("error checking %s service status: %w", ServiceName)
+		return false, fmt.Errorf("error checking %s service status: %w", ServiceName, err)
 	}
 
 	// If the service is running, the output will contain a PID.

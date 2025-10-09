@@ -16,6 +16,8 @@ const (
 
 var userHomeDir = os.UserHomeDir
 
+var GetAppDirFunc = GetAppDir
+
 // GetAppDir returns the path to the application's hidden directory.
 func GetAppDir() (string, error) {
 	home, err := userHomeDir()
