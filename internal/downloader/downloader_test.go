@@ -1,7 +1,6 @@
 package downloader
 
 import (
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,7 +16,7 @@ func TestDownloadFile_Success(t *testing.T) {
 	defer server.Close()
 
 	// Create a temporary file to download to
-	tmpfile, err := ioutil.TempFile("", "download-test")
+	tmpfile, err := os.CreateTemp("", "download-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
@@ -31,7 +30,7 @@ func TestDownloadFile_Success(t *testing.T) {
 	}
 
 	// Verify the content of the downloaded file
-	content, err := ioutil.ReadFile(tmpfile.Name())
+	content, err := os.ReadFile(tmpfile.Name())
 	if err != nil {
 		t.Fatalf("Failed to read downloaded file: %v", err)
 	}
@@ -49,7 +48,7 @@ func TestDownloadFile_ServerError(t *testing.T) {
 	defer server.Close()
 
 	// Create a temporary file to download to
-	tmpfile, err := ioutil.TempFile("", "download-test-fail")
+	tmpfile, err := os.CreateTemp("", "download-test-fail")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
