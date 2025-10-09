@@ -1,3 +1,3 @@
 .DS_Store
 .ssh
-pxeboot_stack/pxeboot_stack-latest.tar
+*.tar
