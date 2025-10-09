@@ -11,7 +11,7 @@ import (
 )
 
 func getPIDFilePath(vmName string) (string, error) {
-	appDir, err := config.GetAppDir()
+	appDir, err := config.GetAppDirFunc()
 	if err != nil {
 		return "", err
 	}
