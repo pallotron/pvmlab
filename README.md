@@ -27,7 +27,6 @@ classDef dockerStyle fill:#fff2cc,stroke:black,stroke-width:2px,color:#000
 classDef interfaceStyle fill:#9cced6,stroke:black,stroke-width:2px,color:#000
 classDef cliStyle fill:#d69ca4,stroke:black,stroke-width:2px,color:#000
 classDef socketVmnetStyle fill:#69a3bf,stroke:black,stroke-width:2px,color:#000
-classDef backgroundStyle fill:white,stroke:black,stroke-width:2px,color:#000
 
 subgraph H [Hypervisor Host, ie MacOs]
     cli[pvmlab CLI]
