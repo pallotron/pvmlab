@@ -12,6 +12,9 @@ all: build save
 build:
 	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
 
+tar:
+	docker save -o $(IMAGE_NAME).tar $(IMAGE_NAME):$(IMAGE_TAG)
+
 # Save the docker container to a tar file
 save: build
 	@mkdir -p $(DOCKER_IMAGES_DIR)
