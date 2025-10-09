@@ -20,17 +20,25 @@ I will use a combination of standard Go testing practices and features from the 
 
 ## Step-by-Step Implementation Plan
 
-1.**Create Test Files**: I will start by creating a new test file, `pvmlab/cmd/cmd_test.go`, to house the tests. As the suite grows, we can split this into multiple files like `vm_cmd_test.go`, `socketvmnet_cmd_test.go`, etc., for better organization.
+### Create Test Files
 
-2.**Develop a Test Helper**: To avoid repetitive code, I'll create a helper function. This function will take a command (e.g., `vm`, `list`) and its arguments, set up the output buffers, execute the command, and return the captured `stdout`, `stderr`, and any error.
+I will start by creating a new test file, `pvmlab/cmd/cmd_test.go`, to house the tests. As the suite grows, we can split this into multiple files like `vm_cmd_test.go`, `socketvmnet_cmd_test.go`, etc., for better organization.
 
-3.**Test a Simple Read-Only Command**: I'll begin with `pvmlab vm list`.
+### Develop a Test Helper
+
+To avoid repetitive code, I'll create a helper function. This function will take a command (e.g., `vm`, `list`) and its arguments, set up the output buffers, execute the command, and return the captured `stdout`, `stderr`, and any error.
+
+### Test a Simple Read-Only Command
+
+I'll begin with `pvmlab vm list`.
 
 - **Arrange**: In the test, I'll mock the `metadata.GetAll()` function to return a predefined list of virtual machines (e.g., `{"vm1": {...}, "vm2": {...}}`).
 - **Act**: I'll use the test helper to execute the command with the arguments `["vm", "list"]`.
 - **Assert**: I'll check that the command returned no error and that the captured output string contains the names of the mocked VMs ("vm1" and "vm2").
 
-  4.**Test a Command with Flags and Side Effects**: Next, I'll tackle a more complex command like `pvmlab vm create`.
+### Test a Command with Flags and Side Effects
+
+Next, I'll tackle a more complex command like `pvmlab vm create`.
 
 - **Arrange**: I will mock all the functions this command depends on, such as `metadata.Save`, `cloudinit.CreateISO`, and `runner.Run`.
 - **Act (Success)**: I'll execute the command with valid flags, e.g., `["vm", "create", "--name", "my-test-vm"]`.
@@ -38,6 +46,8 @@ I will use a combination of standard Go testing practices and features from the 
 - **Act (Failure)**: I'll execute the command _without_ the required `--name` flag.
 - **Assert (Failure)**: I'll verify that the command returns an error and that the captured error output contains the expected usage information (e.g., "required flag(s) 'name' not set").
 
-  5.**Systematically Cover All Commands**: I will repeat this "Arrange, Act, Assert" pattern for the remaining commands (`vm start`, `vm stop`, `clean`, `setup`, etc.), ensuring each one has tests for both its success and failure modes.
+### Systematically Cover All Commands
+
+I will repeat this "Arrange, Act, Assert" pattern for the remaining commands (`vm start`, `vm stop`, `clean`, `setup`, etc.), ensuring each one has tests for both its success and failure modes.
 
 This plan will allow us to build a robust and maintainable test suite for the entire CLI surface, giving us high confidence that the user-facing part of the application works as intended.
