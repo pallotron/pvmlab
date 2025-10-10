@@ -134,6 +134,10 @@ The --role flag determines the type of VM to create.
 		}
 		fmt.Println("Cloud-config ISO generated successfully.")
 
+		if role != "provisioner" {
+			pxebootStackTar = ""
+		}
+
 		if err := metadata.Save(vmName, role, ip, macForMetadata, pxebootStackTar, finalDockerImagesPath); err != nil {
 			fmt.Printf("Warning: failed to save VM metadata: %v\n", err)
 		}
