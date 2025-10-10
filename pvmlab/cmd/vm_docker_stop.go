@@ -15,6 +15,7 @@ var dockerStopCmd = &cobra.Command{
 	Use:   "stop <vm_name> <container_name>",
 	Short: "Stop a docker container in a VM",
 	Args:  cobra.ExactArgs(2),
+	ValidArgsFunction: VmNameCompleter,
 	Run: func(cmd *cobra.Command, args []string) {
 		vmName := args[0]
 		containerName := args[1]

@@ -19,6 +19,7 @@ var dockerStartCmd = &cobra.Command{
 	Use:   "start <vm_name> <path_to_container_tar>",
 	Short: "Start a docker container in a VM from a tarball",
 	Args:  cobra.ExactArgs(2),
+	ValidArgsFunction: VmNameCompleter,
 	Run: func(cmd *cobra.Command, args []string) {
 		vmName := args[0]
 		tarPath := args[1]

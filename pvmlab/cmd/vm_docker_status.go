@@ -15,6 +15,7 @@ var dockerStatusCmd = &cobra.Command{
 	Use:   "status <vm_name>",
 	Short: "Show docker container status in a VM",
 	Args:  cobra.ExactArgs(1),
+	ValidArgsFunction: VmNameCompleter,
 	Run: func(cmd *cobra.Command, args []string) {
 		vmName := args[0]
 
