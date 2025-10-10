@@ -18,6 +18,7 @@ clean.socket_vmnet:
 install.socket_vmnet: build.socket_vmnet
 	logger "Installing socket_vmnet... sudo access might be required..."
 	sudo make -C socket_vmnet install.bin
+	sudo chown root:staff /opt/socket_vmnet/bin/socket_vmnet_client
 
 build-pxeboot-stack-container:
 	make -C pxeboot_stack all

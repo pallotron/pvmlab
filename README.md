@@ -4,18 +4,6 @@ This project provides a command-line tool, `pvmlab`, to automate the setup of a 
 
 All generated artifacts (VM disks, ISOs, logs, etc.) are stored neatly in `~/.provisioning-vm-lab/`, keeping the project repository clean.
 
-## Features
-
-- **Go-based CLI:** A modern, easy-to-use command-line interface (`pvmlab`) for managing the entire lab lifecycle.
-- **Clean Project Directory:** All generated files are stored outside the project's directory in `~/.provisioning-vm-lab/`.
-- **Two-VM Architecture:**
-  - **Provisioner VM:** An `aarch64` Ubuntu server that provides network services.
-  - **Target VM:** An `x86_64` Ubuntu server that is configured by the lab. (TODO)
-- **Isolated Provisioning Network:** Utilizes `socket_vmnet` to create a private host-only network between the VMs.
-- **Internet Access via NAT:** The provisioner VM has internet access and acts as a gateway for the target VM.
-- **Declarative VM Configuration:** Uses `cloud-init` to declaratively configure both VMs on first boot.
-- **Docker Containerization:** Utilizes `Docker` to run the pxeboot stack: DHCP server, TFTP server, and Nginx server.
-
 ## Architecture
 
 ```mermaid
@@ -79,24 +67,39 @@ class Internet interfaceStyle
 linkStyle default stroke:black
 ```
 
-The lab is composed of two QEMU virtual machines connected to a private virtual network.
+### Features
+
+- **Go-based CLI:** A modern, easy-to-use command-line interface (`pvmlab`) for managing the entire lab lifecycle.
+- **Clean Project Directory:** All generated files are stored outside the project's directory in `~/.provisioning-vm-lab/`.
+- **Two role VM Architecture:**
+  - **Provisioner VM:** An `aarch64` Ubuntu server that provides pxeboot and NAT services for the target VMs.
+  - **Target VM:** An `x86_64` Ubuntu server that sits in the private network and is provisioned by the provisioner VM. The provisioner VM also provides internet access for the target VMs.
+- **Isolated Provisioning Network:** Utilizes `socket_vmnet` to create a private host-only network for provisioning services.
+- **Internet Access:** The provisioner VM is connected to a shared network for internet access, and provides NAT for the target VMs on the private network.
+- **Declarative VM Configuration:** Uses `cloud-init` to declaratively configure both VMs on first boot.
+- **Docker Containerization:** Utilizes `Docker` to run a `supervisord` container to manage the pxeboot stack:
+  - DHCP server to hand over IP settings to the target VMs
+  - TFTP server to serve the iPXE boot files to the target VMs
+  - HTTP server to serve initrd, ramdisk, OS images and cloud-init ISOs to the target VMs
+
+### VMs
 
 **Provisioner VM:**
 
 - **OS:** Ubuntu Server 24.04 (aarch64)
 - **Role:** `provisioner`, there could be only one provisioner per lab
 - **Network Interfaces:**
-  - `enp0s1` (WAN): Connects to the internet via QEMU's `user` network (NAT).
-  - `enp0s2` (LAN): Connects to the private network with a static IP of `192.168.100.1`.
+  - `enp0s1` (WAN): Connects to a shared network with DHCP for internet access.
+  - `enp0s2` (LAN): Connects to the private network with a static IP and NAT for the target VMs.
 - **Services:** Configured via `cloud-init` to enable IP forwarding and configure NAT.
-- **Docker**: Utilizes `Docker` to run the pxeboot stack: DHCP server, TFTP server, and Nginx server.
+- **Docker**: Utilizes `Docker` to run the pxeboot stack
 
 **Target VM:**
 
 - **OS:** Ubuntu Server 24.04 (aarch64)
 - **Role:** `target`
 - **Network Interface:**
-  - `eth0`: Connects to the private network and obtains its IP from the dhcpd server running on the provisioner VM.
+  - `enp0s1`: Connects to the private network and obtains its IP from the dhcpd server running on the provisioner VM.
 
 ## Artifacts Directory
 
@@ -335,6 +338,41 @@ docker image prune
 ```bash
 docker exec pxeboot_stack tail -f /var/log/dnsmasq.log
 ```
+
+### Building and Reloading the pxeboot Docker Container
+
+The `pxeboot_stack` Docker image is built on your macOS host and then loaded into the provisioner VM.
+
+**Initial Setup:**
+
+When you first create the provisioner VM (`pvmlab vm create provisioner`), the following happens automatically via `cloud-init`:
+1.  Docker is installed in the VM.
+2.  The `~/.provisioning-vm-lab/docker_images/` directory from your Mac is mounted into the VM at `/mnt/host/docker_images/`.
+3.  The `pxeboot_stack.tar` image is loaded into Docker.
+4.  The `pxeboot_stack` container is started.
+
+**Development Workflow:**
+
+If you make changes to the `pxeboot_stack` source code (e.g., `Dockerfile`, `supervisord.conf`), you can update the running container without recreating the entire VM:
+
+1.  **On your Mac**, rebuild and save the Docker image:
+    ```bash
+    make -C pxeboot_stack tar
+    ```
+    This command builds the image and creates the `pxeboot_stack.tar` file in the `pxeboot_stack` directory.
+
+2.  **Update the container in the provisioner VM**:
+    ```bash
+    pvmlab vm docker start provisioner pxeboot_stack/pxeboot_stack.tar --network-host --privileged
+    ```
+
+3.  **Check the container status**:
+    This script stops and removes the old container, loads the updated image from the shared directory, and starts a new container.
+    ```bash
+    pvmlab vm docker status provisioner
+    ```
+
+This allows for a rapid development cycle when working on the provisioning services.
 
 ## CLI Commands
 
