@@ -20,10 +20,10 @@ var wait bool
 
 // vmStartCmd represents the start command
 var vmStartCmd = &cobra.Command{
-	Use:   "start <vm-name>",
-	Short: "Starts a VM",
-	Long:  `Starts a VM using qemu.`,
-	Args:  cobra.ExactArgs(1),
+	Use:               "start <vm-name>",
+	Short:             "Starts a VM",
+	Long:              `Starts a VM using qemu.`,
+	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: VmNameCompleter,
 	Run: func(cmd *cobra.Command, args []string) {
 		vmName := args[0]
@@ -79,8 +79,14 @@ var vmStartCmd = &cobra.Command{
 			if meta.DockerImagesPath != "" {
 				finalDockerImagesPath = meta.DockerImagesPath
 			} else {
-				// Backwards compatibility for VMs created before this change.
 				finalDockerImagesPath = filepath.Join(appDir, "docker_images")
+			}
+
+			var finalVMsPath string
+			if meta.VMsPath != "" {
+				finalVMsPath = meta.VMsPath
+			} else {
+				finalVMsPath = filepath.Join(appDir, "vms")
 			}
 
 			qemuArgs = []string{
@@ -98,6 +104,7 @@ var vmStartCmd = &cobra.Command{
 				"-device", fmt.Sprintf("virtio-net-pci,netdev=net1,mac=%s", meta.MAC),
 				"-netdev", "socket,id=net1,fd=3",
 				"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_docker_images,security_model=passthrough", finalDockerImagesPath),
+				"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_vms,security_model=passthrough", finalVMsPath),
 				"-display", "none",
 				"-daemonize",
 				"-pidfile", pidPath,

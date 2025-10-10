@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var ip, role, mac, pxebootStackTar, dockerImagesPath string
+var ip, role, mac, pxebootStackTar, dockerImagesPath, vmsPath string
 
 // vmCreateCmd represents the create command
 var vmCreateCmd = &cobra.Command{
@@ -36,7 +36,7 @@ The --role flag determines the type of VM to create.
 			os.Exit(1)
 		}
 
-		var macForMetadata, finalDockerImagesPath string
+		var macForMetadata, finalDockerImagesPath, finalVMsPath string
 
 		if role == "provisioner" && ip == "" {
 			fmt.Printf("Error: --ip must be specified for provisioner VMs.\n")
@@ -68,6 +68,16 @@ The --role flag determines the type of VM to create.
 				finalDockerImagesPath = absPath
 			} else {
 				finalDockerImagesPath = filepath.Join(appDir, "docker_images")
+			}
+			if vmsPath != "" {
+				absPath, err := filepath.Abs(vmsPath)
+				if err != nil {
+					fmt.Printf("Error resolving path specified by --vms-path: %v\n", err)
+					os.Exit(1)
+				}
+				finalVMsPath = absPath
+			} else {
+				finalVMsPath = filepath.Join(appDir, "vms")
 			}
 		} else { // target
 			existingVM, err := metadata.FindVM(vmName)
@@ -138,7 +148,7 @@ The --role flag determines the type of VM to create.
 			pxebootStackTar = ""
 		}
 
-		if err := metadata.Save(vmName, role, ip, macForMetadata, pxebootStackTar, finalDockerImagesPath); err != nil {
+		if err := metadata.Save(vmName, role, ip, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath); err != nil {
 			fmt.Printf("Warning: failed to save VM metadata: %v\n", err)
 		}
 	},
@@ -155,5 +165,6 @@ func init() {
 		"Path to the pxeboot stack docker tar file (Required for the provisioner VM)",
 	)
 	vmCreateCmd.Flags().StringVar(&dockerImagesPath, "docker-images-path", "", "Path to docker images to share with the provisioner VM. Defaults to ~/.provisioning-vm-lab/docker_images")
+	vmCreateCmd.Flags().StringVar(&vmsPath, "vms-path", "", "Path to vms to share with the provisioner VM. Defaults to ~/.provisioning-vm-lab/vms")
 	vmCreateCmd.Flags().StringVar(&ip, "ip", "", "The IP address of the VM (Required for Provisioner and Target VMs)")
 }

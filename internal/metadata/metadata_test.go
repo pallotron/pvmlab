@@ -38,8 +38,9 @@ func TestSaveLoad(t *testing.T) {
 	mac := "52:54:00:12:34:56"
 	pxeBootStackTar := "pxe-stack.tar"
 	dockerImagesPath := "/path/to/docker/images"
+	vmsPath := "/path/to/vms"
 
-	err := Save(vmName, role, ip, mac, pxeBootStackTar, dockerImagesPath)
+	err := Save(vmName, role, ip, mac, pxeBootStackTar, dockerImagesPath, vmsPath)
 	if err != nil {
 		t.Fatalf("Save() failed: %v", err)
 	}
@@ -55,6 +56,7 @@ func TestSaveLoad(t *testing.T) {
 		MAC:              mac,
 		PxeBootStackTar:  pxeBootStackTar,
 		DockerImagesPath: dockerImagesPath,
+		VMsPath:          vmsPath,
 	}
 
 	if !reflect.DeepEqual(meta, expected) {
@@ -67,9 +69,9 @@ func TestFindProvisioner(t *testing.T) {
 	defer cleanup()
 
 	// Create some dummy metadata files
-	Save("vm1", "target", "", "mac1", "", "")
-	Save("vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2")
-	Save("vm3", "target", "", "mac3", "", "")
+	Save("vm1", "target", "", "mac1", "", "", "")
+	Save("vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "")
+	Save("vm3", "target", "", "mac3", "", "", "")
 
 	provisionerName, err := FindProvisioner()
 	if err != nil {
@@ -86,7 +88,7 @@ func TestDelete(t *testing.T) {
 	defer cleanup()
 
 	vmName := "vm-to-delete"
-	Save(vmName, "target", "", "mac", "", "")
+	Save(vmName, "target", "", "mac", "", "", "")
 
 	err := Delete(vmName)
 	if err != nil {
@@ -105,8 +107,8 @@ func TestGetAll(t *testing.T) {
 	defer cleanup()
 
 	// Create some dummy metadata files
-	Save("vm1", "target", "", "mac1", "", "")
-	Save("vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2")
+	Save("vm1", "target", "", "mac1", "", "", "")
+	Save("vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "")
 
 	allMeta, err := GetAll()
 	if err != nil {

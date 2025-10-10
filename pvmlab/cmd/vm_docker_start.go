@@ -16,9 +16,9 @@ import (
 var privileged, networkHost bool
 
 var dockerStartCmd = &cobra.Command{
-	Use:   "start <vm_name> <path_to_container_tar>",
-	Short: "Start a docker container in a VM from a tarball",
-	Args:  cobra.ExactArgs(2),
+	Use:               "start <vm_name> <path_to_container_tar>",
+	Short:             "Start a docker container in a VM from a tarball",
+	Args:              cobra.ExactArgs(2),
 	ValidArgsFunction: VmNameCompleter,
 	Run: func(cmd *cobra.Command, args []string) {
 		vmName := args[0]
@@ -85,7 +85,12 @@ var dockerStartCmd = &cobra.Command{
 				fmt.Sprintf("sudo docker stop %s || true", containerName),
 				fmt.Sprintf("sudo docker container rm %s || true", containerName),
 				fmt.Sprintf("sudo docker load -i /mnt/host/docker_images/%s", tarFileName),
-				fmt.Sprintf("sudo docker run -d --name %s %s %s:latest", containerName, strings.Join(runFlags, " "), containerName),
+				fmt.Sprintf(
+					"sudo docker run -d --mount type=bind,source=/mnt/host/vms,target=/mnt/host/vms --name %s %s %s:latest",
+					containerName,
+					strings.Join(runFlags, " "),
+					containerName,
+				),
 			}, " && ")
 			sshCmd = exec.Command(
 				"ssh", "-i", sshKeyPath, "-p", "2222",

@@ -48,7 +48,7 @@ write_files:
       echo "Loading new image from /mnt/host/docker_images/{{ ds.meta_data.pxe_boot_stack_tar }}..."
       docker load -i /mnt/host/docker_images/{{ ds.meta_data.pxe_boot_stack_tar }}
       echo "Starting new container..."
-      docker run -d --name {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged {{ ds.meta_data.pxe_boot_stack_name }}:latest
+      docker run --mount type=bind,source=/mnt/host/vms,target=/mnt/host/vms -d --name {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged {{ ds.meta_data.pxe_boot_stack_name }}:latest
       echo "Done."
 
 runcmd:
@@ -64,7 +64,9 @@ runcmd:
   - 'apt-get update'
   - 'DEBIAN_FRONTEND=noninteractive apt-get -y install docker-ce docker-ce-cli containerd.io'
   - 'mkdir -p /mnt/host/docker_images'
+  - 'mkdir -p /mnt/host/vms'
   - 'mount -t 9p -o trans=virtio,version=9p2000.L host_share_docker_images /mnt/host/docker_images'
+  - 'mount -t 9p -o trans=virtio,version=9p2000.L host_share_vms /mnt/host/vms'
   - 'docker load -i /mnt/host/docker_images/{{ ds.meta_data.pxe_boot_stack_tar }}'
   - 'docker run -d --name {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged {{ ds.meta_data.pxe_boot_stack_name }}:latest'
 
