@@ -23,7 +23,6 @@ build-pxeboot-stack-container:
 	make -C pxeboot_stack all
 
 define load_launchd
-	# Hint: try `launchctl enable system/$(1)` if the `launchctl bootstrap` command below fails
 	logger "Stopping launchd service $(1) if running..."
 	sudo launchctl bootout system "/Library/LaunchDaemons/$(1).plist" || true
 	logger "Installing launchd service for socket_vmnet in /Library/LaunchDaemons/$(1).plist"
