@@ -17,6 +17,7 @@ var vmLogsCmd = &cobra.Command{
 	Short: "Tails the console logs for a VM",
 	Long:  `Tails the console logs for a VM.`,
 	Args:  cobra.ExactArgs(1),
+	ValidArgsFunction: VmNameCompleter,
 	Run: func(cmd *cobra.Command, args []string) {
 		vmName := args[0]
 		appDir, err := config.GetAppDir()

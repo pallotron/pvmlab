@@ -20,6 +20,7 @@ var vmStopCmd = &cobra.Command{
 	Short: "Stops a VM",
 	Long:  `Stops a VM. It first attempts a graceful shutdown, then resorts to force-stopping the process.`,
 	Args:  cobra.ExactArgs(1),
+	ValidArgsFunction: VmNameCompleter,
 	Run: func(cmd *cobra.Command, args []string) {
 		vmName := args[0]
 		appDir, err := config.GetAppDir()

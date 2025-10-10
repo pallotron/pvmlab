@@ -24,6 +24,7 @@ var vmStartCmd = &cobra.Command{
 	Short: "Starts a VM",
 	Long:  `Starts a VM using qemu.`,
 	Args:  cobra.ExactArgs(1),
+	ValidArgsFunction: VmNameCompleter,
 	Run: func(cmd *cobra.Command, args []string) {
 		vmName := args[0]
 

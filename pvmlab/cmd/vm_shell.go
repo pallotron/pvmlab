@@ -17,6 +17,7 @@ var vmShellCmd = &cobra.Command{
 	Short: "Connects to a VM via SSH",
 	Long:  `Connects to a VM via SSH.`,
 	Args:  cobra.ExactArgs(1),
+	ValidArgsFunction: VmNameCompleter,
 	Run: func(cmd *cobra.Command, args []string) {
 		vmName := args[0]
 

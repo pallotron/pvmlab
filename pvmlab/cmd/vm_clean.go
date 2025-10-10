@@ -16,6 +16,7 @@ var vmCleanCmd = &cobra.Command{
 	Short: "Stops a VM and removes all its associated files",
 	Long:  `Stops a VM and removes all its associated files (disk, iso, pid, monitor, log).`,
 	Args:  cobra.ExactArgs(1),
+	ValidArgsFunction: VmNameCompleter,
 	Run: func(cmd *cobra.Command, args []string) {
 		vmName := args[0]
 
