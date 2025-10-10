@@ -193,25 +193,7 @@ Checking socket_vmnet service status...
 ## Shell Completion
 
 The CLI can generate completion scripts for various shells. This allows you to use the Tab key to auto-complete commands and flags.
-
-**For Bash:**
-
-Make sure you have `bash-completion` installed. Then, add the completion script to your setup:
-
-```bash
-# macOS (via Homebrew)
-pvmlab completion bash > $(brew --prefix)/etc/bash_completion.d/pvmlab
-```
-
-**For Zsh:**
-
-Generate the completion script in a directory that is part of your Zsh `fpath`:
-
-```bash
-pvmlab completion zsh > "${fpath[1]}/_pvmlab"
-```
-
-You will need to restart your shell for the changes to take effect.
+This is done by the makefile at installation time.
 
 ## Usage
 
@@ -297,11 +279,17 @@ pvmlab clean
 ### Interacting with the pxeboot Container
 
 The provisioner VM has a Docker container running the pxeboot stack.
-The container is defined in `pxeboot_stack/Dockerfile`.
-
-All container management is done **from within the provisioner VM** using standard Docker commands.
+The container is defined in `pxeboot_stack/Dockerfile` but you can also provide your own (in `.tar` format).
+Some commands are defined to manage the container, see `pvmlab vm docker --help`, but you can also use `docker` commands directly
+once you are inside the container.
 
 **Get a Shell Inside the Container:**
+
+Get into the provisioner:
+
+```bash
+pvmlab vm shell provisioner
+```
 
 For debugging, you can get an interactive shell.
 
@@ -311,35 +299,26 @@ docker exec -it pxeboot_stack /bin/sh
 
 **Manage Container Lifecycle:**
 
+Standard `docker` commands apply here:
+
 ```bash
 # Stop the container
 docker stop pxeboot_stack
-
 # Start the container
 docker start pxeboot_stack
-
 # Restart the container
 docker restart pxeboot_stack
-```
 
-**Clean Up Unused Images:**
-After reloading the image several times, you may have dangling (untagged) images. You can clean them up to save space.
-
-```bash
-# First, remove any stopped containers that may reference old images
+# Cleanup; first, remove any stopped containers that may reference old images
 docker container prune
-
 # Then, remove dangling images
 docker image prune
+
+# tail files inside the container
+docker exec pxeboot_stack tail -f /path/to/file.log
 ```
 
-**Tail the dnsmasq-specific log file**:
-
-```bash
-docker exec pxeboot_stack tail -f /var/log/dnsmasq.log
-```
-
-### Building and Reloading the pxeboot Docker Container
+#### Building and Reloading the pxeboot Docker Container
 
 The `pxeboot_stack` Docker image is built on your macOS host and then loaded into the provisioner VM.
 
@@ -376,19 +355,23 @@ This allows for a rapid development cycle when working on the provisioning servi
 
 ## CLI Commands
 
-| Command                      | Description                                                      |
-| ---------------------------- | ---------------------------------------------------------------- |
-| `pvmlab setup`               | Installs dependencies and creates the artifacts directory.       |
-| `pvmlab socket_vmnet start`  | Starts the `socket_vmnet` background service.                    |
-| `pvmlab socket_vmnet stop`   | Stops the `socket_vmnet` service.                                |
-| `pvmlab socket_vmnet status` | Checks the status of the `socket_vmnet` service.                 |
-| `pvmlab vm create <name>`    | Creates a new VM. Requires `--role`.                             |
-| `pvmlab vm start <name>`     | Starts the specified VM.                                         |
-| `pvmlab vm stop <name>`      | Stops the specified VM.                                          |
-| `pvmlab vm shell <name>`     | Opens an SSH session to the specified VM.                        |
-| `pvmlab vm logs <name>`      | Tails the console logs for the specified VM.                     |
-| `pvmlab vm clean <name>`     | Stops the VM and deletes its generated files.                    |
-| `pvmlab clean`               | Stops all VMs and services, and removes the artifacts directory. |
+| Command                                    | Description                                                      |
+| ------------------------------------------ | ---------------------------------------------------------------- |
+| `pvmlab setup`                             | Installs dependencies and creates the artifacts directory.       |
+| `pvmlab clean`                             | Stops all VMs and services, and removes the artifacts directory. |
+| `pvmlab socket_vmnet start`                | Starts the `socket_vmnet` background service.                    |
+| `pvmlab socket_vmnet stop`                 | Stops the `socket_vmnet` service.                                |
+| `pvmlab socket_vmnet status`               | Checks the status of the `socket_vmnet` service.                 |
+| `pvmlab vm create <name>`                  | Creates a new VM. Requires `--role`.                             |
+| `pvmlab vm start <name>`                   | Starts the specified VM.                                         |
+| `pvmlab vm stop <name>`                    | Stops the specified VM.                                          |
+| `pvmlab vm shell <name>`                   | Opens an SSH session to the specified VM.                        |
+| `pvmlab vm logs <name>`                    | Tails the console logs for the specified VM.                     |
+| `pvmlab vm list`                           | Lists all VMs and their status.                                  |
+| `pvmlab vm clean <name>`                   | Stops the VM and deletes its generated files.                    |
+| `pvmlab vm docker start <vm> <tar>`        | Starts a docker container inside a VM.                           |
+| `pvmlab vm docker stop <vm> <container>`   | Stops a docker container inside a VM.                            |
+| `pvmlab vm docker status <vm>`             | Checks the status of docker containers inside a VM.              |
 
 ## Project Structure
 
@@ -397,23 +380,10 @@ The project is a Go CLI application with the following structure:
 ```shell
 .
 ├── internal/               # Internal packages not intended for reuse
-│   ├── brew/
-│   ├── cloudinit/
-│   ├── config/
-│   ├── downloader/
-│   ├── logwatcher/
-│   ├── metadata/
-│   ├── pidfile/
-│   ├── runner/
-│   └── socketvmnet/
 ├── pvmlab/                 # Main application package
 │   ├── cmd/                # Cobra command definitions
 │   └── main.go
 ├── pxeboot_stack/          # Source for the Docker container running the pxeboot stack
-│   ├── Dockerfile
-│   ├── Makefile
-│   ├── dnsmasq.conf
-│   └── supervisord.conf
 ├── go.mod                  # Go module definition
 ├── go.sum                  # Go module dependencies
 └── README.md
@@ -436,6 +406,8 @@ But the plan is to:
 - Need to expose an gRPC API to provision/remove host reservations inside the `dhcplb` instance.
 - The `vm list` command should get the private IP of the clients by talking to `dhcplb`.
 
+Also offer functionality to add artifacts like NetworkBootPrograms (NBs), initrds, ramdisks, os images, etc.
+
 ### Architectures
 
 Currently everythign is `aarch64`.
@@ -451,3 +423,8 @@ This needs improvements, probably via ssh tunnels on the `provisioner` VM.
 
 Right now this project is heavily forced to run on macOS. This is because of the `socket_vmnet` service.
 The plan is to make this project more generic, so that it can be used on Linux too.
+
+### Start client VMs with interactive mode
+
+Right now client VMs are started in background. It would be nice to have an option which attaches the console
+to the user terminal, useful for debugging or when testing pxeboot installation.
