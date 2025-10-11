@@ -1,0 +1,37 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  integration-test-macos:
+    name: macOS Integration Test
+    runs-on: macos-latest # Use the latest available macOS runner
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      # Checkout submodules like socket_vmnet
+      with:
+        submodules: recursive
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25.1'
+
+    - name: Install Dependencies
+      run: brew install qemu cdrtools socat
+        
+    - name: Build and Install Environment via Makefile
+      run: make all
+        
+    - name: Run Integration Tests
+      run: |
+        # The CI environment variable is used in the test to un-skip the tests
+        export CI=true
+        # Run the tests from the dedicated package
+        go test -v ./tests/integration/...

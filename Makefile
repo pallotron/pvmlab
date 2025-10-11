@@ -78,4 +78,10 @@ install.completions: install-pvmlab
 	fi
 
 
-.PHONY: all socket_vmnet clean install.socket_vmnet install.socket_vmnet.launchd install.completions
+.PHONY: all socket_vmnet clean install.socket_vmnet install.socket_vmnet.launchd install.completions test integration.test
+
+test:
+	go test ./...
+
+integration.test:
+	CI=true go test -v ./tests/integration/...
