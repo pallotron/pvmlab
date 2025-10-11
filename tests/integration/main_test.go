@@ -140,7 +140,7 @@ func TestVMLifecycle(t *testing.T) {
 
 	t.Run("3-VMStart", func(t *testing.T) {
 		// Start tailing the QEMU log file in the background to see boot output.
-		logPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab/logs", fmt.Sprintf("%s.log", vmName))
+		logPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab", "logs", vmName+".log")
 		done := make(chan struct{})
 		go tailFile(t, logPath, os.Stdout, done)
 		defer close(done)
