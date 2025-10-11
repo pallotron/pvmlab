@@ -95,9 +95,16 @@ var vmStartCmd = &cobra.Command{
 		}
 
 		if meta.Role == "provisioner" {
-			if meta.SSHPort == 0 {
-				return fmt.Errorf("provisioner VM metadata is missing the SSH port; please recreate the VM")
+			// Find and assign an SSH port at the last possible moment.
+			sshPort, err := netutil.FindRandomPort()
+			if err != nil {
+				return fmt.Errorf("could not find an available SSH port: %w", err)
 			}
+			meta.SSHPort = sshPort
+			if err := metadata.Save(cfg, vmName, meta.Role, meta.IP, meta.MAC, meta.PxeBootStackTar, meta.DockerImagesPath, meta.VMsPath, meta.SSHPort); err != nil {
+				return fmt.Errorf("failed to save updated metadata with new SSH port: %w", err)
+			}
+
 			if !netutil.IsPortAvailable(meta.SSHPort) {
 				return fmt.Errorf("TCP port %d is already in use", meta.SSHPort)
 			}

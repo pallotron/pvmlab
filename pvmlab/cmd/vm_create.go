@@ -11,7 +11,6 @@ import (
 	"provisioning-vm-lab/internal/downloader"
 	"provisioning-vm-lab/internal/errors"
 	"provisioning-vm-lab/internal/metadata"
-	"provisioning-vm-lab/internal/netutil"
 	"provisioning-vm-lab/internal/runner"
 	"regexp"
 	"time"
@@ -81,14 +80,6 @@ The --role flag determines the type of VM to create.
 			return errors.E("vm-create", err)
 		}
 
-		var sshPort int
-		if role == provisionerRole {
-			sshPort, err = netutil.FindRandomPort()
-			if err != nil {
-				return errors.E("vm-create", fmt.Errorf("could not find an available SSH port: %w", err))
-			}
-		}
-
 		imagePath := filepath.Join(appDir, "images", imageFileName)
 		if err := downloader.DownloadImageIfNotExists(imagePath, config.UbuntuARMImageURL); err != nil {
 			return errors.E("vm-create", err)
@@ -108,18 +99,14 @@ The --role flag determines the type of VM to create.
 			pxebootStackTar = ""
 		}
 
-		if err := metadata.Save(cfg, vmName, role, ip, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, sshPort); err != nil {
+		if err := metadata.Save(cfg, vmName, role, ip, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, 0); err != nil {
 			color.Yellow("Warning: failed to save VM metadata: %v", err)
 		}
-
 		color.Green("✔ VM '%s' created successfully.", vmName)
 
 		return nil
 	},
 }
-
-
-
 
 func validateRole(role string) error {
 	if role != provisionerRole && role != targetRole {

@@ -39,8 +39,12 @@ var vmShellCmd = &cobra.Command{
 		var sshCmd *exec.Cmd
 
 		if meta.Role == "provisioner" {
-			color.Cyan("i Connecting to provisioner VM via forwarded port 2222...")
-			sshCmd = exec.Command("ssh", "-i", sshKeyPath, "-p", "2222", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost")
+			if meta.SSHPort == 0 {
+				return fmt.Errorf("SSH port not found in metadata, is the VM running?")
+			}
+			sshPort := fmt.Sprintf("%d", meta.SSHPort)
+			color.Cyan("i Connecting to provisioner VM via forwarded port %s...", sshPort)
+			sshCmd = exec.Command("ssh", "-i", sshKeyPath, "-p", sshPort, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost")
 		} else {
 			// TODO: if it's a target VM we need to ssh thru the provisioner. To be done.
 			return fmt.Errorf("target VM not supported for now. Please ssh from the provisioner VM")
