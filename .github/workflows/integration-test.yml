@@ -25,6 +25,9 @@ jobs:
 
     - name: Install Dependencies
       run: brew install qemu cdrtools socat
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
         
     - name: Build and Install Environment via Makefile
       run: make all
