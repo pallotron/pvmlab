@@ -53,7 +53,7 @@ var vmStartCmd = &cobra.Command{
 		// Check if the base image exists
 		imagePath := filepath.Join(appDir, "images", config.UbuntuARMImageName)
 		if _, err := os.Stat(imagePath); os.IsNotExist(err) {
-			return fmt.Errorf("ubuntu cloud image not found. Please run `pvmlab setup` or `pvmlab vm create` to download it")
+			return fmt.Errorf("ubuntu cloud image not found. Please run `pvmlab setup` to download it")
 		}
 
 		vmDiskPath := filepath.Join(appDir, "vms", vmName+".qcow2")

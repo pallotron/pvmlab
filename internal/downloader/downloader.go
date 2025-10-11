@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -36,16 +37,17 @@ func DownloadImageIfNotExists(imagePath, imageUrl string) error {
 	s.Start()
 
 	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
-		s.Suffix = fmt.Sprintf(" Downloading Ubuntu cloud image from %s...", imageUrl)
+		s.Suffix = fmt.Sprintf(color.CyanString(" Downloading Ubuntu cloud image from %s..."), imageUrl)
 		if err := DownloadFile(imagePath, imageUrl); err != nil {
-			s.FinalMSG = color.RedString("✖ Failed to download Ubuntu cloud image.\n")
 			s.Stop()
+			fmt.Printf("%s %s\n", color.RedString("✖"), s.Suffix)
 			return err
 		}
-		s.FinalMSG = color.GreenString("✔ Ubuntu cloud image downloaded successfully.\n")
+		s.Stop()
+		fmt.Printf("%s %s\n", color.GreenString("✔"), strings.TrimLeft(s.Suffix, " "))
 	} else {
-		s.FinalMSG = color.GreenString("✔ Ubuntu cloud image already exists.\n")
+		s.Stop()
+		fmt.Printf("%s %s\n", color.GreenString("✔"), s.Suffix)
 	}
-	s.Stop()
 	return nil
 }

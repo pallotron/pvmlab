@@ -12,6 +12,7 @@ import (
 	"provisioning-vm-lab/internal/config"
 	"provisioning-vm-lab/internal/downloader"
 	"provisioning-vm-lab/internal/runner"
+	"provisioning-vm-lab/internal/socketvmnet"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -54,8 +55,11 @@ Make sure launchd is configured to launch the socket_vmnet service.`,
 			return err
 		}
 
+		if err := checkSocketVmnetStatus(); err != nil {
+			return err
+		}
+
 		color.Green("✔ Setup completed successfully.")
-		color.Yellow("i Run `pvmlab socket_vmnet start` to start the networking service.")
 		return nil
 	},
 }
@@ -83,6 +87,26 @@ func createDirectories(appDir string) error {
 		}
 	}
 	s.FinalMSG = color.GreenString("✔ Directory structure created successfully.\n")
+	return nil
+}
+
+func checkSocketVmnetStatus() error {
+	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+	s.Suffix = " Checking socket_vmnet service status..."
+	s.Start()
+	defer s.Stop()
+
+	running, err := socketvmnet.IsSocketVmnetRunning()
+	if err != nil {
+		s.FinalMSG = color.RedString("✖ Error checking socket_vmnet status.\n")
+		return err
+	}
+
+	if running {
+		s.FinalMSG = color.GreenString("✔ %s service is already running.\n", socketvmnet.ServiceName)
+	} else {
+		s.FinalMSG = color.YellowString("i %s service is stopped. Run `pvmlab socket_vmnet start` to start it.\n", socketvmnet.ServiceName)
+	}
 	return nil
 }
 
