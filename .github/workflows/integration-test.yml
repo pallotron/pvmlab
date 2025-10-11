@@ -26,11 +26,15 @@ jobs:
     - name: Install Dependencies
       run: brew install qemu cdrtools socat
 
-    - name: Set up Docker
-      uses: docker/setup-docker-action@v4
-        
-    - name: Build and Install Environment via Makefile
-      run: make all
+    - name: Download PXE Boot Stack Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: pxeboot_stack_tar_main
+        path: pxeboot_stack/
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and Install Environment
+      run: make install-pvmlab install.socket_vmnet install.launchd
         
     - name: Run Integration Tests
       run: |
