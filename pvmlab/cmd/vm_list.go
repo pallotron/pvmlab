@@ -62,15 +62,24 @@ var vmListCmd = &cobra.Command{
 			}
 
 			sshAccess := "N/A"
-			role := meta.Role
 			if meta.Role == "provisioner" {
-				sshAccess = "localhost:2222"
-				role = color.RedString(meta.Role)
-			} else if meta.IP != "" {
+				if meta.SSHPort != 0 {
+					sshAccess = fmt.Sprintf("localhost:%d", meta.SSHPort)
+				} else {
+					sshAccess = "localhost:2222 (default)"
+				}
+			} else {
 				sshAccess = fmt.Sprintf("%s (from provisioner)", meta.IP)
 			}
 
-			table.Append([]string{vmName, role, meta.IP, sshAccess, meta.MAC, status})
+			table.Append([]string{
+				vmName,
+				meta.Role,
+				meta.IP,
+				sshAccess,
+				meta.MAC,
+				status,
+			})
 		}
 		table.Render()
 		return nil

@@ -8,6 +8,7 @@ import (
 	"provisioning-vm-lab/internal/config"
 	"provisioning-vm-lab/internal/logwatcher"
 	"provisioning-vm-lab/internal/metadata"
+	"provisioning-vm-lab/internal/netutil"
 	"provisioning-vm-lab/internal/pidfile"
 	"provisioning-vm-lab/internal/socketvmnet"
 	"strings"
@@ -79,6 +80,13 @@ var vmStartCmd = &cobra.Command{
 		// and removing -daemonize
 		var qemuArgs []string
 		if meta.Role == "provisioner" {
+			if meta.SSHPort == 0 {
+				return fmt.Errorf("provisioner VM metadata is missing the SSH port; please recreate the VM")
+			}
+			if !netutil.IsPortAvailable(meta.SSHPort) {
+				return fmt.Errorf("TCP port %d is already in use", meta.SSHPort)
+			}
+
 			var finalDockerImagesPath string
 			if meta.DockerImagesPath != "" {
 				finalDockerImagesPath = meta.DockerImagesPath
@@ -104,7 +112,7 @@ var vmStartCmd = &cobra.Command{
 				"-drive", fmt.Sprintf("file=%s,format=qcow2,if=virtio", vmDiskPath),
 				"-drive", fmt.Sprintf("file=%s,format=raw,if=virtio", isoPath),
 				"-device", "virtio-net-pci,netdev=net0",
-				"-netdev", "user,id=net0,hostfwd=tcp::2222-:22",
+				"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%d-:22", meta.SSHPort),
 				"-device", fmt.Sprintf("virtio-net-pci,netdev=net1,mac=%s", meta.MAC),
 				"-netdev", "socket,id=net1,fd=3",
 				"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_docker_images,security_model=passthrough", finalDockerImagesPath),
