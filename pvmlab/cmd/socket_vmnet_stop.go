@@ -1,11 +1,8 @@
 package cmd
 
 import (
-	"os/exec"
-	"provisioning-vm-lab/internal/runner"
-	"time"
+	"provisioning-vm-lab/internal/socketvmnet"
 
-	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -14,19 +11,13 @@ import (
 var serviceStopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "Stops the socket_vmnet service",
-	Long:  `Stops the socket_vmnet service using brew services.`,
+	Long:  `Stops the socket_vmnet service using launchctl.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
-		s.Suffix = " Stopping socket_vmnet service... (this may require sudo password)"
-		s.Start()
-		defer s.Stop()
-
-		cmdRun := exec.Command("sudo", "brew", "services", "stop", "socket_vmnet")
-		if err := runner.Run(cmdRun); err != nil {
-			s.FinalMSG = color.RedString("✖ Error stopping socket_vmnet service.\n")
+		color.Cyan("i Stopping socket_vmnet service... (this may require sudo password)")
+		if err := socketvmnet.StopSocketVmnet(); err != nil {
 			return err
 		}
-		s.FinalMSG = color.GreenString("✔ Socket_vmnet service stopped successfully.\n")
+		color.Green("✔ Socket_vmnet service stopped successfully.")
 		return nil
 	},
 }
