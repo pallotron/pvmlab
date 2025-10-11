@@ -30,8 +30,11 @@ jobs:
         docker build -t pxeboot_stack:$TAG_NAME ./pxeboot_stack
         docker save pxeboot_stack:$TAG_NAME -o pxeboot_stack_$TAG_NAME.tar
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
+    - name: Upload artifact as a release asset
+      uses: softprops/action-gh-release@v1
       with:
-        name: pxeboot_stack_tar_${{ steps.sanitize.outputs.name }}
-        path: pxeboot_stack_${{ steps.sanitize.outputs.name }}.tar
+        tag_name: latest-pxeboot
+        files: pxeboot_stack_${{ steps.sanitize.outputs.name }}.tar
+        body: "PXE boot stack image built from branch ${{ github.ref_name }}"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

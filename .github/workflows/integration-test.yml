@@ -8,6 +8,8 @@ on:
 
 jobs:
   integration-test-macos:
+    permissions:
+      actions: read # Required to download artifacts from other workflows
     name: macOS Integration Test
     runs-on: macos-latest # Use the latest available macOS runner
 
@@ -26,15 +28,16 @@ jobs:
     - name: Install Dependencies
       run: brew install qemu cdrtools socat
 
-    - name: Download PXE Boot Stack Artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: pxeboot_stack_tar_main
-        path: pxeboot_stack/
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Download PXE Boot Stack Release Asset
+      run: |
+        gh release download latest-pxeboot --pattern "pxeboot_stack_main.tar" --dir pxeboot_stack
+        # The file is downloaded into the directory, but we need it to be named pxeboot_stack.tar
+        mv pxeboot_stack/pxeboot_stack_main.tar pxeboot_stack/pxeboot_stack.tar
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and Install Environment
-      run: make install-pvmlab install.socket_vmnet install.launchd
+      run: make install-pvmlab install.socket_vmet install.launchd
         
     - name: Run Integration Tests
       run: |
