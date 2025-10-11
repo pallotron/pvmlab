@@ -1,6 +1,9 @@
 package integration
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -68,6 +71,27 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
+// runCmdWithLiveOutput executes a command, streams its output to the console in real-time,
+// and also returns the captured output for validation.
+func runCmdWithLiveOutput(command string, args ...string) (string, error) {
+	cmd := exec.Command(command, args...)
+	cmd.Env = os.Environ()
+
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stdout, &outBuf)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &errBuf)
+
+	err := cmd.Run()
+	fullOutput := outBuf.String() + errBuf.String()
+
+	if err != nil {
+		// The error from cmd.Run() doesn't include the output, so we wrap it for better context.
+		return fullOutput, fmt.Errorf("command failed with error: %w\n--- Output ---\n%s", err, fullOutput)
+	}
+
+	return fullOutput, nil
+}
+
 // TestVMLifecycle is a full integration test for the VM lifecycle.
 func TestVMLifecycle(t *testing.T) {
 	if os.Getenv("RUN_INTEGRATION_TESTS") != "true" {
@@ -77,27 +101,21 @@ func TestVMLifecycle(t *testing.T) {
 	vmName := "test-vm-lifecycle"
 	// Ensure cleanup happens even if the test fails
 	defer func() {
-		cmd := exec.Command(pathToCLI, "vm", "clean", vmName)
-		cmd.Env = os.Environ()
-		cmd.Run() // Ignore error, just a best effort
+		runCmdWithLiveOutput(pathToCLI, "vm", "clean", vmName) // Ignore error, just a best effort
 	}()
 
 	t.Run("0-Setup", func(t *testing.T) {
-		cmd := exec.Command(pathToCLI, "setup")
-		cmd.Env = os.Environ()
-		output, err := cmd.CombinedOutput()
+		output, err := runCmdWithLiveOutput(pathToCLI, "setup")
 		if err != nil {
-			t.Fatalf("setup failed: %v\n%s", err, string(output))
+			t.Fatalf("setup failed: %v\n%s", err, output)
 		}
 	})
 
 	t.Run("1-VMCleanInitial", func(t *testing.T) {
-		cmd := exec.Command(pathToCLI, "vm", "clean", vmName)
-		cmd.Env = os.Environ()
-		output, err := cmd.CombinedOutput()
+		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "clean", vmName)
 		// This might fail if the VM doesn't exist, which is fine.
 		// We are just ensuring a clean slate.
-		t.Logf("Initial clean output: %s", string(output))
+		t.Logf("Initial clean output: %s", output)
 		if err != nil {
 			t.Logf("Initial clean command finished with an error (this is often expected): %v", err)
 		}
@@ -105,31 +123,25 @@ func TestVMLifecycle(t *testing.T) {
 
 	t.Run("2-VMCreateProvisioner", func(t *testing.T) {
 		// Using a non-default IP to avoid conflicts with existing setups.
-		cmd := exec.Command(pathToCLI, "vm", "create", vmName, "--role", "provisioner", "--ip", "192.168.254.1")
-		cmd.Env = os.Environ()
-		output, err := cmd.CombinedOutput()
+		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "create", vmName, "--role", "provisioner", "--ip", "192.168.254.1")
 		if err != nil {
-			t.Fatalf("vm create failed: %v\n%s", err, string(output))
+			t.Fatalf("vm create failed: %v\n%s", err, output)
 		}
 	})
 
 	t.Run("3-VMStart", func(t *testing.T) {
-		cmd := exec.Command(pathToCLI, "vm", "start", vmName)
-		cmd.Env = os.Environ()
-		output, err := cmd.CombinedOutput()
+		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "start", vmName)
 		if err != nil {
-			t.Fatalf("vm start failed: %v\n%s", err, string(output))
+			t.Fatalf("vm start failed: %v\n%s", err, output)
 		}
 		// Give the VM a moment to boot. This might need adjustment.
 		time.Sleep(20 * time.Second)
 	})
 
 	t.Run("4-VMList", func(t *testing.T) {
-		cmd := exec.Command(pathToCLI, "vm", "list")
-		cmd.Env = os.Environ()
-		output, err := cmd.CombinedOutput()
+		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "list")
 		if err != nil {
-			t.Fatalf("vm list failed: %v\n%s", err, string(output))
+			t.Fatalf("vm list failed: %v\n%s", err, output)
 		}
 		outStr := string(output)
 		if !strings.Contains(outStr, vmName) {
@@ -142,20 +154,16 @@ func TestVMLifecycle(t *testing.T) {
 	})
 
 	t.Run("5-VMStop", func(t *testing.T) {
-		cmd := exec.Command(pathToCLI, "vm", "stop", vmName)
-		cmd.Env = os.Environ()
-		output, err := cmd.CombinedOutput()
+		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "stop", vmName)
 		if err != nil {
-			t.Fatalf("vm stop failed: %v\n%s", err, string(output))
+			t.Fatalf("vm stop failed: %v\n%s", err, output)
 		}
 	})
 
 	t.Run("6-VMCleanFinal", func(t *testing.T) {
-		cmd := exec.Command(pathToCLI, "vm", "clean", vmName)
-		cmd.Env = os.Environ()
-		output, err := cmd.CombinedOutput()
+		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "clean", vmName)
 		if err != nil {
-			t.Fatalf("final vm clean failed: %v\n%s", err, string(output))
+			t.Fatalf("final vm clean failed: %v\n%s", err, output)
 		}
 	})
 }
