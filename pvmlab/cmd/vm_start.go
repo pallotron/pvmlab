@@ -78,7 +78,21 @@ var vmStartCmd = &cobra.Command{
 		// 	-chardev stdio,id=char0,mux=on,logfile=path/to/file.log,signal=off
 		// 	-serial chardev:char0
 		// and removing -daemonize
-		var qemuArgs []string
+		// Base QEMU arguments common to all roles
+		qemuArgs := []string{
+			"qemu-system-aarch64",
+			"-M", "virt",
+			"-smp", "2",
+			"-drive", "if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
+			"-drive", fmt.Sprintf("file=%s,format=qcow2,if=virtio", vmDiskPath),
+			"-drive", fmt.Sprintf("file=%s,format=raw,if=virtio", isoPath),
+			"-display", "none",
+			"-daemonize",
+			"-pidfile", pidPath,
+			"-monitor", fmt.Sprintf("unix:%s,server,nowait", monitorPath),
+			"-serial", fmt.Sprintf("file:%s", logPath),
+		}
+
 		if meta.Role == "provisioner" {
 			if meta.SSHPort == 0 {
 				return fmt.Errorf("provisioner VM metadata is missing the SSH port; please recreate the VM")
@@ -101,49 +115,29 @@ var vmStartCmd = &cobra.Command{
 				finalVMsPath = filepath.Join(appDir, "vms")
 			}
 
-			qemuArgs = []string{
-				"qemu-system-aarch64",
-				"-M", "virt",
-				"-cpu", "host",
-				"-accel", "hvf",
+			// Append provisioner-specific arguments
+			qemuArgs = append(qemuArgs,
 				"-m", "4096",
-				"-smp", "2",
-				"-drive", "if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
-				"-drive", fmt.Sprintf("file=%s,format=qcow2,if=virtio", vmDiskPath),
-				"-drive", fmt.Sprintf("file=%s,format=raw,if=virtio", isoPath),
 				"-device", "virtio-net-pci,netdev=net0",
 				"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%d-:22", meta.SSHPort),
 				"-device", fmt.Sprintf("virtio-net-pci,netdev=net1,mac=%s", meta.MAC),
 				"-netdev", "socket,id=net1,fd=3",
 				"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_docker_images,security_model=passthrough", finalDockerImagesPath),
 				"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_vms,security_model=passthrough", finalVMsPath),
-				"-display", "none",
-				"-daemonize",
-				"-pidfile", pidPath,
-				"-monitor", fmt.Sprintf("unix:%s,server,nowait", monitorPath),
-				"-serial", fmt.Sprintf("file:%s", logPath),
-			}
+			)
 		} else { // target
-			qemuArgs = []string{
-				"qemu-system-aarch64",
-				"-M", "virt",
-				"-cpu", "host",
-				"-accel", "hvf",
+			// Append target-specific arguments
+			qemuArgs = append(qemuArgs,
 				"-m", "2048",
-				"-smp", "2",
-				"-drive", "if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
-				"-drive", fmt.Sprintf("file=%s,format=qcow2,if=virtio", vmDiskPath),
-				"-drive", fmt.Sprintf("file=%s,format=raw,if=virtio", isoPath),
 				"-device", fmt.Sprintf("virtio-net-pci,netdev=net0,mac=%s", meta.MAC),
 				"-netdev", "socket,id=net0,fd=3",
-				"-display", "none",
-				"-daemonize",
-				"-pidfile", pidPath,
-				"-monitor", fmt.Sprintf("unix:%s,server,nowait", monitorPath),
-				"-serial", fmt.Sprintf("file:%s", logPath),
-			}
+			)
 		}
 
+		// Disable hardware acceleration in CI environments due to lack of nested virtualization
+		if os.Getenv("CI") != "true" {
+			qemuArgs = append(qemuArgs, "-cpu", "host", "-accel", "hvf")
+		}
 		socketPath, err := socketvmnet.GetSocketPath()
 		if err != nil {
 			return fmt.Errorf("error getting socket_vmnet path: %w", err)

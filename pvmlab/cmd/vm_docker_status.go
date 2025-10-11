@@ -47,7 +47,7 @@ var dockerStatusCmd = &cobra.Command{
 				"-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost", remoteCmd,
 			)
 		} else {
-			return fmt.Errorf("Target VM not supported for now. Please ssh from the provisioner VM")
+			return fmt.Errorf("target VM not supported for now. Please ssh from the provisioner VM")
 		}
 
 		output, err := sshCmd.CombinedOutput()
