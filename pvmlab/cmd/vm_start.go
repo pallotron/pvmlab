@@ -154,7 +154,9 @@ var vmStartCmd = &cobra.Command{
 
 		if os.Getenv("PVMLAB_DEBUG") == "true" {
 			color.Yellow("--- QEMU Command ---")
-			fmt.Println(strings.Join(finalCmd, " "))
+			for _, arg := range finalCmd {
+				fmt.Println("  " + arg)
+			}
 			color.Yellow("--------------------")
 		}
 

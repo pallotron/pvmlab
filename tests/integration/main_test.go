@@ -141,13 +141,18 @@ func TestVMLifecycle(t *testing.T) {
 	})
 
 	t.Run("3-VMStart", func(t *testing.T) {
-		// Start tailing the QEMU log file in the background to see boot output.
-		logPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab", "logs", vmName+".log")
-		done := make(chan struct{})
-		go tailFile(t, logPath, os.Stdout, done)
-		defer close(done)
+		// Start the VM but don't wait for cloud-init within the CLI.
+		// The test will handle the waiting so it can capture all log output.
+		_, err := runCmdWithLiveOutput(pathToCLI, "vm", "start", vmName, "--wait=false")
+		if err != nil {
+			t.Fatalf("vm start --wait=false failed: %v", err)
+		}
 
-		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "start", vmName)
+		// Now, tail the log file and wait for the cloud-init success message.
+		logPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab", "logs", vmName+".log")
+		timeout := 15 * time.Minute
+		err = waitForMessageInLog(t, logPath, "cloud-config.target", timeout)
+
 		if err != nil {
 			// If the command fails, print a recursive listing of the app dir for debugging.
 			debugDir := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab")
@@ -156,11 +161,8 @@ func TestVMLifecycle(t *testing.T) {
 			debugOutput, _ := debugCmd.CombinedOutput() // Ignore error, this is best-effort
 			log.Println(string(debugOutput))
 			log.Println("--- End debugging ---")
-
-			t.Fatalf("vm start failed: %v\n%s", err, output)
+			t.Fatalf("waiting for cloud-init message failed: %v", err)
 		}
-		// Give the VM a moment to boot. This might need adjustment.
-		time.Sleep(20 * time.Second)
 	})
 
 	t.Run("4-VMList", func(t *testing.T) {
@@ -193,60 +195,53 @@ func TestVMLifecycle(t *testing.T) {
 	})
 }
 
-// tailFile tails a file and sends its content to the writer.
-// It stops when the done channel is closed.
-func tailFile(t *testing.T, filePath string, writer io.Writer, done chan struct{}) {
+// waitForMessageInLog tails a file, prints its content to the test log, and waits
+// for a specific message to appear. It returns an error if the timeout is reached.
+func waitForMessageInLog(t *testing.T, filePath, message string, timeout time.Duration) error {
 	var file *os.File
 	var err error
 
-	// Wait for the file to be created, checking for the done signal periodically.
-	for {
-		file, err = os.Open(filePath)
-		if err == nil {
-			break // File found
-		}
-		if !os.IsNotExist(err) {
-			t.Logf("Error opening file %s, not a 'not exist' error: %v", filePath, err)
-			return
-		}
+	timeoutChan := time.After(timeout)
 
-		// Wait a bit before retrying.
+	// Wait for the file to be created.
+	for {
 		select {
-		case <-done:
-			t.Logf("Stopped waiting for file %s because test is done.", filePath)
-			return
-		case <-time.After(100 * time.Millisecond):
-			// continue to next attempt
+		case <-timeoutChan:
+			return fmt.Errorf("timed out waiting for log file to be created: %s", filePath)
+		default:
+			file, err = os.Open(filePath)
+			if err == nil {
+				goto found
+			}
+			time.Sleep(200 * time.Millisecond)
 		}
 	}
 
+found:
 	defer file.Close()
-	t.Logf("Tailing file: %s", filePath)
+	t.Logf("Tailing file for message '%s': %s", message, filePath)
 
 	reader := bufio.NewReader(file)
 	for {
 		select {
-		case <-done:
-			t.Logf("Stopping tail of file: %s", filePath)
-			return
+		case <-timeoutChan:
+			return fmt.Errorf("timed out waiting for message '%s' in log file: %s", message, filePath)
 		default:
 			line, err := reader.ReadBytes('\n')
 			if err == io.EOF {
-				// If we hit the end of the file, wait a bit for more content,
-				// but stop if the done signal is received.
-				select {
-				case <-done:
-					t.Logf("Stopping tail of file: %s", filePath)
-					return
-				case <-time.After(100 * time.Millisecond):
-					// continue reading
-				}
+				time.Sleep(200 * time.Millisecond)
 				continue
 			} else if err != nil {
-				t.Logf("Error tailing file %s: %v", filePath, err)
-				return
+				return fmt.Errorf("error reading log file %s: %w", filePath, err)
 			}
-			_, _ = writer.Write(line)
+
+			// Print the line to the test output for visibility.
+			t.Log(strings.TrimSpace(string(line)))
+
+			if strings.Contains(string(line), message) {
+				t.Logf("Found target message '%s' in log.", message)
+				return nil
+			}
 		}
 	}
 }
