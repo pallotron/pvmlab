@@ -20,6 +20,10 @@ func DownloadFile(filepath string, url string) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download file from %s: %s", url, resp.Status)
+	}
+
 	out, err := os.Create(filepath)
 	if err != nil {
 		return err
