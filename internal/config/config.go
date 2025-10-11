@@ -23,10 +23,21 @@ type Config struct {
 
 // New creates a new Config instance.
 func New() (*Config, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
+	var home string
+	var err error
+
+	// Check for the override environment variable first.
+	// This is useful for testing.
+	homeOverride := os.Getenv("PVMLAB_HOME")
+	if homeOverride != "" {
+		home = homeOverride
+	} else {
+		home, err = os.UserHomeDir()
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	return &Config{homeDir: home}, nil
 }
 

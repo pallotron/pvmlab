@@ -40,7 +40,7 @@ func TestSaveLoad(t *testing.T) {
 	dockerImagesPath := "/path/to/docker/images"
 	vmsPath := "/path/to/vms"
 
-	err := Save(cfg, vmName, role, ip, mac, pxeBootStackTar, dockerImagesPath, vmsPath)
+	err := Save(cfg, vmName, role, ip, mac, pxeBootStackTar, dockerImagesPath, vmsPath, 0)
 	if err != nil {
 		t.Fatalf("Save() failed: %v", err)
 	}
@@ -57,6 +57,7 @@ func TestSaveLoad(t *testing.T) {
 		PxeBootStackTar:  pxeBootStackTar,
 		DockerImagesPath: dockerImagesPath,
 		VMsPath:          vmsPath,
+		SSHPort:          0,
 	}
 
 	if !reflect.DeepEqual(meta, expected) {
@@ -69,9 +70,9 @@ func TestFindProvisioner(t *testing.T) {
 	defer cleanup()
 
 	// Create some dummy metadata files
-	Save(cfg, "vm1", "target", "", "mac1", "", "", "")
-	Save(cfg, "vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "")
-	Save(cfg, "vm3", "target", "", "mac3", "", "", "")
+	Save(cfg, "vm1", "target", "", "mac1", "", "", "", 0)
+	Save(cfg, "vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "", 2222)
+	Save(cfg, "vm3", "target", "", "mac3", "", "", "", 0)
 
 	provisionerName, err := FindProvisioner(cfg)
 	if err != nil {
@@ -88,7 +89,7 @@ func TestDelete(t *testing.T) {
 	defer cleanup()
 
 	vmName := "vm-to-delete"
-	Save(cfg, vmName, "target", "", "mac", "", "", "")
+	Save(cfg, vmName, "target", "", "mac", "", "", "", 0)
 
 	err := Delete(cfg, vmName)
 	if err != nil {
@@ -107,8 +108,8 @@ func TestGetAll(t *testing.T) {
 	defer cleanup()
 
 	// Create some dummy metadata files
-	Save(cfg, "vm1", "target", "", "mac1", "", "", "")
-	Save(cfg, "vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "")
+	Save(cfg, "vm1", "target", "", "mac1", "", "", "", 0)
+	Save(cfg, "vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "", 2222)
 
 	allMeta, err := GetAll(cfg)
 	if err != nil {

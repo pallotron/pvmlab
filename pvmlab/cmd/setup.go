@@ -70,16 +70,16 @@ func createDirectories(appDir string) error {
 	s.Start()
 	defer s.Stop()
 
-	dirs := []string{
-		filepath.Join(appDir, "vms"),
-		filepath.Join(appDir, "configs", "cloud-init"),
-		filepath.Join(appDir, "images"),
-		filepath.Join(appDir, "logs"),
-		filepath.Join(appDir, "pids"),
-		filepath.Join(appDir, "monitors"),
-		filepath.Join(appDir, "ssh"),
-	}
-
+	    dirs := []string{
+	        filepath.Join(appDir, "images"),
+	        filepath.Join(appDir, "vms"),
+	        filepath.Join(appDir, "pids"),
+	        filepath.Join(appDir, "logs"),
+	        filepath.Join(appDir, "monitors"),
+	        filepath.Join(appDir, "ssh"),
+	        filepath.Join(appDir, "configs", "cloud-init"),
+	        filepath.Join(appDir, "docker_images"),
+	    }
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			s.FinalMSG = color.RedString("✖ Failed to create directory structure.\n")
