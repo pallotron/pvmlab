@@ -9,7 +9,7 @@ on:
 jobs:
   integration-test-macos:
     permissions:
-      actions: read # Required to download artifacts from other workflows
+      contents: read # Required to download release assets
     name: macOS Integration Test
     runs-on: macos-latest # Use the latest available macOS runner
 

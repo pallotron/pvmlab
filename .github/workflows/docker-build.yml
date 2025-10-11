@@ -10,6 +10,8 @@ on:
 
 jobs:
   build-docker-image:
+    permissions:
+      contents: write # Required to create a release
     name: Build and Upload Docker Image
     runs-on: ubuntu-latest
 
