@@ -44,7 +44,7 @@ jobs:
         go-version: '1.25.1'
 
     - name: Install Dependencies
-      run: brew install qemu cdrtools socat
+      run: brew install qemu cdrtools socat docker
 
     - name: Download PXE Boot Stack Artifact
       uses: actions/download-artifact@v4
