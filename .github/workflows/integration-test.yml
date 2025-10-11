@@ -7,16 +7,34 @@ on:
     branches: [ main ]
 
 jobs:
-  integration-test-macos:
-    permissions:
-      contents: read # Required to download release assets
-    name: macOS Integration Test
-    runs-on: macos-latest # Use the latest available macOS runner
-
+  build-docker-image:
+    name: Build PXE Boot Stack Image
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      # Checkout submodules like socket_vmnet
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build and export to tar
+      run: |
+        docker build -t pxeboot_stack:latest ./pxeboot_stack
+        docker save pxeboot_stack:latest -o pxeboot_stack.tar
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: pxeboot_stack_tar
+        path: pxeboot_stack.tar
+
+  integration-test-macos:
+    name: macOS Integration Test
+    needs: build-docker-image # This ensures the build job finishes first
+    runs-on: macos-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -28,20 +46,16 @@ jobs:
     - name: Install Dependencies
       run: brew install qemu cdrtools socat
 
-    - name: Download PXE Boot Stack Release Asset
-      run: |
-        gh release download latest-pxeboot --pattern "pxeboot_stack_main.tar" --dir pxeboot_stack
-        # The file is downloaded into the directory, but we need it to be named pxeboot_stack.tar
-        mv pxeboot_stack/pxeboot_stack_main.tar pxeboot_stack/pxeboot_stack.tar
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Download PXE Boot Stack Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: pxeboot_stack_tar
+        path: pxeboot_stack/
 
     - name: Build and Install Environment
-      run: make install-pvmlab install.socket_vmet install.launchd
+      run: make install-pvmlab install.socket_vmnet install.launchd
         
     - name: Run Integration Tests
       run: |
-        # The RUN_INTEGRATION_TESTS environment variable is used in the test to un-skip the tests
         export RUN_INTEGRATION_TESTS=true
-        # Run the tests from the dedicated package
         go test -v ./tests/integration/...
