@@ -1,53 +1,50 @@
-# Plan for testing CLI commands
+# Testing Strategy for CLI Commands
 
-Building a good test suite for a CLI application built with Cobra is crucial. Here is the plan I would follow to add tests to the `pvmlab/cmd` package without making any changes yet.
+This document outlines the testing strategy for the `pvmlab` CLI. It covers both the existing end-to-end integration tests and the plan for adding complementary, fast-running unit tests.
 
-## Goal
+## Current State: Integration Testing
 
-The primary goal is to test the _CLI layer_ itself, not to re-test the underlying business logic (which we've already covered in the `internal` packages). The tests will verify:
+A full, end-to-end integration test exists in `tests/integration/main_test.go`.
 
-1.**Command Structure**: Ensure all commands and subcommands are correctly registered and callable (e.g., `pvmlab vm list` is a valid command path). 2.**Flag & Argument Parsing**: Confirm that flags and arguments are correctly parsed and validated (e.g., a required `--name` flag is enforced). 3.**Logic Invocation**: Verify that the correct underlying functions from the `internal` packages are called with the values parsed from flags and arguments. 4.**User Output**: Check that the command produces the expected output to the console (`stdout`) and that errors are printed correctly (`stderr`).
+**Goal:** To verify that all components of the application work together correctly in a real-world scenario, covering the entire lifecycle of a provisioner VM.
 
-## Strategy
+**What it Covers:**
 
-I will use a combination of standard Go testing practices and features from the Cobra library to achieve this in an isolated and repeatable way.
+- The "happy path" for the entire VM lifecycle: `setup`, `vm create`, `vm start`, `vm list`, `vm stop`, and `vm clean`.
+- Correct parsing of arguments and flags (e.g., `--role`, `<vm-name>`).
+- Real-world side effects: creating disk images, launching a real QEMU process, and waiting for the SSH port to become available.
+- Dynamic SSH port allocation and usage across multiple commands (`vm start`, `vm shell`, `vm docker *`).
 
-1.**Output Capturing**: For each test, I will redirect the command's `stdout` and `stderr` streams to an in-memory buffer (`bytes.Buffer`). This allows me to capture everything the command would print to the console and assert against its content.
+This test provides the highest level of confidence that the application is functional. However, it is slow and does not cover specific failure cases.
 
-2.**Command Execution in Tests**: Instead of running the compiled binary, I will directly call the `Execute()` method on the root command object within the test. I can programmatically set the arguments for each test case using `rootCmd.SetArgs([]string{"vm", "list"})`.
+## Next Steps: Complementary CLI Unit Tests
 
-3.**Dependency Mocking**: The most critical part is to isolate the CLI logic from the rest of the application. The commands call functions in our `internal` packages. Since we have already refactored those packages to be testable (using exported function variables like `config.GetAppDirFunc`), I will replace these functions with mocks during the test setup. This prevents tests from having side effects (like creating real files or making network calls) and allows me to control the data the commands receive.
+To cover failure modes and edge cases in a fast and isolated manner, we will add unit tests for the `pvmlab/cmd` package.
 
-## Step-by-Step Implementation Plan
+### Goal
 
-### Create Test Files
+The primary goal is to test the _CLI layer_ itself in isolation, focusing on scenarios not covered by the integration test. The tests will verify:
 
-I will start by creating a new test file, `pvmlab/cmd/cmd_test.go`, to house the tests. As the suite grows, we can split this into multiple files like `vm_cmd_test.go`, `socketvmnet_cmd_test.go`, etc., for better organization.
+1. **Flag & Argument Validation**: Confirm that errors are produced for missing or invalid flags and arguments (e.g., `vm create` without a name, `vm create --role invalid-role`).
+2. **Error Handling**: Ensure that errors from the underlying `internal` packages are caught and presented to the user correctly.
+3. **User Output**: Check that help text and error messages are printed as expected.
 
-### Develop a Test Helper
+### Strategy
 
-To avoid repetitive code, I'll create a helper function. This function will take a command (e.g., `vm`, `list`) and its arguments, set up the output buffers, execute the command, and return the captured `stdout`, `stderr`, and any error.
+We will use a combination of standard Go testing practices and features from the Cobra library.
 
-### Test a Simple Read-Only Command
+1. **Output Capturing**: For each test, we will redirect the command's `stdout` and `stderr` streams to an in-memory buffer (`bytes.Buffer`) to assert against its content.
 
-I'll begin with `pvmlab vm list`.
+2. **Command Execution in Tests**: We will directly call the `Execute()` method on the root command object within the test, setting arguments programmatically with `rootCmd.SetArgs()`.
 
-- **Arrange**: In the test, I'll mock the `metadata.GetAll()` function to return a predefined list of virtual machines (e.g., `{"vm1": {...}, "vm2": {...}}`).
-- **Act**: I'll use the test helper to execute the command with the arguments `["vm", "list"]`.
-- **Assert**: I'll check that the command returned no error and that the captured output string contains the names of the mocked VMs ("vm1" and "vm2").
+3. **Dependency Mocking**: We will mock the functions in our `internal` packages. This prevents tests from having side effects (like creating real files) and allows us to simulate specific failure conditions (e.g., `metadata.Save` returning an error).
 
-### Test a Command with Flags and Side Effects
+### Example Implementation (`pvmlab vm create`)
 
-Next, I'll tackle a more complex command like `pvmlab vm create`.
+- **Arrange**: Mock the `metadata.Save` function to return an error.
+- **Act**: Execute the command with valid flags: `["vm", "create", "my-test-vm", "--role", "provisioner", "--ip", "192.168.1.1"]`.
+- **Assert**: Verify that the command returned an error and that the captured `stderr` contains the expected error message.
+- **Act (Failure)**: Execute the command _without_ the required `--ip` flag for a provisioner.
+- **Assert (Failure)**: Verify that the command returns an error and that the captured error output contains the expected usage information.
 
-- **Arrange**: I will mock all the functions this command depends on, such as `metadata.Save`, `cloudinit.CreateISO`, and `runner.Run`.
-- **Act (Success)**: I'll execute the command with valid flags, e.g., `["vm", "create", "--name", "my-test-vm"]`.
-- **Assert (Success)**: I'll verify that the command returned no error and that the mocked `metadata.Save` function was called with the name "my-test-vm".
-- **Act (Failure)**: I'll execute the command _without_ the required `--name` flag.
-- **Assert (Failure)**: I'll verify that the command returns an error and that the captured error output contains the expected usage information (e.g., "required flag(s) 'name' not set").
-
-### Systematically Cover All Commands
-
-I will repeat this "Arrange, Act, Assert" pattern for the remaining commands (`vm start`, `vm stop`, `clean`, `setup`, etc.), ensuring each one has tests for both its success and failure modes.
-
-This plan will allow us to build a robust and maintainable test suite for the entire CLI surface, giving us high confidence that the user-facing part of the application works as intended.
+This two-pronged testing strategy (broad integration tests + targeted unit tests) will provide robust test coverage for the entire application.

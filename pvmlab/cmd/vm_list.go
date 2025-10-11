@@ -66,7 +66,11 @@ var vmListCmd = &cobra.Command{
 				if meta.SSHPort != 0 {
 					sshAccess = fmt.Sprintf("localhost:%d", meta.SSHPort)
 				} else {
-					sshAccess = "localhost:2222 (default)"
+					if meta.SSHPort > 0 {
+					sshAccess = fmt.Sprintf("localhost:%d", meta.SSHPort)
+				} else {
+					sshAccess = "N/A"
+				}
 				}
 			} else {
 				sshAccess = fmt.Sprintf("%s (from provisioner)", meta.IP)

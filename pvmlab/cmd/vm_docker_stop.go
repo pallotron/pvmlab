@@ -37,9 +37,13 @@ var dockerStopCmd = &cobra.Command{
 		var sshCmd *exec.Cmd
 
 		if meta.Role == "provisioner" {
+			if meta.SSHPort == 0 {
+				return fmt.Errorf("SSH port not found in metadata, is the VM running?")
+			}
+			sshPort := fmt.Sprintf("%d", meta.SSHPort)
 			remoteCmd := fmt.Sprintf("sudo docker stop %s", containerName)
 			sshCmd = exec.Command(
-				"ssh", "-i", sshKeyPath, "-p", "2222", "-o", "StrictHostKeyChecking=no",
+				"ssh", "-i", sshKeyPath, "-p", sshPort, "-o", "StrictHostKeyChecking=no",
 				"-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost",
 				remoteCmd,
 			)

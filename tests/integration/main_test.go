@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"provisioning-vm-lab/internal/waiter"
 	"strings"
 	"testing"
 	"time"
@@ -166,13 +166,14 @@ func TestVMLifecycle(t *testing.T) {
 
 		// Wait for the SSH port to become available. This is the true test of readiness.
 		timeout := 15 * time.Minute
-		err = waitForPort(t, "localhost", meta.SSHPort, timeout)
+		err = waiter.ForPort("localhost", meta.SSHPort, timeout)
 		if err != nil {
 			t.Fatalf("waiting for SSH port %d failed: %v", meta.SSHPort, err)
 		}
 
 		// Once SSH is up, wait for cloud-init to be fully complete.
-		err = waitForCloudInitTarget(t, meta.SSHPort, timeout)
+		sshKeyPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab", "ssh", "vm_rsa")
+		err = waiter.ForCloudInitTarget(meta.SSHPort, sshKeyPath, timeout)
 		if err != nil {
 			// If waiting fails, print a recursive listing of the app dir for debugging.
 			debugDir := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab")
@@ -213,51 +214,4 @@ func TestVMLifecycle(t *testing.T) {
 			t.Fatalf("final vm clean failed: %v\n%s", err, output)
 		}
 	})
-}
-
-// waitForCloudInitTarget polls the VM via SSH until the cloud-init.target is active.
-func waitForCloudInitTarget(t *testing.T, sshPort int, timeout time.Duration) error {
-	t.Logf("Waiting for cloud-init.target to become active (checking via ssh on port %d)...", sshPort)
-	sshKeyPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab", "ssh", "vm_rsa")
-	sshPortStr := fmt.Sprintf("%d", sshPort)
-	command := "systemctl show cloud-init.target --property ActiveState"
-
-	timeoutChan := time.After(timeout)
-	for {
-		select {
-		case <-timeoutChan:
-			return fmt.Errorf("timed out waiting for cloud-init.target to become active")
-		default:
-			cmd := exec.Command("ssh", "-i", sshKeyPath, "-p", sshPortStr, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost", command)
-			output, err := cmd.CombinedOutput()
-			if err == nil && strings.Contains(string(output), "ActiveState=active") {
-				t.Logf("cloud-init.target is active.")
-				return nil
-			}
-			// Don't spam the log with connection errors, just wait and retry.
-			time.Sleep(2 * time.Second)
-		}
-	}
-}
-
-// waitForPort polls a TCP port until it becomes available or a timeout is reached.
-func waitForPort(t *testing.T, host string, port int, timeout time.Duration) error {
-	address := net.JoinHostPort(host, fmt.Sprintf("%d", port))
-	t.Logf("Waiting for port %s to become available...", address)
-
-	timeoutChan := time.After(timeout)
-	for {
-		select {
-		case <-timeoutChan:
-			return fmt.Errorf("timed out waiting for port %s", address)
-		default:
-			conn, err := net.DialTimeout("tcp", address, 1*time.Second)
-			if err == nil {
-				conn.Close()
-				t.Logf("Port %s is now available.", address)
-				return nil
-			}
-			time.Sleep(200 * time.Millisecond)
-		}
-	}
 }

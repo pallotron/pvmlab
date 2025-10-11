@@ -6,11 +6,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"provisioning-vm-lab/internal/config"
-	"provisioning-vm-lab/internal/logwatcher"
 	"provisioning-vm-lab/internal/metadata"
 	"provisioning-vm-lab/internal/netutil"
 	"provisioning-vm-lab/internal/pidfile"
 	"provisioning-vm-lab/internal/socketvmnet"
+	"provisioning-vm-lab/internal/waiter"
 	"strconv"
 	"strings"
 	"time"
@@ -192,7 +192,11 @@ var vmStartCmd = &cobra.Command{
 			}
 			timeoutDuration := time.Duration(timeoutSeconds) * time.Second
 
-			if err := logwatcher.WaitForMessage(cfg, vmName, "cloud-config.target", timeoutDuration); err != nil {
+			if err := waiter.ForPort("localhost", meta.SSHPort, timeoutDuration); err != nil {
+				return err
+			}
+			sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa")
+			if err := waiter.ForCloudInitTarget(meta.SSHPort, sshKeyPath, timeoutDuration); err != nil {
 				return err
 			}
 		}

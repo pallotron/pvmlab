@@ -229,7 +229,7 @@ pvmlab vm start target1
 ```bash
 pvmlab vm list
 NAME          ROLE          PRIVATE IP      SSH ACCESS                         MAC                 STATUS
-provisioner   provisioner   192.168.100.1   localhost:2222                     00:00:DE:AD:BE:EF   Running
+| provisioner   | provisioner   | 192.168.100.1   | localhost:<dynamic_port>         | 00:00:DE:AD:BE:EF   | Running           |
 client        target        192.168.100.2   192.168.100.2 (from provisioner)   be:30:76:b7:d2:fa   Running
 ```
 

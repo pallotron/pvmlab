@@ -70,6 +70,11 @@ var dockerStartCmd = &cobra.Command{
 		var sshCmd *exec.Cmd
 
 		if meta.Role == "provisioner" {
+			if meta.SSHPort == 0 {
+				return fmt.Errorf("SSH port not found in metadata, is the VM running?")
+			}
+			sshPort := fmt.Sprintf("%d", meta.SSHPort)
+
 			var runFlags []string
 			if networkHost {
 				runFlags = append(runFlags, "--net=host")
@@ -86,7 +91,7 @@ var dockerStartCmd = &cobra.Command{
 				strings.Join(runFlags, " "),
 			)
 			sshCmd = exec.Command(
-				"ssh", "-i", sshKeyPath, "-p", "2222",
+				"ssh", "-i", sshKeyPath, "-p", sshPort,
 				"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
 				"ubuntu@localhost", "bash", "-c", "'"+remoteCmd+"'",
 			)

@@ -71,7 +71,7 @@ func TestFindProvisioner(t *testing.T) {
 
 	// Create some dummy metadata files
 	Save(cfg, "vm1", "target", "", "mac1", "", "", "", 0)
-	Save(cfg, "vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "", 2222)
+	Save(cfg, "vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "", 45678)
 	Save(cfg, "vm3", "target", "", "mac3", "", "", "", 0)
 
 	provisionerName, err := FindProvisioner(cfg)
@@ -109,7 +109,7 @@ func TestGetAll(t *testing.T) {
 
 	// Create some dummy metadata files
 	Save(cfg, "vm1", "target", "", "mac1", "", "", "", 0)
-	Save(cfg, "vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "", 2222)
+	Save(cfg, "vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "", 45678)
 
 	allMeta, err := GetAll(cfg)
 	if err != nil {
