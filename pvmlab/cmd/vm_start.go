@@ -152,6 +152,12 @@ var vmStartCmd = &cobra.Command{
 		finalCmd := []string{clientPath, socketPath}
 		finalCmd = append(finalCmd, qemuArgs...)
 
+		if os.Getenv("PVMLAB_DEBUG") == "true" {
+			color.Yellow("--- QEMU Command ---")
+			fmt.Println(strings.Join(finalCmd, " "))
+			color.Yellow("--------------------")
+		}
+
 		cmdRun := exec.Command(finalCmd[0], finalCmd[1:]...)
 		output, err := cmdRun.CombinedOutput()
 		if err != nil {

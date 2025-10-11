@@ -36,6 +36,8 @@ func TestMain(m *testing.M) {
 	os.Setenv("PVMLAB_HOME", tempHomeDir)
 	// Set a longer timeout for cloud-init in tests.
 	os.Setenv("PVMLAB_WAIT_TIMEOUT", "900")
+	// Enable debug output from the CLI.
+	os.Setenv("PVMLAB_DEBUG", "true")
 
 	// Add debug logging to verify the environment
 	log.Printf("Using temporary home for tests: %s", tempHomeDir)
@@ -147,6 +149,14 @@ func TestVMLifecycle(t *testing.T) {
 
 		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "start", vmName)
 		if err != nil {
+			// If the command fails, print a recursive listing of the app dir for debugging.
+			debugDir := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab")
+			log.Printf("--- Debugging directory structure for: %s ---", debugDir)
+			debugCmd := exec.Command("ls", "-lR", debugDir)
+			debugOutput, _ := debugCmd.CombinedOutput() // Ignore error, this is best-effort
+			log.Println(string(debugOutput))
+			log.Println("--- End debugging ---")
+
 			t.Fatalf("vm start failed: %v\n%s", err, output)
 		}
 		// Give the VM a moment to boot. This might need adjustment.
