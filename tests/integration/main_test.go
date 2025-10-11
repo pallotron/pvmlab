@@ -1,7 +1,6 @@
 package integration
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -165,16 +164,15 @@ func TestVMLifecycle(t *testing.T) {
 			t.Fatal("SSH port is 0 in metadata")
 		}
 
-		// Tail the log file in the background for debugging, but don't rely on it for success.
-		logPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab", "logs", vmName+".log")
-		done := make(chan struct{})
-		go tailFile(t, logPath, os.Stdout, done)
-		defer close(done)
-
 		// Wait for the SSH port to become available. This is the true test of readiness.
 		timeout := 15 * time.Minute
 		err = waitForPort(t, "localhost", meta.SSHPort, timeout)
+		if err != nil {
+			t.Fatalf("waiting for SSH port %d failed: %v", meta.SSHPort, err)
+		}
 
+		// Once SSH is up, wait for cloud-init to be fully complete.
+		err = waitForCloudInitTarget(t, meta.SSHPort, timeout)
 		if err != nil {
 			// If waiting fails, print a recursive listing of the app dir for debugging.
 			debugDir := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab")
@@ -183,7 +181,7 @@ func TestVMLifecycle(t *testing.T) {
 			debugOutput, _ := debugCmd.CombinedOutput() // Ignore error, this is best-effort
 			log.Println(string(debugOutput))
 			log.Println("--- End debugging ---")
-			t.Fatalf("waiting for SSH port %d failed: %v", meta.SSHPort, err)
+			t.Fatalf("waiting for cloud-init target failed: %v", err)
 		}
 	})
 
@@ -217,9 +215,34 @@ func TestVMLifecycle(t *testing.T) {
 	})
 }
 
+// waitForCloudInitTarget polls the VM via SSH until the cloud-init.target is active.
+func waitForCloudInitTarget(t *testing.T, sshPort int, timeout time.Duration) error {
+	t.Logf("Waiting for cloud-init.target to become active (checking via ssh on port %d)...", sshPort)
+	sshKeyPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab", "ssh", "vm_rsa")
+	sshPortStr := fmt.Sprintf("%d", sshPort)
+	command := "systemctl show cloud-init.target --property ActiveState"
+
+	timeoutChan := time.After(timeout)
+	for {
+		select {
+		case <-timeoutChan:
+			return fmt.Errorf("timed out waiting for cloud-init.target to become active")
+		default:
+			cmd := exec.Command("ssh", "-i", sshKeyPath, "-p", sshPortStr, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost", command)
+			output, err := cmd.CombinedOutput()
+			if err == nil && strings.Contains(string(output), "ActiveState=active") {
+				t.Logf("cloud-init.target is active.")
+				return nil
+			}
+			// Don't spam the log with connection errors, just wait and retry.
+			time.Sleep(2 * time.Second)
+		}
+	}
+}
+
 // waitForPort polls a TCP port until it becomes available or a timeout is reached.
 func waitForPort(t *testing.T, host string, port int, timeout time.Duration) error {
-	address := fmt.Sprintf("%s:%d", host, port)
+	address := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 	t.Logf("Waiting for port %s to become available...", address)
 
 	timeoutChan := time.After(timeout)
@@ -235,64 +258,6 @@ func waitForPort(t *testing.T, host string, port int, timeout time.Duration) err
 				return nil
 			}
 			time.Sleep(200 * time.Millisecond)
-		}
-	}
-}
-
-// tailFile tails a file and sends its content to the writer.
-// It stops when the done channel is closed.
-func tailFile(t *testing.T, filePath string, writer io.Writer, done chan struct{}) {
-	var file *os.File
-	var err error
-
-	// Wait for the file to be created, checking for the done signal periodically.
-	for {
-		file, err = os.Open(filePath)
-		if err == nil {
-			break // File found
-		}
-		if !os.IsNotExist(err) {
-			t.Logf("Error opening file %s, not a 'not exist' error: %v", filePath, err)
-			return
-		}
-
-		// Wait a bit before retrying.
-		select {
-		case <-done:
-			t.Logf("Stopped waiting for file %s because test is done.", filePath)
-			return
-		case <-time.After(100 * time.Millisecond):
-			// continue to next attempt
-		}
-	}
-
-	defer file.Close()
-	t.Logf("Tailing file: %s", filePath)
-
-	reader := bufio.NewReader(file)
-	for {
-		select {
-		case <-done:
-			t.Logf("Stopping tail of file: %s", filePath)
-			return
-		default:
-			line, err := reader.ReadBytes('\n')
-			if err == io.EOF {
-				// If we hit the end of the file, wait a bit for more content,
-				// but stop if the done signal is received.
-				select {
-				case <-done:
-					t.Logf("Stopping tail of file: %s", filePath)
-					return
-				case <-time.After(100 * time.Millisecond):
-					// continue reading
-				}
-				continue
-			} else if err != nil {
-				t.Logf("Error tailing file %s: %v", filePath, err)
-				return
-			}
-			_, _ = writer.Write(line)
 		}
 	}
 }
