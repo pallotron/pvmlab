@@ -8,10 +8,12 @@ import (
 const (
 	// AppName is the name of the application
 	AppName = "provisioning-vm-lab"
-	// UbuntuARMImageURL is the URL for the Ubuntu aarch64 cloud image
-	UbuntuARMImageURL = "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
-	// UbuntuAMDImageURL is the URL for the Ubuntu amd64 cloud image
-	UbuntuAMDImageURL = "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img"
+	// UbuntuCloudImageBaseURL is the base URL for Ubuntu cloud images
+	UbuntuCloudImageBaseURL = "https://cloud-images.ubuntu.com/releases/24.04/release/"
+	// UbuntuARMImageName is the filename for the Ubuntu aarch64 cloud image
+	UbuntuARMImageName = "ubuntu-24.04-server-cloudimg-arm64.img"
+	// UbuntuARMImageURL is the full URL for the Ubuntu aarch64 cloud image
+	UbuntuARMImageURL = UbuntuCloudImageBaseURL + UbuntuARMImageName
 )
 
 // Config holds the application's configuration.

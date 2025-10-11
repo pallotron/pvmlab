@@ -10,6 +10,9 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "pvmlab",
 	Short: "pvmlab is a CLI for managing provisioning VM labs",
+	// SilenceErrors is used to prevent cobra from printing the error,
+	// as we handle it ourselves in the Execute function.
+	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Print the help message if no subcommand is provided
 		return cmd.Help()

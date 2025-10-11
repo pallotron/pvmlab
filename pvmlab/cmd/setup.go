@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"provisioning-vm-lab/internal/config"
+	"provisioning-vm-lab/internal/downloader"
 	"provisioning-vm-lab/internal/runner"
 	"time"
 
@@ -41,6 +42,11 @@ Make sure launchd is configured to launch the socket_vmnet service.`,
 		}
 
 		if err := generateSSHKeys(filepath.Join(appDir, "ssh")); err != nil {
+			return err
+		}
+
+		imagePath := filepath.Join(appDir, "images", config.UbuntuARMImageName)
+		if err := downloader.DownloadImageIfNotExists(imagePath, config.UbuntuARMImageURL); err != nil {
 			return err
 		}
 

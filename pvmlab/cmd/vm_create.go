@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"net"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"provisioning-vm-lab/internal/cloudinit"
@@ -24,7 +23,7 @@ import (
 const (
 	provisionerRole = "provisioner"
 	targetRole      = "target"
-	imageFileName   = "ubuntu-24.04-server-cloudimg-arm64.img"
+	imageFileName   = config.UbuntuARMImageName
 )
 
 var (
@@ -82,7 +81,7 @@ The --role flag determines the type of VM to create.
 		}
 
 		imagePath := filepath.Join(appDir, "images", imageFileName)
-		if err := downloadImage(imagePath, config.UbuntuARMImageURL); err != nil {
+		if err := downloader.DownloadImageIfNotExists(imagePath, config.UbuntuARMImageURL); err != nil {
 			return errors.E("vm-create", err)
 		}
 
@@ -183,24 +182,6 @@ func getMac(mac string) (string, error) {
 		color.Cyan("i Generated random MAC address: %s", mac)
 	}
 	return mac, nil
-}
-
-func downloadImage(imagePath, imageUrl string) error {
-	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
-	s.Suffix = " Downloading Ubuntu cloud image..."
-	s.Start()
-	defer s.Stop()
-
-	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
-		if err := downloader.DownloadFile(imagePath, imageUrl); err != nil {
-			s.FinalMSG = color.RedString("✖ Failed to download Ubuntu cloud image.\n")
-			return err
-		}
-		s.FinalMSG = color.GreenString("✔ Ubuntu cloud image downloaded successfully.\n")
-	} else {
-		s.FinalMSG = color.YellowString("i Ubuntu cloud image already exists.\n")
-	}
-	return nil
 }
 
 func createDisk(imagePath, vmDiskPath, diskSize string) error {
