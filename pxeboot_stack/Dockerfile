@@ -1,6 +1,6 @@
-FROM alpine:latest
+FROM alpine:3.18
 
-FROM alpine:latest as ipxe-builder
+FROM alpine:3.18 as ipxe-builder
 
 RUN apk update && apk add --no-cache alpine-ipxe
 RUN mkdir /ipxe-binaries
@@ -8,7 +8,7 @@ ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "amd64" ]; then cp /usr/share/alpine-ipxe/ipxe.efi /ipxe-binaries/ipxe.efi; fi
 RUN if [ "$TARGETARCH" = "arm64" ]; then cp /usr/share/alpine-ipxe/snp.efi /ipxe-binaries/ipxe-arm64.efi; fi
 
-FROM alpine:latest
+FROM alpine:3.18
 
 RUN apk update && apk add --no-cache dnsmasq supervisor
 
