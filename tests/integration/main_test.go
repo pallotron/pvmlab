@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -63,11 +64,17 @@ func TestMain(m *testing.M) {
 	pathToCLI = tempCLIPath
 	log.Printf("Using CLI path for tests: %s", pathToCLI)
 
-	// Defer cleanup of the temporary binary
-	defer os.Remove(tempCLIPath)
-
 	// Run the tests
 	exitCode := m.Run()
+
+	// Cleanup before exiting.
+	if err := os.Remove(tempCLIPath); err != nil {
+		log.Printf("Warning: failed to remove temporary CLI binary: %v", err)
+	}
+	if err := os.RemoveAll(tempHomeDir); err != nil {
+		log.Printf("Warning: failed to remove temporary home directory: %v", err)
+	}
+
 	os.Exit(exitCode)
 }
 
@@ -130,6 +137,12 @@ func TestVMLifecycle(t *testing.T) {
 	})
 
 	t.Run("3-VMStart", func(t *testing.T) {
+		// Start tailing the QEMU log file in the background to see boot output.
+		logPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab/logs", fmt.Sprintf("%s.log", vmName))
+		done := make(chan struct{})
+		go tailFile(t, logPath, os.Stdout, done)
+		defer close(done)
+
 		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "start", vmName)
 		if err != nil {
 			t.Fatalf("vm start failed: %v\n%s", err, output)
@@ -166,4 +179,62 @@ func TestVMLifecycle(t *testing.T) {
 			t.Fatalf("final vm clean failed: %v\n%s", err, output)
 		}
 	})
+}
+
+// tailFile tails a file and sends its content to the writer.
+// It stops when the done channel is closed.
+func tailFile(t *testing.T, filePath string, writer io.Writer, done chan struct{}) {
+	var file *os.File
+	var err error
+
+	// Wait for the file to be created, checking for the done signal periodically.
+	for {
+		file, err = os.Open(filePath)
+		if err == nil {
+			break // File found
+		}
+		if !os.IsNotExist(err) {
+			t.Logf("Error opening file %s, not a 'not exist' error: %v", filePath, err)
+			return
+		}
+
+		// Wait a bit before retrying.
+		select {
+		case <-done:
+			t.Logf("Stopped waiting for file %s because test is done.", filePath)
+			return
+		case <-time.After(100 * time.Millisecond):
+			// continue to next attempt
+		}
+	}
+
+	defer file.Close()
+	t.Logf("Tailing file: %s", filePath)
+
+	reader := bufio.NewReader(file)
+	for {
+		select {
+		case <-done:
+			t.Logf("Stopping tail of file: %s", filePath)
+			return
+		default:
+			line, err := reader.ReadBytes('\n')
+			if err == io.EOF {
+				// If we hit the end of the file, wait a bit for more content,
+				// but stop if the done signal is received.
+				select {
+				case <-done:
+					t.Logf("Stopping tail of file: %s", filePath)
+					return
+				case <-time.After(100 * time.Millisecond):
+					// continue reading
+				}
+				continue
+			} else if err != nil {
+				t.Logf("Error tailing file %s: %v", filePath, err)
+				return
+			}
+			_, _ = writer.Write(line)
+		}
+	}
 }
