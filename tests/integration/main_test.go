@@ -70,8 +70,8 @@ func TestMain(m *testing.M) {
 
 // TestVMLifecycle is a full integration test for the VM lifecycle.
 func TestVMLifecycle(t *testing.T) {
-	if os.Getenv("CI") == "" {
-		t.Skip("Skipping integration test locally. Set CI=true to run.")
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "true" {
+		t.Skip("Skipping integration tests. Set RUN_INTEGRATION_TESTS=true to run.")
 	}
 
 	vmName := "test-vm-lifecycle"
