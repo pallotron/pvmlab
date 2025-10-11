@@ -42,13 +42,17 @@ write_files:
     content: |
       #!/bin/bash
       set -e
+      TAR_FILE=$1
+      CONTAINER_NAME=$2
+      shift 2
+      DOCKER_RUN_FLAGS="$@"
       echo "Stopping and removing old container..."
-      docker stop {{ ds.meta_data.pxe_boot_stack_name }} || true
-      docker rm {{ ds.meta_data.pxe_boot_stack_name }} || true
-      echo "Loading new image from /mnt/host/docker_images/{{ ds.meta_data.pxe_boot_stack_tar }}..."
-      docker load -i /mnt/host/docker_images/{{ ds.meta_data.pxe_boot_stack_tar }}
+      docker stop ${CONTAINER_NAME} || true
+      docker rm ${CONTAINER_NAME} || true
+      echo "Loading new image from /mnt/host/docker_images/${TAR_FILE}..."
+      docker load -i /mnt/host/docker_images/${TAR_FILE}
       echo "Starting new container..."
-      docker run --mount type=bind,source=/mnt/host/vms,target=/mnt/host/vms -d --name {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged {{ ds.meta_data.pxe_boot_stack_name }}:latest
+      docker run --mount type=bind,source=/mnt/host/vms,target=/mnt/host/vms -d --name ${CONTAINER_NAME} ${DOCKER_RUN_FLAGS} ${CONTAINER_NAME}:latest
       echo "Done."
 
 runcmd:
@@ -67,8 +71,7 @@ runcmd:
   - 'mkdir -p /mnt/host/vms'
   - 'mount -t 9p -o trans=virtio,version=9p2000.L host_share_docker_images /mnt/host/docker_images'
   - 'mount -t 9p -o trans=virtio,version=9p2000.L host_share_vms /mnt/host/vms'
-  - 'docker load -i /mnt/host/docker_images/{{ ds.meta_data.pxe_boot_stack_tar }}'
-  - 'docker run -d --name {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged {{ ds.meta_data.pxe_boot_stack_name }}:latest'
+  - '/usr/local/bin/pxeboot_stack_reload.sh {{ ds.meta_data.pxe_boot_stack_tar }} {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged'
 
   - 'echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections'
   - 'echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections'

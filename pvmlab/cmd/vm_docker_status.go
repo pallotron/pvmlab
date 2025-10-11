@@ -1,58 +1,99 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"provisioning-vm-lab/internal/config"
 	"provisioning-vm-lab/internal/metadata"
+	"strings"
 
+	"github.com/fatih/color"
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 )
 
 var dockerStatusCmd = &cobra.Command{
-	Use:   "status <vm_name>",
-	Short: "Show docker container status in a VM",
-	Args:  cobra.ExactArgs(1),
+	Use:               "status <vm_name>",
+	Short:             "Show docker container status in a VM",
+	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: VmNameCompleter,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		vmName := args[0]
+		color.Cyan("i Getting docker status for %s", vmName)
 
-		meta, err := metadata.Load(vmName)
+		cfg, err := config.New()
 		if err != nil {
-			fmt.Println("Error loading VM metadata:", err)
-			os.Exit(1)
+			return err
 		}
 
-		appDir, err := config.GetAppDir()
+		meta, err := metadata.Load(cfg, vmName)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return fmt.Errorf("error loading VM metadata: %w", err)
 		}
+
+		appDir := cfg.GetAppDir()
 
 		sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa")
 		var sshCmd *exec.Cmd
 
 		if meta.Role == "provisioner" {
-			remoteCmd := "sudo docker ps -a"
+			remoteCmd := "sudo docker ps -a --format json"
 			sshCmd = exec.Command(
 				"ssh", "-i", sshKeyPath,
 				"-p", "2222", "-o", "StrictHostKeyChecking=no",
 				"-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost", remoteCmd,
 			)
 		} else {
-			fmt.Println("Error: Target VM not supported for now. Please ssh from the provisioner VM.")
-			os.Exit(1)
+			return fmt.Errorf("Target VM not supported for now. Please ssh from the provisioner VM")
 		}
 
 		output, err := sshCmd.CombinedOutput()
 		if err != nil {
-			fmt.Printf("Error getting docker status: %s\n", err)
-			fmt.Println(string(output))
-			os.Exit(1)
+			return fmt.Errorf("error getting docker status: %w\n%s", err, string(output))
 		}
-		fmt.Println(string(output))
+
+		// Parse the JSON output and print a table
+		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+		if len(lines) == 0 || (len(lines) == 1 && strings.TrimSpace(lines[0]) == "") {
+			color.Yellow("No docker containers found.")
+			return nil
+		}
+
+		type DockerPsJSON struct {
+			ID      string `json:"ID"`
+			Image   string `json:"Image"`
+			Command string `json:"Command"`
+			Status  string `json:"Status"`
+			Ports   string `json:"Ports"`
+			Names   string `json:"Names"`
+		}
+
+		table := tablewriter.NewWriter(os.Stdout)
+		header := []string{"CONTAINER ID", "IMAGE", "COMMAND", "STATUS", "PORTS", "NAMES"}
+
+		table.Header(header)
+
+		for _, line := range lines {
+			if strings.Contains(line, "Warning: Permanently added") {
+				continue
+			}
+			var container DockerPsJSON
+			if err := json.Unmarshal([]byte(line), &container); err != nil {
+				// Ignore lines that are not valid JSON
+				continue
+			}
+			if container.Ports == "" {
+				container.Ports = "N/A"
+			}
+			row := []string{container.ID, container.Image, container.Command, container.Status, container.Ports, container.Names}
+			table.Append(row)
+		}
+		table.Render()
+
+		return nil
 	},
 }
 

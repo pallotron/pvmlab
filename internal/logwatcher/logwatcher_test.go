@@ -8,39 +8,38 @@ import (
 	"time"
 )
 
-// setup creates a temporary directory for logs and mocks config.GetAppDir.
-func setup(t *testing.T) (string, func()) {
+// setup creates a temporary directory for logs and returns a config object.
+func setup(t *testing.T) (*config.Config, func()) {
 	tempDir, err := os.MkdirTemp("", "logwatcher-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 
-	// Mock GetAppDir to use the temp directory
-	originalGetAppDir := config.GetAppDirFunc
-	config.GetAppDirFunc = func() (string, error) {
-		return tempDir, nil
+	cfg, err := config.New()
+	if err != nil {
+		t.Fatalf("Failed to create config: %v", err)
 	}
+	cfg.SetHomeDir(tempDir)
 
 	// Create the logs subdirectory
-	if err := os.MkdirAll(filepath.Join(tempDir, "logs"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(cfg.GetAppDir(), "logs"), 0755); err != nil {
 		t.Fatalf("Failed to create logs subdirectory: %v", err)
 	}
 
 	cleanup := func() {
 		os.RemoveAll(tempDir)
-		config.GetAppDirFunc = originalGetAppDir
 	}
 
-	return tempDir, cleanup
+	return cfg, cleanup
 }
 
 func TestWaitForMessage_Success(t *testing.T) {
-	appDir, cleanup := setup(t)
+	cfg, cleanup := setup(t)
 	defer cleanup()
 
 	vmName := "test-vm-success"
 	message := "cloud-init finished"
-	logPath := filepath.Join(appDir, "logs", vmName+".log")
+	logPath := filepath.Join(cfg.GetAppDir(), "logs", vmName+".log")
 	timeout := 2 * time.Second
 
 	// Create the log file
@@ -51,7 +50,7 @@ func TestWaitForMessage_Success(t *testing.T) {
 
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- WaitForMessage(vmName, message, timeout)
+		errChan <- WaitForMessage(cfg, vmName, message, timeout)
 	}()
 
 	// Give the watcher a moment to start
@@ -76,14 +75,14 @@ func TestWaitForMessage_Success(t *testing.T) {
 }
 
 func TestWaitForMessage_Timeout(t *testing.T) {
-	_, cleanup := setup(t)
+	cfg, cleanup := setup(t)
 	defer cleanup()
 
 	vmName := "test-vm-timeout"
 	message := "this will not appear"
 	timeout := 100 * time.Millisecond // Use a short timeout for the test
 
-	err := WaitForMessage(vmName, message, timeout)
+	err := WaitForMessage(cfg, vmName, message, timeout)
 
 	if err == nil {
 		t.Fatal("WaitForMessage() did not return an error on timeout")

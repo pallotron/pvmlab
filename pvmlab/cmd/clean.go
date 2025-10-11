@@ -7,6 +7,7 @@ import (
 	"provisioning-vm-lab/internal/metadata"
 	"sort"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -19,12 +20,15 @@ var cleanCmd = &cobra.Command{
 	Long: `Stops all running VMs and cleans up their associated files.
 The socket_vmnet service is left running.
 Use the --purge flag to remove the entire ~/.provisioning-vm-lab directory.`, 
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Cleaning up all VMs...")
-		allMeta, err := metadata.GetAll()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		color.Cyan("i Cleaning up all VMs...")
+		cfg, err := config.New()
 		if err != nil {
-			fmt.Println("Error getting VM list:", err)
-			os.Exit(1)
+			return err
+		}
+		allMeta, err := metadata.GetAll(cfg)
+		if err != nil {
+			return fmt.Errorf("error getting VM list: %w", err)
 		}
 
 		// Sort VM names for consistent output
@@ -36,26 +40,25 @@ Use the --purge flag to remove the entire ~/.provisioning-vm-lab directory.`,
 
 		if len(vmNames) > 0 {
 			for _, vmName := range vmNames {
-				fmt.Printf("Cleaning VM: %s\n", vmName)
-				vmCleanCmd.Run(cmd, []string{vmName})
+				color.Cyan("i Cleaning VM: %s", vmName)
+				if err := vmCleanCmd.RunE(cmd, []string{vmName}); err != nil {
+					// Log the error but continue cleaning other VMs
+					color.Yellow("! Warning: failed to clean VM %s: %v", vmName, err)
+				}
 			}
 		} else {
-			fmt.Println("No VMs to clean.")
+			color.Yellow("No VMs to clean.")
 		}
 
 		if purge {
-			fmt.Println("Purging the entire application directory...")
-			appDir, err := config.GetAppDir()
-			if err != nil {
-				fmt.Println("Error getting application directory:", err)
-				os.Exit(1)
-			}
+			color.Cyan("i Purging the entire application directory...")
+			appDir := cfg.GetAppDir()
 			if err := os.RemoveAll(appDir); err != nil {
-				fmt.Println("Error removing application directory:", err)
-				os.Exit(1)
+				return fmt.Errorf("error removing application directory: %w", err)
 			}
-			fmt.Println("Application directory purged successfully.")
+			color.Green("✔ Application directory purged successfully.")
 		}
+		return nil
 	},
 }
 

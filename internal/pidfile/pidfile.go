@@ -10,16 +10,12 @@ import (
 	"syscall"
 )
 
-func getPIDFilePath(vmName string) (string, error) {
-	appDir, err := config.GetAppDirFunc()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(appDir, "pids", vmName+".pid"), nil
+func getPIDFilePath(cfg *config.Config, vmName string) string {
+	return filepath.Join(cfg.GetAppDir(), "pids", vmName+".pid")
 }
 
-func IsRunning(vmName string) (bool, error) {
-	pid, err := Read(vmName)
+func IsRunning(cfg *config.Config, vmName string) (bool, error) {
+	pid, err := Read(cfg, vmName)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
@@ -37,11 +33,8 @@ func IsRunning(vmName string) (bool, error) {
 	return err == nil, nil
 }
 
-func Read(vmName string) (int, error) {
-	pidPath, err := getPIDFilePath(vmName)
-	if err != nil {
-		return 0, err
-	}
+func Read(cfg *config.Config, vmName string) (int, error) {
+	pidPath := getPIDFilePath(cfg, vmName)
 
 	content, err := os.ReadFile(pidPath)
 	if err != nil {

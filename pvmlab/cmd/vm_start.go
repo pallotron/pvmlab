@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -25,41 +26,38 @@ var vmStartCmd = &cobra.Command{
 	Long:              `Starts a VM using qemu.`,
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: VmNameCompleter,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		vmName := args[0]
+		color.Cyan("i Starting VM: %s", vmName)
 
-		running, err := pidfile.IsRunning(vmName)
+		cfg, err := config.New()
 		if err != nil {
-			fmt.Println("Error checking VM status:", err)
-			os.Exit(1)
+			return err
+		}
+
+		running, err := pidfile.IsRunning(cfg, vmName)
+		if err != nil {
+			return fmt.Errorf("error checking VM status: %w", err)
 		}
 		if running {
-			fmt.Printf("VM '%s' is already running.\n", vmName)
-			os.Exit(1)
+			return fmt.Errorf("VM '%s' is already running", vmName)
 		}
 
-		meta, err := metadata.Load(vmName)
+		meta, err := metadata.Load(cfg, vmName)
 		if err != nil {
-			fmt.Println("Error loading VM metadata:", err)
-			os.Exit(1)
+			return fmt.Errorf("error loading VM metadata: %w", err)
 		}
 
-		appDir, err := config.GetAppDir()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+		appDir := cfg.GetAppDir()
 
 		vmDiskPath := filepath.Join(appDir, "vms", vmName+".qcow2")
 		if _, err := os.Stat(vmDiskPath); os.IsNotExist(err) {
-			fmt.Printf("VM disk not found for '%s'. Please run 'pvmlab vm create %s' first.\n", vmName, vmName)
-			os.Exit(1)
+			return fmt.Errorf("VM disk not found for '%s'. Please run 'pvmlab vm create %s' first", vmName, vmName)
 		}
 
 		isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
 		if _, err := os.Stat(isoPath); os.IsNotExist(err) {
-			fmt.Printf("Cloud-init ISO for '%s' not found. Please create the VM first.\n", vmName)
-			os.Exit(1)
+			return fmt.Errorf("cloud-init ISO for '%s' not found. Please create the VM first", vmName)
 		}
 		pidPath := filepath.Join(appDir, "pids", vmName+".pid")
 		monitorPath := filepath.Join(appDir, "monitors", vmName+".sock")
@@ -134,54 +132,39 @@ var vmStartCmd = &cobra.Command{
 
 		socketPath, err := socketvmnet.GetSocketPath()
 		if err != nil {
-			fmt.Println("Error getting socket_vmnet path:", err)
-			os.Exit(1)
+			return fmt.Errorf("error getting socket_vmnet path: %w", err)
 		}
 
 		clientPath, err := getSocketVMNetClientPath()
 		if err != nil {
-			fmt.Println("Error getting socket_vmnet_client path:", err)
-			os.Exit(1)
+			return fmt.Errorf("error getting socket_vmnet_client path: %w", err)
 		}
 
 		finalCmd := []string{clientPath, socketPath}
 		finalCmd = append(finalCmd, qemuArgs...)
 
-		fmt.Println("Executing command:", strings.Join(finalCmd, " "))
 		cmdRun := exec.Command(finalCmd[0], finalCmd[1:]...)
 		output, err := cmdRun.CombinedOutput()
 		if err != nil {
-			fmt.Printf("Error starting VM '%s': %v\n", vmName, err)
-			fmt.Println("QEMU output:")
-			fmt.Println(string(output))
-			os.Exit(1)
+			return fmt.Errorf("error starting VM '%s': %w\nQEMU output:\n%s", vmName, err, string(output))
 		}
 
 		// The command can succeed even if the daemon fails.
 		// A short sleep allows the PID file to be created.
 		time.Sleep(1 * time.Second)
-		running, pidErr := pidfile.IsRunning(vmName)
+		running, pidErr := pidfile.IsRunning(cfg, vmName)
 		if pidErr != nil || !running {
-			fmt.Printf("VM command executed, but VM '%s' is not running.\n", vmName)
-			if pidErr != nil {
-				fmt.Printf("Error checking PID file: %v\n", pidErr)
-			}
-			fmt.Println("QEMU output (if any):")
-			fmt.Println(string(output))
-			os.Exit(1)
+			return fmt.Errorf("VM command executed, but VM '%s' is not running.\nError checking PID file: %v\nQEMU output (if any):\n%s", vmName, pidErr, string(output))
 		}
 
-		fmt.Printf("%s VM started successfully.\n", vmName)
+		color.Green("✔ %s VM started successfully.", vmName)
 		// TODO: switch to using QEMU guest agent and unix socket
 		if wait {
-			if err := logwatcher.WaitForMessage(vmName, "cloud-config.target", 5*time.Minute); err != nil {
-				fmt.Println(err)
-				// We don't exit here, as the VM is running, but the wait failed.
-			} else {
-				// The wait was successful, so we can exit cleanly.
-				os.Exit(0)
+			if err := logwatcher.WaitForMessage(cfg, vmName, "cloud-config.target", 5*time.Minute); err != nil {
+				return err
 			}
 		}
+		return nil
 	},
 }
 

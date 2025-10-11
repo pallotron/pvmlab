@@ -8,41 +8,42 @@ import (
 	"provisioning-vm-lab/internal/config"
 	"provisioning-vm-lab/internal/metadata"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
 // vmShellCmd represents the shell command
 var vmShellCmd = &cobra.Command{
-	Use:   "shell <vm-name>",
-	Short: "Connects to a VM via SSH",
-	Long:  `Connects to a VM via SSH.`,
-	Args:  cobra.ExactArgs(1),
+	Use:               "shell <vm-name>",
+	Short:             "Connects to a VM via SSH",
+	Long:              `Connects to a VM via SSH.`,
+	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: VmNameCompleter,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		vmName := args[0]
+		color.Cyan("i Connecting to VM via SSH: %s", vmName)
 
-		meta, err := metadata.Load(vmName)
+		cfg, err := config.New()
 		if err != nil {
-			fmt.Println("Error loading VM metadata:", err)
-			os.Exit(1)
+			return err
 		}
 
-		appDir, err := config.GetAppDir()
+		meta, err := metadata.Load(cfg, vmName)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return fmt.Errorf("error loading VM metadata: %w", err)
 		}
+
+		appDir := cfg.GetAppDir()
 
 		sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa")
 		var sshCmd *exec.Cmd
 
 		if meta.Role == "provisioner" {
-			fmt.Println("Connecting to provisioner VM via forwarded port 2222...")
+			color.Cyan("i Connecting to provisioner VM via forwarded port 2222...")
 			sshCmd = exec.Command("ssh", "-i", sshKeyPath, "-p", "2222", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost")
 		} else {
 			// TODO: if it's a target VM we need to ssh thru the provisioner. To be done.
-			fmt.Println("Error: Target VM not supported for now. Please ssh from the provisioner VM.")
-			os.Exit(1)
+			return fmt.Errorf("target VM not supported for now. Please ssh from the provisioner VM")
 		}
 
 		sshCmd.Stdout = os.Stdout
@@ -52,6 +53,7 @@ var vmShellCmd = &cobra.Command{
 		if err := sshCmd.Run(); err != nil {
 			// Don't print error on normal SSH exit
 		}
+		return nil
 	},
 }
 

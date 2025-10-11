@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"provisioning-vm-lab/internal/config"
 	"provisioning-vm-lab/internal/metadata"
+	"strings"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -17,21 +19,27 @@ var vmCleanCmd = &cobra.Command{
 	Long:  `Stops a VM and removes all its associated files (disk, iso, pid, monitor, log).`,
 	Args:  cobra.ExactArgs(1),
 	ValidArgsFunction: VmNameCompleter,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		vmName := args[0]
+		color.Cyan("i Cleaning VM: %s", vmName)
 
 		// First, stop the VM if it's running
-		vmStopCmd.Run(cmd, args)
-
-		appDir, err := config.GetAppDir()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+		if err := vmStopCmd.RunE(cmd, args); err != nil {
+			// Ignore "not running" errors, as the goal is to clean up.
+			if !strings.Contains(err.Error(), "is not running") {
+				return fmt.Errorf("error stopping VM '%s': %w", vmName, err)
+			}
 		}
 
+		cfg, err := config.New()
+		if err != nil {
+			return err
+		}
+		appDir := cfg.GetAppDir()
+
 		// Remove the metadata file
-		if err := metadata.Delete(vmName); err != nil {
-			fmt.Printf("Warning: could not remove metadata file for %s: %v\n", vmName, err)
+		if err := metadata.Delete(cfg, vmName); err != nil {
+			color.Yellow("! Warning: could not remove metadata file for %s: %v", vmName, err)
 		}
 
 		filesToRemove := []string{
@@ -46,12 +54,13 @@ var vmCleanCmd = &cobra.Command{
 			if err := os.RemoveAll(path); err != nil {
 				// Ignore errors if the path doesn't exist
 				if !os.IsNotExist(err) {
-					fmt.Println("Error removing path:", err)
+					color.Yellow("! Warning: could not remove path %s: %v", path, err)
 				}
 			}
 		}
 
-		fmt.Printf("VM '%s' files cleaned successfully.\n", vmName)
+		color.Green("✔ VM '%s' files cleaned successfully.", vmName)
+		return nil
 	},
 }
 

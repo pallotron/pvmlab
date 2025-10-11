@@ -1,9 +1,11 @@
 package cmd
 
 import (
-	"fmt"
 	"provisioning-vm-lab/internal/socketvmnet"
+	"time"
 
+	"github.com/briandowns/spinner"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -12,19 +14,24 @@ var socketVmnetServiceStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Checks the status of the socket_vmnet service",
 	Long:  `Checks the status of the socket_vmnet service using brew services.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Checking socket_vmnet service status... (this may require sudo password)")
+	RunE: func(cmd *cobra.Command, args []string) error {
+		s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+		s.Suffix = " Checking socket_vmnet service status... (this may require sudo password)"
+		s.Start()
+		defer s.Stop()
+
 		running, err := socketvmnet.IsSocketVmnetRunning()
 		if err != nil {
-			fmt.Println("Error checking status:", err)
-			return
+			s.FinalMSG = color.RedString("✖ Error checking status.\n")
+			return err
 		}
 
 		if running {
-			fmt.Printf("%s service is running.\n", socketvmnet.ServiceName)
+			s.FinalMSG = color.GreenString("✔ %s service is running.\n", socketvmnet.ServiceName)
 		} else {
-			fmt.Printf("%s service is stopped.", socketvmnet.ServiceName)
+			s.FinalMSG = color.YellowString("i %s service is stopped.\n", socketvmnet.ServiceName)
 		}
+		return nil
 	},
 }
 

@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -21,28 +22,28 @@ var vmStopCmd = &cobra.Command{
 	Long:  `Stops a VM. It first attempts a graceful shutdown, then resorts to force-stopping the process.`,
 	Args:  cobra.ExactArgs(1),
 	ValidArgsFunction: VmNameCompleter,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		vmName := args[0]
-		appDir, err := config.GetAppDir()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+		color.Cyan("i Stopping VM: %s", vmName)
 
-		pid, err := pidfile.Read(vmName)
+		cfg, err := config.New()
+		if err != nil {
+			return err
+		}
+		appDir := cfg.GetAppDir()
+
+		pid, err := pidfile.Read(cfg, vmName)
 		if err != nil {
 			if os.IsNotExist(err) {
-				fmt.Printf("VM '%s' is not running (no PID file found).\n", vmName)
-				return
+				return fmt.Errorf("VM '%s' is not running (no PID file found)", vmName)
 			}
-			fmt.Println("Error reading PID file:", err)
-			os.Exit(1)
+			return fmt.Errorf("error reading PID file: %w", err)
 		}
 
 		// 1. Attempt Graceful Shutdown via Monitor
 		monitorPath := filepath.Join(appDir, "monitors", vmName+".sock")
 		if _, err := os.Stat(monitorPath); err == nil {
-			fmt.Println("Attempting graceful shutdown...")
+			color.Cyan("i Attempting graceful shutdown...")
 			conn, err := net.DialTimeout("unix", monitorPath, 1*time.Second)
 			if err == nil {
 				defer conn.Close()
@@ -51,48 +52,47 @@ var vmStopCmd = &cobra.Command{
 					// Wait up to 10 seconds for the process to exit
 					for i := 0; i < 10; i++ {
 						if !isProcessRunning(pid) {
-							fmt.Println("Graceful shutdown successful.")
+							color.Green("✔ Graceful shutdown successful.")
 							cleanupFiles(vmName, appDir)
-							return
+							return nil
 						}
 						time.Sleep(1 * time.Second)
 					}
-					fmt.Println("VM did not shut down gracefully, proceeding to force stop.")
+					color.Yellow("! VM did not shut down gracefully, proceeding to force stop.")
 				}
 			}
 		}
 
 		// 2. Forceful Shutdown (SIGTERM, then SIGKILL)
 		if isProcessRunning(pid) {
-			fmt.Println("Sending SIGTERM to process", pid)
+			color.Cyan("i Sending SIGTERM to process %d", pid)
 			if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
-				fmt.Println("Failed to send SIGTERM:", err)
+				color.Yellow("! Failed to send SIGTERM: %v", err)
 			}
 			// Wait up to 5 seconds
 			for i := 0; i < 5; i++ {
 				if !isProcessRunning(pid) {
-					fmt.Println("VM stopped successfully.")
+					color.Green("✔ VM stopped successfully.")
 					cleanupFiles(vmName, appDir)
-					return
+					return nil
 				}
 				time.Sleep(1 * time.Second)
 			}
 
-			fmt.Println("Process did not respond to SIGTERM, sending SIGKILL...")
+			color.Yellow("! Process did not respond to SIGTERM, sending SIGKILL...")
 			if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
-				fmt.Println("Failed to send SIGKILL:", err)
-				os.Exit(1)
+				return fmt.Errorf("failed to send SIGKILL: %w", err)
 			}
 			time.Sleep(1 * time.Second) // Give SIGKILL a moment
 		}
 
 		if isProcessRunning(pid) {
-			fmt.Printf("Error: Failed to stop VM '%s' (PID: %d).\n", vmName, pid)
-			os.Exit(1)
+			return fmt.Errorf("failed to stop VM '%s' (PID: %d)", vmName, pid)
 		}
 
-		fmt.Printf("VM '%s' stopped successfully.\n", vmName)
+		color.Green("✔ VM '%s' stopped successfully.", vmName)
 		cleanupFiles(vmName, appDir)
+		return nil
 	},
 }
 
@@ -111,10 +111,10 @@ func cleanupFiles(vmName string, appDir string) {
 	monitorPath := filepath.Join(appDir, "monitors", vmName+".sock")
 
 	if err := os.Remove(pidPath); err != nil && !os.IsNotExist(err) {
-		fmt.Println("Warning: could not remove pid file:", err)
+		color.Yellow("! Warning: could not remove pid file: %v", err)
 	}
 	if err := os.Remove(monitorPath); err != nil && !os.IsNotExist(err) {
-		fmt.Println("Warning: could not remove monitor socket:", err)
+		color.Yellow("! Warning: could not remove monitor socket: %v", err)
 	}
 }
 

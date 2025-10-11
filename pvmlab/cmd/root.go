@@ -1,24 +1,25 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "pvmlab",
 	Short: "pvmlab is a CLI for managing provisioning VM labs",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// Print the help message if no subcommand is provided
-		cmd.Help()
+		return cmd.Help()
 	},
 }
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		// color.Error is a pre-configured Color object that writes to os.Stderr in red
+		color.Red("Error: %v\n", err)
 		os.Exit(1)
 	}
 }

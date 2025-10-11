@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"provisioning-vm-lab/internal/config"
 	"provisioning-vm-lab/internal/metadata"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -16,21 +16,22 @@ var dockerStopCmd = &cobra.Command{
 	Short: "Stop a docker container in a VM",
 	Args:  cobra.ExactArgs(2),
 	ValidArgsFunction: VmNameCompleter,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		vmName := args[0]
 		containerName := args[1]
+		color.Cyan("i Stopping docker container %s in %s", containerName, vmName)
 
-		meta, err := metadata.Load(vmName)
+		cfg, err := config.New()
 		if err != nil {
-			fmt.Println("Error loading VM metadata:", err)
-			os.Exit(1)
+			return err
 		}
 
-		appDir, err := config.GetAppDir()
+		meta, err := metadata.Load(cfg, vmName)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return fmt.Errorf("error loading VM metadata: %w", err)
 		}
+
+		appDir := cfg.GetAppDir()
 
 		sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa")
 		var sshCmd *exec.Cmd
@@ -43,18 +44,16 @@ var dockerStopCmd = &cobra.Command{
 				remoteCmd,
 			)
 		} else {
-			fmt.Println("Error: Target VM not supported for now. Please ssh from the provisioner VM.")
-			os.Exit(1)
+			return fmt.Errorf("error: Target VM not supported for now. Please ssh from the provisioner VM")
 		}
 
 		output, err := sshCmd.CombinedOutput()
 		if err != nil {
-			fmt.Printf("Error stopping container %s: %s\n", containerName, err)
-			fmt.Println(string(output))
-			os.Exit(1)
+			return fmt.Errorf("error stopping container %s: %w\n%s", containerName, err, string(output))
 		}
-		fmt.Printf("Container %s stopped successfully.\n", containerName)
+		color.Green("✔ Container %s stopped successfully.", containerName)
 		fmt.Println(string(output))
+		return nil
 	},
 }
 

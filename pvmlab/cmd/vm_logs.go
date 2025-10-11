@@ -18,13 +18,13 @@ var vmLogsCmd = &cobra.Command{
 	Long:  `Tails the console logs for a VM.`,
 	Args:  cobra.ExactArgs(1),
 	ValidArgsFunction: VmNameCompleter,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		vmName := args[0]
-		appDir, err := config.GetAppDir()
+		cfg, err := config.New()
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
+		appDir := cfg.GetAppDir()
 
 		logPath := filepath.Join(appDir, "logs", vmName+".log")
 		tailCmd := exec.Command("tail", "-f", logPath)
@@ -32,8 +32,9 @@ var vmLogsCmd = &cobra.Command{
 		tailCmd.Stderr = os.Stderr
 
 		if err := tailCmd.Run(); err != nil {
-			fmt.Println("Error tailing log file:", err)
+			return fmt.Errorf("error tailing log file: %w", err)
 		}
+		return nil
 	},
 }
 

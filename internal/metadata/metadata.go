@@ -17,16 +17,12 @@ type Metadata struct {
 	VMsPath          string `json:"vms_path,omitempty"`
 }
 
-func getVMsDir() (string, error) {
-	appDir, err := config.GetAppDirFunc()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(appDir, "vms"), nil
+func getVMsDir(cfg *config.Config) string {
+	return filepath.Join(cfg.GetAppDir(), "vms")
 }
 
 // Save saves the VM's metadata to a file.
-func Save(vmName, role, ip, mac, pxeBootStackTar, dockerImagesPath, vmsPath string) error {
+func Save(cfg *config.Config, vmName, role, ip, mac, pxeBootStackTar, dockerImagesPath, vmsPath string) error {
 	meta := Metadata{
 		Role:             role,
 		IP:               ip,
@@ -41,10 +37,7 @@ func Save(vmName, role, ip, mac, pxeBootStackTar, dockerImagesPath, vmsPath stri
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
-	vmsDir, err := getVMsDir()
-	if err != nil {
-		return err
-	}
+	vmsDir := getVMsDir(cfg)
 
 	if err := os.MkdirAll(vmsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create vms directory: %w", err)
@@ -54,11 +47,8 @@ func Save(vmName, role, ip, mac, pxeBootStackTar, dockerImagesPath, vmsPath stri
 	return os.WriteFile(metaPath, data, 0644)
 }
 
-func Load(vmName string) (*Metadata, error) {
-	vmsDir, err := getVMsDir()
-	if err != nil {
-		return nil, err
-	}
+func Load(cfg *config.Config, vmName string) (*Metadata, error) {
+	vmsDir := getVMsDir(cfg)
 
 	metaPath := filepath.Join(vmsDir, vmName+".json")
 	data, err := os.ReadFile(metaPath)
@@ -73,11 +63,8 @@ func Load(vmName string) (*Metadata, error) {
 	return &meta, nil
 }
 
-func FindProvisioner() (string, error) {
-	vmsDir, err := getVMsDir()
-	if err != nil {
-		return "", err
-	}
+func FindProvisioner(cfg *config.Config) (string, error) {
+	vmsDir := getVMsDir(cfg)
 
 	files, err := os.ReadDir(vmsDir)
 	if err != nil {
@@ -91,7 +78,7 @@ func FindProvisioner() (string, error) {
 	for _, file := range files {
 		if filepath.Ext(file.Name()) == ".json" {
 			vmName := file.Name()[:len(file.Name())-len(".json")]
-			meta, err := Load(vmName)
+			meta, err := Load(cfg, vmName)
 			if err != nil {
 				// Ignore malformed metadata files
 				continue
@@ -105,11 +92,8 @@ func FindProvisioner() (string, error) {
 	return "", nil
 }
 
-func FindVM(vmName string) (string, error) {
-	vmsDir, err := getVMsDir()
-	if err != nil {
-		return "", err
-	}
+func FindVM(cfg *config.Config, vmName string) (string, error) {
+	vmsDir := getVMsDir(cfg)
 	metaPath := filepath.Join(vmsDir, vmName+".json")
 	if _, err := os.Stat(metaPath); err == nil {
 		return vmName, nil
@@ -117,11 +101,8 @@ func FindVM(vmName string) (string, error) {
 	return "", nil
 }
 
-func Delete(vmName string) error {
-	vmsDir, err := getVMsDir()
-	if err != nil {
-		return err
-	}
+func Delete(cfg *config.Config, vmName string) error {
+	vmsDir := getVMsDir(cfg)
 	metaPath := filepath.Join(vmsDir, vmName+".json")
 	if _, err := os.Stat(metaPath); err == nil {
 		return os.Remove(metaPath)
@@ -129,11 +110,8 @@ func Delete(vmName string) error {
 	return nil
 }
 
-func GetAll() (map[string]*Metadata, error) {
-	vmsDir, err := getVMsDir()
-	if err != nil {
-		return nil, err
-	}
+func GetAll(cfg *config.Config) (map[string]*Metadata, error) {
+	vmsDir := getVMsDir(cfg)
 
 	allMeta := make(map[string]*Metadata)
 
@@ -148,7 +126,7 @@ func GetAll() (map[string]*Metadata, error) {
 	for _, file := range files {
 		if filepath.Ext(file.Name()) == ".json" {
 			vmName := file.Name()[:len(file.Name())-len(".json")]
-			meta, err := Load(vmName)
+			meta, err := Load(cfg, vmName)
 			if err != nil {
 				// Log or ignore malformed metadata files
 				continue

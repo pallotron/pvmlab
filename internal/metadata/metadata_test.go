@@ -8,28 +8,28 @@ import (
 	"testing"
 )
 
-// setup sets up a temporary directory for testing and mocks GetAppDir.
-func setup(t *testing.T) (string, func()) {
+// setup sets up a temporary directory for testing and returns a config object.
+func setup(t *testing.T) (*config.Config, func()) {
 	tempDir, err := os.MkdirTemp("", "metadata-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 
-	originalGetAppDir := config.GetAppDirFunc
-	config.GetAppDirFunc = func() (string, error) {
-		return tempDir, nil
+	cfg, err := config.New()
+	if err != nil {
+		t.Fatalf("Failed to create config: %v", err)
 	}
+	cfg.SetHomeDir(tempDir)
 
 	cleanup := func() {
 		os.RemoveAll(tempDir)
-		config.GetAppDirFunc = originalGetAppDir
 	}
 
-	return tempDir, cleanup
+	return cfg, cleanup
 }
 
 func TestSaveLoad(t *testing.T) {
-	_, cleanup := setup(t)
+	cfg, cleanup := setup(t)
 	defer cleanup()
 
 	vmName := "test-vm"
@@ -40,12 +40,12 @@ func TestSaveLoad(t *testing.T) {
 	dockerImagesPath := "/path/to/docker/images"
 	vmsPath := "/path/to/vms"
 
-	err := Save(vmName, role, ip, mac, pxeBootStackTar, dockerImagesPath, vmsPath)
+	err := Save(cfg, vmName, role, ip, mac, pxeBootStackTar, dockerImagesPath, vmsPath)
 	if err != nil {
 		t.Fatalf("Save() failed: %v", err)
 	}
 
-	meta, err := Load(vmName)
+	meta, err := Load(cfg, vmName)
 	if err != nil {
 		t.Fatalf("Load() failed: %v", err)
 	}
@@ -65,15 +65,15 @@ func TestSaveLoad(t *testing.T) {
 }
 
 func TestFindProvisioner(t *testing.T) {
-	_, cleanup := setup(t)
+	cfg, cleanup := setup(t)
 	defer cleanup()
 
 	// Create some dummy metadata files
-	Save("vm1", "target", "", "mac1", "", "", "")
-	Save("vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "")
-	Save("vm3", "target", "", "mac3", "", "", "")
+	Save(cfg, "vm1", "target", "", "mac1", "", "", "")
+	Save(cfg, "vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "")
+	Save(cfg, "vm3", "target", "", "mac3", "", "", "")
 
-	provisionerName, err := FindProvisioner()
+	provisionerName, err := FindProvisioner(cfg)
 	if err != nil {
 		t.Fatalf("FindProvisioner() failed: %v", err)
 	}
@@ -84,18 +84,18 @@ func TestFindProvisioner(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	appDir, cleanup := setup(t)
+	cfg, cleanup := setup(t)
 	defer cleanup()
 
 	vmName := "vm-to-delete"
-	Save(vmName, "target", "", "mac", "", "", "")
+	Save(cfg, vmName, "target", "", "mac", "", "", "")
 
-	err := Delete(vmName)
+	err := Delete(cfg, vmName)
 	if err != nil {
 		t.Fatalf("Delete() failed: %v", err)
 	}
 
-	vmsDir := filepath.Join(appDir, "vms")
+	vmsDir := filepath.Join(cfg.GetAppDir(), "vms")
 	metaPath := filepath.Join(vmsDir, vmName+".json")
 	if _, err := os.Stat(metaPath); !os.IsNotExist(err) {
 		t.Errorf("Metadata file for %s was not deleted", vmName)
@@ -103,14 +103,14 @@ func TestDelete(t *testing.T) {
 }
 
 func TestGetAll(t *testing.T) {
-	_, cleanup := setup(t)
+	cfg, cleanup := setup(t)
 	defer cleanup()
 
 	// Create some dummy metadata files
-	Save("vm1", "target", "", "mac1", "", "", "")
-	Save("vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "")
+	Save(cfg, "vm1", "target", "", "mac1", "", "", "")
+	Save(cfg, "vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "")
 
-	allMeta, err := GetAll()
+	allMeta, err := GetAll(cfg)
 	if err != nil {
 		t.Fatalf("GetAll() failed: %v", err)
 	}

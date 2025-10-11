@@ -14,25 +14,32 @@ const (
 	UbuntuAMDImageURL = "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img"
 )
 
-var userHomeDir = os.UserHomeDir
+// Config holds the application's configuration.
+type Config struct {
+	homeDir string
+}
 
-var GetAppDirFunc = GetAppDir
+// New creates a new Config instance.
+func New() (*Config, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	return &Config{homeDir: home}, nil
+}
 
 // GetAppDir returns the path to the application's hidden directory.
-func GetAppDir() (string, error) {
-	home, err := userHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, "."+AppName), nil
+func (c *Config) GetAppDir() string {
+	return filepath.Join(c.homeDir, "."+AppName)
+}
+
+// SetHomeDir sets the application's home directory.
+func (c *Config) SetHomeDir(dir string) {
+	c.homeDir = dir
 }
 
 // GetProjectRootDir returns the root directory of the project.
-func GetProjectRootDir() (string, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
+func (c *Config) GetProjectRootDir(wd string) (string, error) {
 	for {
 		if _, err := os.Stat(filepath.Join(wd, "go.mod")); err == nil {
 			return wd, nil
