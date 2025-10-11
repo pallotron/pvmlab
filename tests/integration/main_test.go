@@ -34,6 +34,8 @@ func TestMain(m *testing.M) {
 
 	// Set an environment variable to make the CLI use this temp directory.
 	os.Setenv("PVMLAB_HOME", tempHomeDir)
+	// Set a longer timeout for cloud-init in tests.
+	os.Setenv("PVMLAB_WAIT_TIMEOUT", "900")
 
 	// Add debug logging to verify the environment
 	log.Printf("Using temporary home for tests: %s", tempHomeDir)

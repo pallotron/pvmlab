@@ -11,6 +11,7 @@ import (
 	"provisioning-vm-lab/internal/netutil"
 	"provisioning-vm-lab/internal/pidfile"
 	"provisioning-vm-lab/internal/socketvmnet"
+	"strconv"
 	"strings"
 	"time"
 
@@ -168,7 +169,15 @@ var vmStartCmd = &cobra.Command{
 		color.Green("✔ %s VM started successfully.", vmName)
 		// TODO: switch to using QEMU guest agent and unix socket
 		if wait {
-			if err := logwatcher.WaitForMessage(cfg, vmName, "cloud-config.target", 5*time.Minute); err != nil {
+			timeoutSeconds := 300 // Default to 5 minutes
+			if timeoutStr := os.Getenv("PVMLAB_WAIT_TIMEOUT"); timeoutStr != "" {
+				if timeout, err := strconv.Atoi(timeoutStr); err == nil {
+					timeoutSeconds = timeout
+				}
+			}
+			timeoutDuration := time.Duration(timeoutSeconds) * time.Second
+
+			if err := logwatcher.WaitForMessage(cfg, vmName, "cloud-config.target", timeoutDuration); err != nil {
 				return err
 			}
 		}
