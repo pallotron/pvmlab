@@ -26,6 +26,12 @@ jobs:
     - name: Install Dependencies
       run: brew install qemu cdrtools socat
 
+    - name: Start Docker Desktop
+      run: |
+        open /Applications/Docker.app
+        # Wait for the docker daemon to be responsive
+        sleep 20
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
         
