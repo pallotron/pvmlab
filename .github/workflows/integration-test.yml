@@ -29,9 +29,9 @@ jobs:
     - name: Build and Install Environment via Makefile
       run: make all
         
-          - name: Run Integration Tests
-            run: |
-              # The RUN_INTEGRATION_TESTS environment variable is used in the test to un-skip the tests
-              export RUN_INTEGRATION_TESTS=true
-              # Run the tests from the dedicated package
-              go test -v ./tests/integration/...
+    - name: Run Integration Tests
+      run: |
+        # The RUN_INTEGRATION_TESTS environment variable is used in the test to un-skip the tests
+        export RUN_INTEGRATION_TESTS=true
+        # Run the tests from the dedicated package
+        go test -v ./tests/integration/...
