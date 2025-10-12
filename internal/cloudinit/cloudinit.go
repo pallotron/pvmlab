@@ -139,7 +139,7 @@ func executeTemplate(name, tmplStr string, data interface{}) (string, error) {
 	return buf.String(), nil
 }
 
-func CreateISO(vmName, role, appDir, isoPath, ip, mac, pxeBootStackTar string) error {
+var CreateISO = func(vmName, role, appDir, isoPath, ip, mac, pxeBootStackTar string) error {
 	sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa.pub")
 	sshKeyBytes, err := os.ReadFile(sshKeyPath)
 	if err != nil {

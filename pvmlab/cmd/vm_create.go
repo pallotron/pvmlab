@@ -183,7 +183,7 @@ func getMac(mac string) (string, error) {
 	return mac, nil
 }
 
-func createDisk(imagePath, vmDiskPath, diskSize string) error {
+var createDisk = func(imagePath, vmDiskPath, diskSize string) error {
 	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 	s.Suffix = " Creating VM disk..."
 	s.Start()
@@ -205,7 +205,7 @@ func createDisk(imagePath, vmDiskPath, diskSize string) error {
 	return nil
 }
 
-func createISO(vmName, role, appDir, isoPath, ip, mac, pxebootStackTar string) error {
+var createISO = func(vmName, role, appDir, isoPath, ip, mac, pxebootStackTar string) error {
 	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 	s.Suffix = " Generating cloud-config ISO..."
 	s.Start()

@@ -35,7 +35,7 @@ func DownloadFile(filepath string, url string) error {
 }
 
 // DownloadImageIfNotExists checks if an image exists and downloads it if it doesn't.
-func DownloadImageIfNotExists(imagePath, imageUrl string) error {
+var DownloadImageIfNotExists = func(imagePath, imageUrl string) error {
 	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 	s.Suffix = fmt.Sprintf(" Checking for Ubuntu cloud image at %s...", imageUrl)
 	s.Start()

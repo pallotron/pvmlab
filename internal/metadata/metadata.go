@@ -23,7 +23,7 @@ func getVMsDir(cfg *config.Config) string {
 }
 
 // Save saves the VM's metadata to a file.
-func Save(cfg *config.Config, vmName, role, ip, mac, pxeBootStackTar, dockerImagesPath, vmsPath string, sshPort int) error {
+var Save = func(cfg *config.Config, vmName, role, ip, mac, pxeBootStackTar, dockerImagesPath, vmsPath string, sshPort int) error {
 	meta := Metadata{
 		Role:             role,
 		IP:               ip,
@@ -49,7 +49,7 @@ func Save(cfg *config.Config, vmName, role, ip, mac, pxeBootStackTar, dockerImag
 	return os.WriteFile(metaPath, data, 0644)
 }
 
-func Load(cfg *config.Config, vmName string) (*Metadata, error) {
+var Load = func(cfg *config.Config, vmName string) (*Metadata, error) {
 	vmsDir := getVMsDir(cfg)
 
 	metaPath := filepath.Join(vmsDir, vmName+".json")
@@ -65,7 +65,7 @@ func Load(cfg *config.Config, vmName string) (*Metadata, error) {
 	return &meta, nil
 }
 
-func FindProvisioner(cfg *config.Config) (string, error) {
+var FindProvisioner = func(cfg *config.Config) (string, error) {
 	vmsDir := getVMsDir(cfg)
 
 	files, err := os.ReadDir(vmsDir)
@@ -94,7 +94,7 @@ func FindProvisioner(cfg *config.Config) (string, error) {
 	return "", nil
 }
 
-func FindVM(cfg *config.Config, vmName string) (string, error) {
+var FindVM = func(cfg *config.Config, vmName string) (string, error) {
 	vmsDir := getVMsDir(cfg)
 	metaPath := filepath.Join(vmsDir, vmName+".json")
 	if _, err := os.Stat(metaPath); err == nil {

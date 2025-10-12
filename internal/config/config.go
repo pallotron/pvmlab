@@ -22,7 +22,7 @@ type Config struct {
 }
 
 // New creates a new Config instance.
-func New() (*Config, error) {
+var New = func() (*Config, error) {
 	var home string
 	var err error
 
