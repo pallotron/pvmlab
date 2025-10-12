@@ -13,6 +13,11 @@ import (
 	"github.com/hpcloud/tail"
 )
 
+var (
+	// execCommand is a variable to allow mocking of exec.Command in tests
+	execCommand = exec.Command
+)
+
 // ForPort polls a TCP port until it becomes available or a timeout is reached.
 func ForPort(host string, port int, timeout time.Duration) error {
 	address := net.JoinHostPort(host, fmt.Sprintf("%d", port))
@@ -95,7 +100,7 @@ func ForCloudInitTarget(sshPort int, sshKeyPath string, timeout time.Duration) e
 			s.FinalMSG = color.RedString("✖ Timed out waiting for cloud-init to complete.\n")
 			return fmt.Errorf("timed out waiting for cloud-init.target to become active")
 		default:
-			cmd := exec.Command("ssh", "-i", sshKeyPath, "-p", sshPortStr, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost", command)
+			cmd := execCommand("ssh", "-i", sshKeyPath, "-p", sshPortStr, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost", command)
 			output, err := cmd.CombinedOutput()
 			if err == nil && strings.Contains(string(output), "ActiveState=active") {
 				s.FinalMSG = color.GreenString("✔ Cloud-init completed successfully.\n")
