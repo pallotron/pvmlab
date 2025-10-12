@@ -78,6 +78,18 @@ install.completions: install-pvmlab
 	fi
 
 
+release:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Usage: make release VERSION=vX.Y.Z"; \
+		exit 1; \
+	fi
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "Git working directory is not clean. Please commit or stash your changes."; \
+		exit 1; \
+	fi
+	git tag -a $(VERSION) -m "Version $(VERSION)"
+	git push origin $(VERSION)
+
 .PHONY: all socket_vmnet clean install.socket_vmnet install.socket_vmnet.launchd install.completions test integration.test
 
 test:
