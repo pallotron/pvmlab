@@ -64,7 +64,14 @@ jobs:
       - name: Run Integration Tests
         run: |
           export RUN_INTEGRATION_TESTS=true
-          go test -v -timeout 30m ./tests/integration/...
+          go test -v -timeout 30m ./tests/integration/... -coverprofile=coverage.txt
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: integrationtests
+          verbose: true
 
       - name: Display VM Logs on Failure
         if: failure()
