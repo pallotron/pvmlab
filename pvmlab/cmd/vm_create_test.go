@@ -36,7 +36,7 @@ func TestVMCreateCommand(t *testing.T) {
 		},
 		{
 			name: "existing provisioner",
-			args: []string{"vm", "create", "new-prov", "--role", "provisioner", "--ip", "1.2.3.4"},
+			args: []string{"vm", "create", "new-prov", "--role", "provisioner", "--ip", "1.2.3.4/24"},
 			setupMocks: func() {
 				metadata.FindProvisioner = func(c *config.Config) (string, error) {
 					return "existing-prov", nil
@@ -87,7 +87,7 @@ func TestVMCreateCommand(t *testing.T) {
 		},
 		{
 			name: "create provisioner success",
-			args: []string{"vm", "create", "my-prov", "--role", "provisioner", "--ip", "192.168.1.1"},
+			args: []string{"vm", "create", "my-prov", "--role", "provisioner", "--ip", "192.168.1.1/24"},
 			setupMocks: func() {
 				// All mocks default to success
 			},
@@ -107,6 +107,15 @@ func TestVMCreateCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Reset global flags to their default values before each test
+			ip = ""
+			role = "target"
+			mac = ""
+			pxebootStackTar = "pxeboot_stack.tar"
+			dockerImagesPath = ""
+			vmsPath = ""
+			diskSize = "10G"
+
 			// Reset mocks to default success behavior before each test
 			setupMocks(t)
 			// Apply test-specific mock setup

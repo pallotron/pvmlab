@@ -61,7 +61,7 @@ func TestCreateISO(t *testing.T) {
 	// Test case for "provisioner" role
 	t.Run("provisioner", func(t *testing.T) {
 		isoPath := filepath.Join(appDir, "provisioner.iso")
-		err := CreateISO("test-vm", "provisioner", appDir, isoPath, "192.168.1.1", "", "pxe-stack.tar")
+		err := CreateISO("test-vm", "provisioner", appDir, isoPath, "192.168.1.1/24", "", "pxe-stack.tar")
 		if err != nil {
 			t.Fatalf("CreateISO() for provisioner returned an error: %v", err)
 		}
