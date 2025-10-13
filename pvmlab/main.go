@@ -1,7 +1,7 @@
 package main
 
 import (
-	"provisioning-vm-lab/pvmlab/cmd"
+	"pvmlab/pvmlab/cmd"
 )
 
 func main() {

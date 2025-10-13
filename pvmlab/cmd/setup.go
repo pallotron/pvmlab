@@ -9,10 +9,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"provisioning-vm-lab/internal/config"
-	"provisioning-vm-lab/internal/downloader"
-	"provisioning-vm-lab/internal/runner"
-	"provisioning-vm-lab/internal/socketvmnet"
+	"pvmlab/internal/config"
+	"pvmlab/internal/downloader"
+	"pvmlab/internal/runner"
+	"pvmlab/internal/socketvmnet"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -26,8 +26,8 @@ var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Checks for and installs dependencies.",
 	Long: `Checks for and installs dependencies (Homebrew, cdrtools, socat, socket_vmnet, qemu).
-Creates the ~/.provisioning-vm-lab/ directory structure.
-Generates the SSH key pair and saves it to ~/.provisioning-vm-lab/ssh/.
+Creates the ~/.pvmlab/ directory structure.
+Generates the SSH key pair and saves it to ~/.pvmlab/ssh/.
 Make sure launchd is configured to launch the socket_vmnet service.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		color.Cyan("i Setting up pvmlab...")
@@ -70,16 +70,16 @@ func createDirectories(appDir string) error {
 	s.Start()
 	defer s.Stop()
 
-	    dirs := []string{
-	        filepath.Join(appDir, "images"),
-	        filepath.Join(appDir, "vms"),
-	        filepath.Join(appDir, "pids"),
-	        filepath.Join(appDir, "logs"),
-	        filepath.Join(appDir, "monitors"),
-	        filepath.Join(appDir, "ssh"),
-	        filepath.Join(appDir, "configs", "cloud-init"),
-	        filepath.Join(appDir, "docker_images"),
-	    }
+	dirs := []string{
+		filepath.Join(appDir, "images"),
+		filepath.Join(appDir, "vms"),
+		filepath.Join(appDir, "pids"),
+		filepath.Join(appDir, "logs"),
+		filepath.Join(appDir, "monitors"),
+		filepath.Join(appDir, "ssh"),
+		filepath.Join(appDir, "configs", "cloud-init"),
+		filepath.Join(appDir, "docker_images"),
+	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			s.FinalMSG = color.RedString("✖ Failed to create directory structure.\n")

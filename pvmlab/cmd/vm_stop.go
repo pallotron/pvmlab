@@ -6,8 +6,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"provisioning-vm-lab/internal/config"
-	"provisioning-vm-lab/internal/pidfile"
+	"pvmlab/internal/config"
+	"pvmlab/internal/pidfile"
 	"syscall"
 	"time"
 

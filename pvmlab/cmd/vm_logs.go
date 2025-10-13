@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"provisioning-vm-lab/internal/config"
+	"pvmlab/internal/config"
 
 	"github.com/spf13/cobra"
 )

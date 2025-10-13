@@ -7,7 +7,7 @@ import (
 
 const (
 	// AppName is the name of the application
-	AppName = "provisioning-vm-lab"
+	AppName = "pvmlab"
 	// UbuntuCloudImageBaseURL is the base URL for Ubuntu cloud images
 	UbuntuCloudImageBaseURL = "https://cloud-images.ubuntu.com/releases/24.04/release/"
 	// UbuntuARMImageName is the filename for the Ubuntu aarch64 cloud image

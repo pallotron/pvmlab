@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"provisioning-vm-lab/internal/config"
-	"provisioning-vm-lab/internal/metadata"
+	"pvmlab/internal/config"
+	"pvmlab/internal/metadata"
 	"strings"
 
 	"github.com/fatih/color"

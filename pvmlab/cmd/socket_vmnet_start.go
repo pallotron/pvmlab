@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"provisioning-vm-lab/internal/socketvmnet"
+	"pvmlab/internal/socketvmnet"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"

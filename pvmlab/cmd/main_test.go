@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"os"
 	"os/exec"
-	"provisioning-vm-lab/internal/cloudinit"
-	"provisioning-vm-lab/internal/config"
-	"provisioning-vm-lab/internal/downloader"
-	"provisioning-vm-lab/internal/metadata"
-	"provisioning-vm-lab/internal/runner"
+	"pvmlab/internal/cloudinit"
+	"pvmlab/internal/config"
+	"pvmlab/internal/downloader"
+	"pvmlab/internal/metadata"
+	"pvmlab/internal/runner"
 	"testing"
 
 	"github.com/fatih/color"
@@ -36,18 +36,6 @@ func executeCommandC(root *cobra.Command, args ...string) (*cobra.Command, strin
 
 	return c, buf.String(), err
 }
-
-// Mock functions
-var (
-	mockConfigNew                  func() (*config.Config, error)
-	mockDownloadImageIfNotExists   func(string, string) error
-	mockCreateDisk                 func(string, string, string) error
-	mockCreateISO                  func(string, string, string, string, string, string, string) error
-	mockMetadataSave               func(*config.Config, string, string, string, string, string, string, string, int) error
-	mockMetadataFindProvisioner    func(*config.Config) (string, error)
-	mockMetadataFindVM             func(*config.Config, string) (string, error)
-	mockRunnerRun                  func(*exec.Cmd) error
-)
 
 func TestMain(m *testing.M) {
 	// Save original functions
@@ -79,7 +67,7 @@ func TestMain(m *testing.M) {
 }
 
 // setupMocks resets all mocks to default successful behavior.
-func setupMocks(t *testing.T) {
+func setupMocks(_ *testing.T) {
 	config.New = func() (*config.Config, error) {
 		return &config.Config{}, nil
 	}

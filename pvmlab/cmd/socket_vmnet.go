@@ -9,8 +9,8 @@ var socketVmnetCmd = &cobra.Command{
 	Use:   "socket_vmnet",
 	Short: "Manage the socket_vmnet service",
 	Long:  `Manage the socket_vmnet service.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return cmd.Help()
 	},
 }
 

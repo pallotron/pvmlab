@@ -2,7 +2,7 @@
 
 This project provides a command-line tool, `pvmlab`, to automate the setup of a simple virtual provisioning lab on macOS. It uses `QEMU`, `socket_vmnet`, `cloud-init`, and `Docker` to create and manage an environment where multiple "target" VMs are deployed in a private virtual network and one VM functions as the "provisioner" VM offering pxeboot services and working as default gw for internet access for those VMs.
 
-All generated artifacts (VM disks, ISOs, logs, etc.) are stored neatly in `~/.provisioning-vm-lab/`, keeping the project repository clean.
+All generated artifacts (VM disks, ISOs, logs, etc.) are stored neatly in `~/.pvmlab/`, keeping the project repository clean.
 
 ## Architecture
 
@@ -49,7 +49,7 @@ For details on the directory structure used to store generated artifacts, please
 
 4. **Set up the Lab Environment:**
 
-   This command creates the `~/.provisioning-vm-lab/` directory structure and generates an SSH key for accessing the VMs. It may require your `sudo` password to configure `socket_vmnet`.
+   This command creates the `~/.pvmlab/` directory structure and generates an SSH key for accessing the VMs. It may require your `sudo` password to configure `socket_vmnet`.
 
    ```bash
    pvmlab setup
@@ -86,7 +86,7 @@ pvmlab socket_vmnet start
 
 **Create the VMs:**
 
-This command downloads cloud images, creates VM disks, and generates cloud-init configurations in the `~/.provisioning-vm-lab/` directory.
+This command downloads cloud images, creates VM disks, and generates cloud-init configurations in the `~/.pvmlab/` directory.
 
 ```bash
 # Create the provisioner
@@ -148,13 +148,13 @@ pvmlab vm stop target1
 ```
 
 **Cleanup:**
-To stop a VM and remove its files from `~/.provisioning-vm-lab/`:
+To stop a VM and remove its files from `~/.pvmlab/`:
 
 ```bash
 pvmlab vm clean provisioner
 ```
 
-To clean up everything, including the `socket_vmnet` service and the entire `~/.provisioning-vm-lab/` directory:
+To clean up everything, including the `socket_vmnet` service and the entire `~/.pvmlab/` directory:
 
 ```bash
 pvmlab clean

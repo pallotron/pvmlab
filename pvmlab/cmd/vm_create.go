@@ -6,12 +6,12 @@ import (
 	"net"
 	"os/exec"
 	"path/filepath"
-	"provisioning-vm-lab/internal/cloudinit"
-	"provisioning-vm-lab/internal/config"
-	"provisioning-vm-lab/internal/downloader"
-	"provisioning-vm-lab/internal/errors"
-	"provisioning-vm-lab/internal/metadata"
-	"provisioning-vm-lab/internal/runner"
+	"pvmlab/internal/cloudinit"
+	"pvmlab/internal/config"
+	"pvmlab/internal/downloader"
+	"pvmlab/internal/errors"
+	"pvmlab/internal/metadata"
+	"pvmlab/internal/runner"
 	"regexp"
 	"time"
 
@@ -229,8 +229,8 @@ func init() {
 		"pxeboot_stack.tar",
 		"Path to the pxeboot stack docker tar file (Required for the provisioner VM)",
 	)
-	vmCreateCmd.Flags().StringVar(&dockerImagesPath, "docker-images-path", "", "Path to docker images to share with the provisioner VM. Defaults to ~/.provisioning-vm-lab/docker_images")
-	vmCreateCmd.Flags().StringVar(&vmsPath, "vms-path", "", "Path to vms to share with the provisioner VM. Defaults to ~/.provisioning-vm-lab/vms")
+	vmCreateCmd.Flags().StringVar(&dockerImagesPath, "docker-images-path", "", "Path to docker images to share with the provisioner VM. Defaults to ~/.pvmlab/docker_images")
+	vmCreateCmd.Flags().StringVar(&vmsPath, "vms-path", "", "Path to vms to share with the provisioner VM. Defaults to ~/.pvmlab/vms")
 	vmCreateCmd.Flags().StringVar(&ip, "ip", "", "The IP address of the VM (Required for Provisioner and Target VMs)")
 	vmCreateCmd.Flags().StringVar(&diskSize, "disk-size", "10G", "The size of the VM disk")
 }

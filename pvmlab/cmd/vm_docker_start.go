@@ -6,8 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"provisioning-vm-lab/internal/config"
-	"provisioning-vm-lab/internal/metadata"
+	"pvmlab/internal/config"
+	"pvmlab/internal/metadata"
 	"strings"
 
 	"github.com/fatih/color"
@@ -113,7 +113,9 @@ var dockerStartCmd = &cobra.Command{
 func init() {
 	dockerCmd.AddCommand(dockerStartCmd)
 	dockerStartCmd.Flags().StringVar(&dockerTar, "docker-tar", "", "Path to the container tarball")
-	dockerStartCmd.MarkFlagRequired("docker-tar")
+	if err := dockerStartCmd.MarkFlagRequired("docker-tar"); err != nil {
+		panic(err)
+	}
 	dockerStartCmd.Flags().BoolVar(&privileged, "privileged", false, "Run container in privileged mode")
 	dockerStartCmd.Flags().BoolVar(&networkHost, "network-host", false, "Use host networking for the container")
 }

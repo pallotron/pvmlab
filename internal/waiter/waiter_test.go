@@ -25,7 +25,9 @@ func TestForPort(t *testing.T) {
 	// Test success case
 	go func() {
 		time.Sleep(200 * time.Millisecond)
-		l.Accept()
+		if _, err := l.Accept(); err != nil {
+			t.Logf("Accept() failed: %v", err) // Log instead of Fatalf as this runs in a goroutine
+		}
 	}()
 
 	err = ForPort("localhost", port, 1*time.Second)
@@ -56,7 +58,9 @@ func TestForMessage(t *testing.T) {
 	// Test success case
 	go func() {
 		time.Sleep(200 * time.Millisecond)
-		tmpfile.WriteString("this is the magic message\n")
+		if _, err := tmpfile.WriteString("this is the magic message\n"); err != nil {
+			t.Logf("WriteString failed: %v", err)
+		}
 		tmpfile.Close()
 	}()
 
@@ -111,7 +115,7 @@ func TestHelperProcess(t *testing.T) {
 		os.Exit(2)
 	}
 
-	cmd, args := args[0], args[1:]
+	cmd, _ := args[0], args[1:]
 	if cmd == "ssh" {
 		// Simulate ssh output for cloud-init check
 		fmt.Fprint(os.Stdout, "ActiveState=active")

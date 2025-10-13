@@ -6,8 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"provisioning-vm-lab/internal/config"
-	"provisioning-vm-lab/internal/metadata"
+	"pvmlab/internal/config"
+	"pvmlab/internal/metadata"
 	"strings"
 
 	"github.com/fatih/color"
@@ -93,11 +93,14 @@ var dockerStatusCmd = &cobra.Command{
 				container.Ports = "N/A"
 			}
 			row := []string{container.ID, container.Image, container.Command, container.Status, container.Ports, container.Names}
-			table.Append(row)
-		}
-		table.Render()
-
-		return nil
+						if err := table.Append(row); err != nil {
+							return err
+						}
+					}
+					if err := table.Render(); err != nil {
+						return err
+					}
+					return nil
 	},
 }
 

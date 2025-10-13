@@ -8,7 +8,7 @@ import (
 
 func TestGetAppDir(t *testing.T) {
 	cfg := &Config{homeDir: "/tmp"}
-	expected := "/tmp/.provisioning-vm-lab"
+	expected := "/tmp/.pvmlab"
 	if got := cfg.GetAppDir(); got != expected {
 		t.Errorf("GetAppDir() = %v, want %v", got, expected)
 	}

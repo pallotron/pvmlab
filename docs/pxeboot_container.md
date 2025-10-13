@@ -49,7 +49,7 @@ The `pxeboot_stack` Docker image is built on your macOS host and then loaded int
 When you first create the provisioner VM (`pvmlab vm create provisioner`), the following happens automatically via `cloud-init`:
 
 1. Docker is installed in the VM.
-2. The `~/.provisioning-vm-lab/docker_images/` directory from your Mac is mounted into the VM at `/mnt/host/docker_images/`.
+2. The `~/.pvmlab/docker_images/` directory from your Mac is mounted into the VM at `/mnt/host/docker_images/`.
 3. The `pxeboot_stack.tar` image is loaded into Docker.
 4. The `pxeboot_stack` container is started.
 

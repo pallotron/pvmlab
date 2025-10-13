@@ -2,7 +2,7 @@
 
 IMAGE_NAME ?= pxeboot_stack
 IMAGE_TAG ?= latest
-DOCKER_IMAGES_DIR ?= $(HOME)/.provisioning-vm-lab/docker_images
+DOCKER_IMAGES_DIR ?= $(HOME)/.pvmlab/docker_images
 
 .PHONY: all build save clean
 

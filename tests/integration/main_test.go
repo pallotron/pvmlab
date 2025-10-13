@@ -9,10 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"provisioning-vm-lab/internal/waiter"
 	"strings"
 	"testing"
 	"time"
+
+	"pvmlab/internal/waiter"
 )
 
 var (
@@ -113,7 +114,7 @@ func TestVMLifecycle(t *testing.T) {
 	vmName := "test-vm-lifecycle"
 	// Ensure cleanup happens even if the test fails
 	defer func() {
-		runCmdWithLiveOutput(pathToCLI, "vm", "clean", vmName) // Ignore error, just a best effort
+		_, _ = runCmdWithLiveOutput(pathToCLI, "vm", "clean", vmName) // Ignore error, just a best effort
 	}()
 
 	t.Run("0-Setup", func(t *testing.T) {
@@ -149,7 +150,7 @@ func TestVMLifecycle(t *testing.T) {
 		}
 
 		// Load metadata to find the SSH port.
-		metaPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab", "vms", vmName+".json")
+		metaPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".pvmlab", "vms", vmName+".json")
 		metaFile, err := os.ReadFile(metaPath)
 		if err != nil {
 			t.Fatalf("failed to read metadata file: %v", err)
@@ -174,11 +175,11 @@ func TestVMLifecycle(t *testing.T) {
 		// On local runs, perform the stricter check to ensure cloud-init completes fully.
 		// In CI, just checking for the SSH port is a sufficient smoke test.
 		if os.Getenv("CI") != "true" {
-			sshKeyPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab", "ssh", "vm_rsa")
+			sshKeyPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".pvmlab", "ssh", "vm_rsa")
 			err = waiter.ForCloudInitProvisioner(meta.SSHPort, sshKeyPath, timeout)
 			if err != nil {
 				// If waiting fails, print a recursive listing of the app dir for debugging.
-				debugDir := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab")
+				debugDir := filepath.Join(os.Getenv("PVMLAB_HOME"), ".pvmlab")
 				log.Printf("--- Debugging directory structure for: %s ---", debugDir)
 				debugCmd := exec.Command("ls", "-lR", debugDir)
 				debugOutput, _ := debugCmd.CombinedOutput() // Ignore error, this is best-effort

@@ -61,7 +61,12 @@ func ForMessage(logPath, message string, timeout time.Duration) error {
 		s.FinalMSG = color.RedString("✖ Error tailing log file.\n")
 		return fmt.Errorf("error tailing log file: %w", err)
 	}
-	defer t.Stop()
+	defer func() {
+		if err := t.Stop(); err != nil {
+			// Log the error, as we can't return it from a defer
+			fmt.Printf("Error stopping tail: %v\n", err)
+		}
+	}()
 
 	timeoutChan := time.After(timeout)
 

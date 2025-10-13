@@ -5,8 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"provisioning-vm-lab/internal/config"
-	"provisioning-vm-lab/internal/metadata"
+	"pvmlab/internal/config"
+	"pvmlab/internal/metadata"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -68,7 +68,10 @@ var vmShellCmd = &cobra.Command{
 		sshCmd.Stderr = os.Stderr
 
 		if err := sshCmd.Run(); err != nil {
-			// Don't print error on normal SSH exit
+			// Ignore normal SSH exit errors.
+			if _, ok := err.(*exec.ExitError); !ok {
+				return fmt.Errorf("error running ssh: %w", err)
+			}
 		}
 		return nil
 	},

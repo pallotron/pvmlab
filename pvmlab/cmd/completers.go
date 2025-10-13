@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"log"
-	"provisioning-vm-lab/internal/config"
-	"provisioning-vm-lab/internal/metadata"
+	"pvmlab/internal/config"
+	"pvmlab/internal/metadata"
 	"sort"
 
 	"github.com/spf13/cobra"

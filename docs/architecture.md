@@ -64,7 +64,7 @@ linkStyle default stroke:black
 ## Features
 
 - **Go-based CLI:** A modern, easy-to-use command-line interface (`pvmlab`) for managing the entire lab lifecycle.
-- **Clean Project Directory:** All generated files are stored outside the project's directory in `~/.provisioning-vm-lab/`.
+- **Clean Project Directory:** All generated files are stored outside the project's directory in `~/.pvmlab/`.
 - **Two role VM Architecture:**
   - **Provisioner VM:** An `aarch64` Ubuntu server that provides pxeboot and NAT services for the target VMs.
   - **Target VM:** An `aarch64` Ubuntu server that sits in the private network and is provisioned by the provisioner VM. The provisioner VM also provides internet access for the target VMs.

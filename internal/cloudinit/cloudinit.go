@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"provisioning-vm-lab/internal/runner"
+	"pvmlab/internal/runner"
 	"strings"
 	"text/template"
 )

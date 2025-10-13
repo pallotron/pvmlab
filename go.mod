@@ -1,4 +1,4 @@
-module provisioning-vm-lab
+module pvmlab
 
 go 1.25.1
 

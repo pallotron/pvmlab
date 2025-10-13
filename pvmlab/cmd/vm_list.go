@@ -3,9 +3,9 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"provisioning-vm-lab/internal/config"
-	"provisioning-vm-lab/internal/metadata"
-	"provisioning-vm-lab/internal/pidfile"
+	"pvmlab/internal/config"
+	"pvmlab/internal/metadata"
+	"pvmlab/internal/pidfile"
 	"sort"
 
 	"github.com/fatih/color"
@@ -61,38 +61,36 @@ var vmListCmd = &cobra.Command{
 				status = color.GreenString("Running")
 			}
 
-			sshAccess := "N/A"
-			role := meta.Role
-			if role == "provisioner" {
-				if meta.SSHPort != 0 {
-					sshAccess = fmt.Sprintf("localhost:%d", meta.SSHPort)
-				} else {
-					if meta.SSHPort > 0 {
-						sshAccess = fmt.Sprintf("localhost:%d", meta.SSHPort)
-					} else {
-						sshAccess = "N/A"
-					}
-				}
-			} else {
-				sshAccess = fmt.Sprintf("%s (from provisioner)", meta.IP)
-			}
-
+			            var sshAccess string
+			            if meta.Role == "provisioner" {
+			                if meta.SSHPort != 0 {
+			                    sshAccess = fmt.Sprintf("localhost:%d", meta.SSHPort)
+			                } else {
+			                    sshAccess = "N/A"
+			                }
+			            } else { // target
+			                if meta.IP != "" {
+			                    sshAccess = fmt.Sprintf("%s (from provisioner)", meta.IP)
+			                } else {
+			                    sshAccess = "N/A"
+			                }
+			            }
 			if meta.Role == "provisioner" {
 				role = color.RedString(role)
 			}
 
-			table.Append([]string{
-				vmName,
-				role,
-				meta.IP,
-				sshAccess,
-				meta.MAC,
-				status,
-			})
-		}
-		table.Render()
-		return nil
-	},
+			            if err := table.Append([]string{
+			                vmName,
+			                meta.Role,
+			                meta.IP,
+			                sshAccess,
+			                meta.MAC,
+			                status,
+			            }); err != nil {
+			                return err
+			            }
+			        }
+			        return table.Render()	},
 }
 
 func init() {

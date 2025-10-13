@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"errors"
-	"provisioning-vm-lab/internal/config"
-	"provisioning-vm-lab/internal/metadata"
+	"pvmlab/internal/config"
+	"pvmlab/internal/metadata"
 	"strings"
 	"testing"
 )

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
-	"provisioning-vm-lab/internal/config"
-	"provisioning-vm-lab/internal/metadata"
+	"pvmlab/internal/config"
+	"pvmlab/internal/metadata"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"provisioning-vm-lab/internal/config"
+	"pvmlab/internal/config"
 )
 
 type Metadata struct {

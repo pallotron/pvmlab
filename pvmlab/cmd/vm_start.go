@@ -5,12 +5,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"provisioning-vm-lab/internal/config"
-	"provisioning-vm-lab/internal/metadata"
-	"provisioning-vm-lab/internal/netutil"
-	"provisioning-vm-lab/internal/pidfile"
-	"provisioning-vm-lab/internal/socketvmnet"
-	"provisioning-vm-lab/internal/waiter"
+	"pvmlab/internal/config"
+	"pvmlab/internal/metadata"
+	"pvmlab/internal/netutil"
+	"pvmlab/internal/pidfile"
+	"pvmlab/internal/socketvmnet"
+	"pvmlab/internal/waiter"
 	"strconv"
 	"strings"
 	"time"
@@ -107,6 +107,14 @@ var vmStartCmd = &cobra.Command{
 
 			if !netutil.IsPortAvailable(meta.SSHPort) {
 				return fmt.Errorf("TCP port %d is already in use", meta.SSHPort)
+			}
+
+			if meta.PxeBootStackTar == "" {
+				return fmt.Errorf("PxeBootStackTar not set in metadata for provisioner")
+			}
+			pxeBootStackPath := filepath.Join(appDir, "docker_images", meta.PxeBootStackTar)
+			if _, err := os.Stat(pxeBootStackPath); os.IsNotExist(err) {
+				return fmt.Errorf("pxeboot stack tarball not found at %s. Please run `make -C pxeboot_stack save` from the project git root", pxeBootStackPath)
 			}
 
 			var finalDockerImagesPath string

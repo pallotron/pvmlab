@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"provisioning-vm-lab/internal/config"
+	"pvmlab/internal/config"
 	"strconv"
 	"strings"
 	"syscall"
