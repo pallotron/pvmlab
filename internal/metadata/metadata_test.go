@@ -35,12 +35,13 @@ func TestSaveLoad(t *testing.T) {
 	vmName := "test-vm"
 	role := "provisioner"
 	ip := "192.168.1.1"
+	subnet := "192.168.1.0/24"
 	mac := "52:54:00:12:34:56"
 	pxeBootStackTar := "pxe-stack.tar"
 	dockerImagesPath := "/path/to/docker/images"
 	vmsPath := "/path/to/vms"
 
-	err := Save(cfg, vmName, role, ip, mac, pxeBootStackTar, dockerImagesPath, vmsPath, 0)
+	err := Save(cfg, vmName, role, ip, subnet, mac, pxeBootStackTar, dockerImagesPath, vmsPath, 0)
 	if err != nil {
 		t.Fatalf("Save() failed: %v", err)
 	}
@@ -53,6 +54,7 @@ func TestSaveLoad(t *testing.T) {
 	expected := &Metadata{
 		Role:             role,
 		IP:               ip,
+		Subnet:           subnet,
 		MAC:              mac,
 		PxeBootStackTar:  pxeBootStackTar,
 		DockerImagesPath: dockerImagesPath,
@@ -69,13 +71,13 @@ func TestFindProvisioner(t *testing.T) {
 	cfg, cleanup := setup(t)
 	defer cleanup()
 
-	if err := Save(cfg, "vm1", "target", "", "mac1", "", "", "", 0); err != nil {
+	if err := Save(cfg, "vm1", "target", "", "", "mac1", "", "", "", 0); err != nil {
 		t.Fatalf("Save() failed for vm1: %v", err)
 	}
-	if err := Save(cfg, "vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "", 45678); err != nil {
+	if err := Save(cfg, "vm2", "provisioner", "ip2", "subnet2", "mac2", "pxe2", "docker2", "", 45678); err != nil {
 		t.Fatalf("Save() failed for vm2: %v", err)
 	}
-	if err := Save(cfg, "vm3", "target", "", "mac3", "", "", "", 0); err != nil {
+	if err := Save(cfg, "vm3", "target", "", "", "mac3", "", "", "", 0); err != nil {
 		t.Fatalf("Save() failed for vm3: %v", err)
 	}
 
@@ -94,7 +96,7 @@ func TestDelete(t *testing.T) {
 	defer cleanup()
 
 	vmName := "vm-to-delete"
-	if err := Save(cfg, vmName, "target", "", "mac", "", "", "", 0); err != nil {
+	if err := Save(cfg, vmName, "target", "", "", "mac", "", "", "", 0); err != nil {
 		t.Fatalf("Save() failed: %v", err)
 	}
 
@@ -115,10 +117,10 @@ func TestGetAll(t *testing.T) {
 	defer cleanup()
 
 	// Create some dummy metadata files
-	if err := Save(cfg, "vm1", "target", "", "mac1", "", "", "", 0); err != nil {
+	if err := Save(cfg, "vm1", "target", "", "", "mac1", "", "", "", 0); err != nil {
 		t.Fatalf("Save() failed for vm1: %v", err)
 	}
-	if err := Save(cfg, "vm2", "provisioner", "ip2", "mac2", "pxe2", "docker2", "", 45678); err != nil {
+	if err := Save(cfg, "vm2", "provisioner", "ip2", "subnet2", "mac2", "pxe2", "docker2", "", 45678); err != nil {
 		t.Fatalf("Save() failed for vm2: %v", err)
 	}
 

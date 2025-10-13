@@ -10,14 +10,15 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then cp /usr/share/alpine-ipxe/snp.efi /ipxe
 
 FROM alpine:3.18
 
-RUN apk update && apk add --no-cache dnsmasq supervisor jq inotify-tools
+RUN apk update && apk add --no-cache dnsmasq supervisor jq inotify-tools gettext
 
 # Create TFTP root and copy iPXE binaries
 RUN mkdir /tftpboot
 COPY --from=ipxe-builder /ipxe-binaries/* /tftpboot/
 
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY dnsmasq.conf /etc/dnsmasq.conf
+COPY dnsmasq.conf.template /etc/dnsmasq.conf.template
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY generate_dnsmasq_hosts.sh /usr/local/bin/generate_dnsmasq_hosts.sh
 COPY watch_vms.sh /usr/local/bin/watch_vms.sh
 
@@ -27,4 +28,5 @@ RUN touch /var/log/vm-watcher.log && chmod 666 /var/log/vm-watcher.log
 EXPOSE 67/udp
 EXPOSE 69/udp
 
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

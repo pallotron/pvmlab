@@ -3,6 +3,7 @@ package cloudinit
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +19,9 @@ public-keys:
   - "[[ .SshKey ]]"
 pxe_boot_stack_tar: "[[ .PxeBootStackTar ]]"
 pxe_boot_stack_name: "[[ .PxeBootStackName ]]"
+provisioner_ip: "[[ .ProvisionerIp ]]"
+dhcp_range_start: "[[ .DhcpRangeStart ]]"
+dhcp_range_end: "[[ .DhcpRangeEnd ]]"
 `
 	provisionerUserDataTemplate = `## template: jinja
 #cloud-config
@@ -58,6 +62,21 @@ write_files:
       echo "Starting new container..."
       docker run --mount type=bind,source=/mnt/host/vms,target=/mnt/host/vms -d --name ${CONTAINER_NAME} ${DOCKER_RUN_FLAGS} ${CONTAINER_NAME}:latest
       echo "Done."
+  - path: /etc/systemd/system/pxeboot.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=PXE Boot Stack Docker Container
+      After=docker.service network-online.target
+      Requires=docker.service network-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/local/bin/pxeboot_stack_reload.sh {{ ds.meta_data.pxe_boot_stack_tar }} {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged -e PROVISIONER_IP={{ ds.meta_data.provisioner_ip }} -e DHCP_RANGE_START={{ ds.meta_data.dhcp_range_start }} -e DHCP_RANGE_END={{ ds.meta_data.dhcp_range_end }}
+
+      [Install]
+      WantedBy=multi-user.target
 
 runcmd:
   - 'sed -i "/net.ipv4.ip_forward/d" /etc/sysctl.conf'
@@ -73,15 +92,18 @@ runcmd:
   - 'DEBIAN_FRONTEND=noninteractive apt-get -y install docker-ce docker-ce-cli containerd.io'
   - 'mkdir -p /mnt/host/docker_images'
   - 'mkdir -p /mnt/host/vms'
-  - 'mount -t 9p -o trans=virtio,version=9p2000.L host_share_docker_images /mnt/host/docker_images'
-  - 'mount -t 9p -o trans=virtio,version=9p2000.L host_share_vms /mnt/host/vms'
-  - '/usr/local/bin/pxeboot_stack_reload.sh {{ ds.meta_data.pxe_boot_stack_tar }} {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged'
+  - 'systemctl daemon-reload'
+  - 'systemctl enable --now pxeboot.service'
 
   - 'echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections'
   - 'echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections'
   - 'DEBIAN_FRONTEND=noninteractive apt-get -y install iptables-persistent'
   - 'iptables -t nat -A POSTROUTING -o enp0s1 -j MASQUERADE'
   - 'iptables-save > /etc/iptables/rules.v4'
+
+mounts:
+  - ["host_share_docker_images", "/mnt/host/docker_images", "9p", "trans=virtio,version=9p2000.L,rw", "0", "0"]
+  - ["host_share_vms", "/mnt/host/vms", "9p", "trans=virtio,version=9p2000.L,rw", "0", "0"]
 `
 	// jinja templates not supported for network-config in cloud-init/cloud-config
 	provisionerNetworkConfigTemplate = `version: 2
@@ -90,7 +112,7 @@ ethernets:
     dhcp4: true
   enp0s2:
     dhcp4: false
-    addresses: ["[[ .Ip ]]/24"]
+    addresses: ["[[ .ProvisionerIp ]]/[[ .PrefixLen ]]"]
 `
 	provisionerVendorData = ``
 )
@@ -143,7 +165,7 @@ func executeTemplate(name, tmplStr string, data interface{}) (string, error) {
 	return buf.String(), nil
 }
 
-var CreateISO = func(vmName, role, appDir, isoPath, ip, mac, pxeBootStackTar string) error {
+var CreateISO = func(vmName, role, appDir, isoPath, ip, mac, tar string) error {
 	sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa.pub")
 	sshKeyBytes, err := os.ReadFile(sshKeyPath)
 	if err != nil {
@@ -162,19 +184,40 @@ var CreateISO = func(vmName, role, appDir, isoPath, ip, mac, pxeBootStackTar str
 		if ip == "" {
 			return fmt.Errorf("ip is required for provisioner VMs templates")
 		}
-		pxeBootStackName := strings.TrimSuffix(pxeBootStackTar, filepath.Ext(pxeBootStackTar))
+		parsedIP, ipNet, err := net.ParseCIDR(ip)
+		if err != nil {
+			return fmt.Errorf("failed to parse CIDR %s: %w", ip, err)
+		}
+
+		ip4 := parsedIP.To4()
+		if ip4 == nil {
+			return fmt.Errorf("only IPv4 is supported")
+		}
+
+		prefixLen, _ := ipNet.Mask.Size()
+
+		networkIP := ipNet.IP.To4()
+		dhcpStart := fmt.Sprintf("%d.%d.%d.100", networkIP[0], networkIP[1], networkIP[2])
+		dhcpEnd := fmt.Sprintf("%d.%d.%d.200", networkIP[0], networkIP[1], networkIP[2])
+
+		pxebootStackName := strings.TrimSuffix(tar, filepath.Ext(tar))
 		data := struct {
 			SshKey           string
 			PxeBootStackTar  string
 			PxeBootStackName string
-			Ip               string
+			ProvisionerIp    string
+			PrefixLen        int
+			DhcpRangeStart   string
+			DhcpRangeEnd     string
 		}{
 			SshKey:           sshKey,
-			PxeBootStackTar:  pxeBootStackTar,
-			PxeBootStackName: pxeBootStackName,
-			Ip:               ip,
+			PxeBootStackTar:  tar,
+			PxeBootStackName: pxebootStackName,
+			ProvisionerIp:    parsedIP.String(),
+			PrefixLen:        prefixLen,
+			DhcpRangeStart:   dhcpStart,
+			DhcpRangeEnd:     dhcpEnd,
 		}
-
 		metaData, err = executeTemplate("provisionerMetaData", provisionerMetaDataTemplate, data)
 		if err != nil {
 			return err

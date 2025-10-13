@@ -99,7 +99,17 @@ The --role flag determines the type of VM to create.
 			pxebootStackTar = ""
 		}
 
-		if err := metadata.Save(cfg, vmName, role, ip, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, 0); err != nil {
+		var ipForMetadata, subnetForMetadata string
+		if ip != "" {
+			parsedIP, parsedCIDR, err := net.ParseCIDR(ip)
+			if err != nil {
+				return fmt.Errorf("internal error: failed to parse already validated IP/CIDR '%s': %w", ip, err)
+			}
+			ipForMetadata = parsedIP.String()
+			subnetForMetadata = parsedCIDR.String()
+		}
+
+		if err := metadata.Save(cfg, vmName, role, ipForMetadata, subnetForMetadata, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, 0); err != nil {
 			color.Yellow("Warning: failed to save VM metadata: %v", err)
 		}
 		color.Green("✔ VM '%s' created successfully.", vmName)
@@ -116,8 +126,10 @@ func validateRole(role string) error {
 }
 
 func validateIP(ip string) error {
-	if ip != "" && net.ParseIP(ip) == nil {
-		return fmt.Errorf("invalid IP address: %s", ip)
+	if ip != "" {
+		if _, _, err := net.ParseCIDR(ip); err != nil {
+			return fmt.Errorf("invalid IP/CIDR address '%s': %w. Please use CIDR notation, e.g., 192.168.1.1/24", ip, err)
+		}
 	}
 	return nil
 }
@@ -205,13 +217,13 @@ var createDisk = func(imagePath, vmDiskPath, diskSize string) error {
 	return nil
 }
 
-var createISO = func(vmName, role, appDir, isoPath, ip, mac, pxebootStackTar string) error {
+var createISO = func(vmName, role, appDir, isoPath, ip, mac, tar string) error {
 	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 	s.Suffix = " Generating cloud-config ISO..."
 	s.Start()
 	defer s.Stop()
 
-	if err := cloudinit.CreateISO(vmName, role, appDir, isoPath, ip, mac, pxebootStackTar); err != nil {
+	if err := cloudinit.CreateISO(vmName, role, appDir, isoPath, ip, mac, tar); err != nil {
 		s.FinalMSG = color.RedString("✖ Failed to generate cloud-config ISO.\n")
 		return err
 	}
@@ -227,10 +239,10 @@ func init() {
 		&pxebootStackTar,
 		"docker-pxeboot-stack-tar",
 		"pxeboot_stack.tar",
-		"Path to the pxeboot stack docker tar file (Required for the provisioner VM)",
+		"Path to the pxeboot stack docker tar file (Required for the provisioner VM, otherwise defaults to ~/.pvmlab/pxeboot_stack.tar)",
 	)
 	vmCreateCmd.Flags().StringVar(&dockerImagesPath, "docker-images-path", "", "Path to docker images to share with the provisioner VM. Defaults to ~/.pvmlab/docker_images")
 	vmCreateCmd.Flags().StringVar(&vmsPath, "vms-path", "", "Path to vms to share with the provisioner VM. Defaults to ~/.pvmlab/vms")
-	vmCreateCmd.Flags().StringVar(&ip, "ip", "", "The IP address of the VM (Required for Provisioner and Target VMs)")
+	vmCreateCmd.Flags().StringVar(&ip, "ip", "", "The IP address for the provisioner VM in CIDR format (e.g. 192.168.254.1/24)")
 	vmCreateCmd.Flags().StringVar(&diskSize, "disk-size", "10G", "The size of the VM disk")
 }

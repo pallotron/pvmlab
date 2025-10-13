@@ -101,7 +101,7 @@ var vmStartCmd = &cobra.Command{
 				return fmt.Errorf("could not find an available SSH port: %w", err)
 			}
 			meta.SSHPort = sshPort
-			if err := metadata.Save(cfg, vmName, meta.Role, meta.IP, meta.MAC, meta.PxeBootStackTar, meta.DockerImagesPath, meta.VMsPath, meta.SSHPort); err != nil {
+			if err := metadata.Save(cfg, vmName, meta.Role, meta.IP, meta.Subnet, meta.MAC, meta.PxeBootStackTar, meta.DockerImagesPath, meta.VMsPath, meta.SSHPort); err != nil {
 				return fmt.Errorf("failed to save updated metadata with new SSH port: %w", err)
 			}
 
