@@ -94,6 +94,21 @@ var FindProvisioner = func(cfg *config.Config) (string, error) {
 	return "", nil
 }
 
+func GetProvisioner(cfg *config.Config) (*Metadata, error) {
+	vms, err := GetAll(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("could not get all VMs: %w", err)
+	}
+
+	for _, meta := range vms {
+		if meta.Role == "provisioner" {
+			return meta, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no provisioner found")
+}
+
 var FindVM = func(cfg *config.Config, vmName string) (string, error) {
 	vmsDir := getVMsDir(cfg)
 	metaPath := filepath.Join(vmsDir, vmName+".json")

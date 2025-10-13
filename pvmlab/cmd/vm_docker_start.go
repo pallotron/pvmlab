@@ -14,16 +14,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var dockerTar string
 var privileged, networkHost bool
 
 var dockerStartCmd = &cobra.Command{
-	Use:               "start <vm_name> <path_to_container_tar>",
+	Use:               "start <vm_name>",
 	Short:             "Start a docker container in a VM from a tarball",
-	Args:              cobra.ExactArgs(2),
+	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: VmNameCompleter,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		vmName := args[0]
-		tarPath := args[1]
+		tarPath := dockerTar
 		color.Cyan("i Starting docker container in %s from %s", vmName, tarPath)
 
 		cfg, err := config.New()
@@ -111,6 +112,8 @@ var dockerStartCmd = &cobra.Command{
 
 func init() {
 	dockerCmd.AddCommand(dockerStartCmd)
+	dockerStartCmd.Flags().StringVar(&dockerTar, "docker-tar", "", "Path to the container tarball")
+	dockerStartCmd.MarkFlagRequired("docker-tar")
 	dockerStartCmd.Flags().BoolVar(&privileged, "privileged", false, "Run container in privileged mode")
 	dockerStartCmd.Flags().BoolVar(&networkHost, "network-host", false, "Use host networking for the container")
 }

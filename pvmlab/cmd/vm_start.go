@@ -191,13 +191,26 @@ var vmStartCmd = &cobra.Command{
 				}
 			}
 			timeoutDuration := time.Duration(timeoutSeconds) * time.Second
-
-			if err := waiter.ForPort("localhost", meta.SSHPort, timeoutDuration); err != nil {
-				return err
-			}
 			sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa")
-			if err := waiter.ForCloudInitTarget(meta.SSHPort, sshKeyPath, timeoutDuration); err != nil {
-				return err
+
+			if meta.Role == "provisioner" {
+				if err := waiter.ForPort("localhost", meta.SSHPort, timeoutDuration); err != nil {
+					return err
+				}
+				if err := waiter.ForCloudInitProvisioner(meta.SSHPort, sshKeyPath, timeoutDuration); err != nil {
+					return err
+				}
+			} else { // target
+				provisioner, err := metadata.GetProvisioner(cfg)
+				if err != nil {
+					return fmt.Errorf("failed to find a running provisioner to wait for target VM: %w", err)
+				}
+				if provisioner.SSHPort == 0 {
+					return fmt.Errorf("provisioner found, but it does not have a forwarded SSH port; is it running?")
+				}
+				if err := waiter.ForCloudInitTarget(provisioner.SSHPort, meta.IP, sshKeyPath, timeoutDuration); err != nil {
+					return err
+				}
 			}
 		}
 		return nil

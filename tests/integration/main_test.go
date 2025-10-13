@@ -175,7 +175,7 @@ func TestVMLifecycle(t *testing.T) {
 		// In CI, just checking for the SSH port is a sufficient smoke test.
 		if os.Getenv("CI") != "true" {
 			sshKeyPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab", "ssh", "vm_rsa")
-			err = waiter.ForCloudInitTarget(meta.SSHPort, sshKeyPath, timeout)
+			err = waiter.ForCloudInitProvisioner(meta.SSHPort, sshKeyPath, timeout)
 			if err != nil {
 				// If waiting fails, print a recursive listing of the app dir for debugging.
 				debugDir := filepath.Join(os.Getenv("PVMLAB_HOME"), ".provisioning-vm-lab")

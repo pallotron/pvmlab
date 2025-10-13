@@ -118,13 +118,25 @@ func TestHelperProcess(t *testing.T) {
 	}
 }
 
+func TestForCloudInitProvisioner(t *testing.T) {
+	// Replace the real exec command with our mock
+	originalExecCommand := execCommand
+	execCommand = mockExecCommand
+	defer func() { execCommand = originalExecCommand }()
+
+	err := ForCloudInitProvisioner(22, "/dev/null", 500*time.Millisecond)
+	if err != nil {
+		t.Errorf("ForCloudInitProvisioner() returned an error: %v", err)
+	}
+}
+
 func TestForCloudInitTarget(t *testing.T) {
 	// Replace the real exec command with our mock
 	originalExecCommand := execCommand
 	execCommand = mockExecCommand
 	defer func() { execCommand = originalExecCommand }()
 
-	err := ForCloudInitTarget(22, "/dev/null", 500*time.Millisecond)
+	err := ForCloudInitTarget(2222, "192.168.1.1", "/dev/null", 500*time.Millisecond)
 	if err != nil {
 		t.Errorf("ForCloudInitTarget() returned an error: %v", err)
 	}

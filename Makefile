@@ -24,6 +24,10 @@ build-pxeboot-stack-container:
 	make -C pxeboot_stack all
 
 define load_launchd
+	@if pvmlab vm list 2>/dev/null | grep -q Running; then \
+		echo "Error: Cannot reload launchd service while VMs are running. Please stop all VMs first."; \
+		exit 1; \
+	fi
 	logger "Stopping launchd service $(1) if running..."
 	sudo launchctl bootout system "/Library/LaunchDaemons/$(1).plist" || true
 	logger "Installing launchd service for socket_vmnet in /Library/LaunchDaemons/$(1).plist"
@@ -35,6 +39,10 @@ define load_launchd
 endef
 
 define unload_launchd
+	@if pvmlab vm list 2>/dev/null | grep -q Running; then \
+		echo "Error: Cannot unload launchd service while VMs are running. Please stop all VMs first."; \
+		exit 1; \
+	fi
 	logger "Uninstalling launchd service for ${1}"
 	sudo launchctl bootout system "$(DESTDIR)/Library/LaunchDaemons/$(1).plist" || true
 	sudo rm -f /Library/LaunchDaemons/$(1).plist

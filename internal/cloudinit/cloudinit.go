@@ -42,6 +42,10 @@ write_files:
     content: |
       #!/bin/bash
       set -e
+      if [ "$#" -lt 2 ]; then
+          echo "Usage: $0 <tar_file> <container_name> [docker_run_flags...]" >&2
+          exit 1
+      fi
       TAR_FILE=$1
       CONTAINER_NAME=$2
       shift 2

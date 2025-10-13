@@ -46,8 +46,21 @@ var vmShellCmd = &cobra.Command{
 			color.Cyan("i Connecting to provisioner VM via forwarded port %s...", sshPort)
 			sshCmd = exec.Command("ssh", "-i", sshKeyPath, "-p", sshPort, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost")
 		} else {
-			// TODO: if it's a target VM we need to ssh thru the provisioner. To be done.
-			return fmt.Errorf("target VM not supported for now. Please ssh from the provisioner VM")
+			provisioner, err := metadata.GetProvisioner(cfg)
+			if err != nil {
+				return fmt.Errorf("failed to find provisioner: %w", err)
+			}
+
+			if provisioner.SSHPort == 0 {
+				return fmt.Errorf("provisioner SSH port not found in metadata, is the provisioner running?")
+			}
+
+			provisionerPort := fmt.Sprintf("%d", provisioner.SSHPort)
+			targetConnect := fmt.Sprintf("ubuntu@%s", meta.IP)
+			proxyCommand := fmt.Sprintf("ssh -i %s -p %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %%h:%%p ubuntu@localhost", sshKeyPath, provisionerPort)
+
+			color.Cyan("i Connecting to target VM via provisioner on port %s...", provisionerPort)
+			sshCmd = exec.Command("ssh", "-i", sshKeyPath, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", fmt.Sprintf("ProxyCommand=%s", proxyCommand), targetConnect)
 		}
 
 		sshCmd.Stdout = os.Stdout

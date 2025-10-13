@@ -11,6 +11,7 @@
 		<array>
 			<string>/opt/socket_vmnet/bin/socket_vmnet</string>
 			<string>--vmnet-mode=host</string>
+			<string>--vmnet-network-identifier=random</string>
 			<string>/var/run/vmlab.socket_vmnet</string>
 		</array>
 		<key>StandardErrorPath</key>
