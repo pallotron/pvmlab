@@ -58,6 +58,31 @@ func TestMain(m *testing.M) {
 		projectRoot = filepath.Join(projectRoot, "..", "..")
 	}
 
+	// Copy the pxeboot_stack.tar to the temp home dir
+	destDir := filepath.Join(tempHomeDir, ".pvmlab", "docker_images")
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		log.Fatalf("failed to create destination dir for pxeboot_stack.tar: %v", err)
+	}
+	srcPath := filepath.Join(projectRoot, "pxeboot_stack", "pxeboot_stack.tar")
+	destPath := filepath.Join(destDir, "pxeboot_stack.tar")
+
+	srcFile, err := os.Open(srcPath)
+	if err != nil {
+		log.Fatalf("failed to open source file %s: %v", srcPath, err)
+	}
+	defer srcFile.Close()
+
+	destFile, err := os.Create(destPath)
+	if err != nil {
+		log.Fatalf("failed to create destination file %s: %v", destPath, err)
+	}
+	defer destFile.Close()
+
+	if _, err := io.Copy(destFile, srcFile); err != nil {
+		log.Fatalf("failed to copy pxeboot_stack.tar: %v", err)
+	}
+	log.Printf("Copied %s to %s", srcPath, destPath)
+
 	binDir := filepath.Join(projectRoot, "build")
 	_ = os.MkdirAll(binDir, 0755)
 	tempCLIPath := filepath.Join(binDir, "pvmlab_test")
@@ -136,7 +161,7 @@ func TestVMLifecycle(t *testing.T) {
 
 	t.Run("2-VMCreateProvisioner", func(t *testing.T) {
 		// Using a non-default IP to avoid conflicts with existing setups.
-		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "create", vmName, "--role", "provisioner", "--ip", "192.168.254.1")
+		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "create", vmName, "--role", "provisioner", "--ip", "192.168.254.1/24")
 		if err != nil {
 			t.Fatalf("vm create failed: %v\n%s", err, output)
 		}
