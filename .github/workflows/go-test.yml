@@ -17,7 +17,7 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
@@ -32,23 +32,20 @@ jobs:
       - name: Setup dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
+          # Add Docker's official GPG key:
           sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 genisoimage socat docker.io
+          sudo apt-get install -y ca-certificates curl
+          sudo install -m 0755 -d /etc/apt/keyrings
+          sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+          sudo chmod a+r /etc/apt/keyrings/docker.asc
 
-      - name: Setup dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: brew install qemu cdrtools socat docker
-
-      - name: Cache Homebrew packages (macOS)
-        if: runner.os == 'macOS'
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/Library/Caches/Homebrew
-            /usr/local/Homebrew/Library/Taps/homebrew/homebrew-core
-            /usr/local/Homebrew/Library/Taps/homebrew/homebrew-cask
-          key: ${{ runner.os }}-brew-${{ hashFiles('**/Brewfile') }}
-          restore-keys: ${{ runner.os }}-brew-
+          # Add the repository to Apt sources:
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 genisoimage socat docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
       - name: Test
         run: |
