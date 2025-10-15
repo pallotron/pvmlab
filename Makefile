@@ -100,8 +100,11 @@ release:
 
 .PHONY: all socket_vmnet clean install.socket_vmnet install.socket_vmnet.launchd install.completions test integration.test
 
-test:
+test: pxeboot_stack/pxeboot_stack.tar
 	go test ./...
 
-integration.test:
+integration.test: pxeboot_stack/pxeboot_stack.tar
 	RUN_INTEGRATION_TESTS=true go test -v ./tests/integration/...
+
+pxeboot_stack/pxeboot_stack.tar:
+	make -C pxeboot_stack tar
