@@ -30,4 +30,4 @@ jobs:
       - name: Test
         run: |
           export RUN_INTEGRATION_TESTS=false
-          go test ./... -v -race
+          make test
