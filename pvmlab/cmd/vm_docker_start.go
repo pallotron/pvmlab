@@ -106,6 +106,22 @@ var dockerStartCmd = &cobra.Command{
 		}
 		color.Green("✔ Container %s started successfully.", containerName)
 		color.Cyan("Output of docker start:\n%s", string(output))
+
+		if meta.Role == "provisioner" {
+			color.Cyan("i Pruning dangling docker images")
+			sshPort := fmt.Sprintf("%d", meta.SSHPort)
+			pruneCmd := exec.Command(
+				"ssh", "-i", sshKeyPath, "-p", sshPort,
+				"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+				"ubuntu@localhost", "sudo", "docker", "image", "prune", "-f",
+			)
+			pruneOutput, err := pruneCmd.CombinedOutput()
+			if err != nil {
+				color.Yellow("w Warning: failed to prune docker images: %v\n%s", err, string(pruneOutput))
+			} else {
+				color.Cyan("Output of docker image prune:\n%s", string(pruneOutput))
+			}
+		}
 		return nil
 	},
 }
