@@ -100,6 +100,10 @@ runcmd:
   - 'DEBIAN_FRONTEND=noninteractive apt-get -y install iptables-persistent'
   - 'iptables -t nat -A POSTROUTING -o enp0s1 -j MASQUERADE'
   - 'iptables-save > /etc/iptables/rules.v4'
+  - rm /etc/update-motd.d/50-landscape-sysinfo
+  - rm /etc/update-motd.d/10-help-text
+  - rm /etc/update-motd.d/50-motd-news
+  - rm /etc/update-motd.d/90-updates-available
 
 mounts:
   - ["host_share_docker_images", "/mnt/host/docker_images", "9p", "trans=virtio,version=9p2000.L,rw", "0", "0"]
@@ -139,6 +143,12 @@ chpasswd:
     - {name: ubuntu, password: pass, type: text}
     - {name: root, password: pass, type: text}
   expire: False
+
+runcmd:
+  - rm /etc/update-motd.d/50-landscape-sysinfo
+  - rm /etc/update-motd.d/10-help-text
+  - rm /etc/update-motd.d/50-motd-news
+  - rm /etc/update-motd.d/90-updates-available
 `
 
 	// jinja templates not supported for network-config in cloud-init/cloud-config
