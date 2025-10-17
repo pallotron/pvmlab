@@ -140,7 +140,7 @@ var vmStartCmd = &cobra.Command{
 			qemuArgs = append(qemuArgs,
 				"-m", "4096",
 				"-device", "virtio-net-pci,netdev=net0",
-				"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%d-:22", meta.SSHPort),
+				"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%d-:22,ipv6=on,ipv4=on,ipv6-net=fd00::/64", meta.SSHPort),
 				"-device", fmt.Sprintf("virtio-net-pci,netdev=net1,mac=%s", meta.MAC),
 				"-netdev", "socket,id=net1,fd=3",
 				"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_docker_images,security_model=passthrough", finalDockerImagesPath),
