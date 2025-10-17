@@ -68,7 +68,7 @@ func TestVMCreateCommand(t *testing.T) {
 			name: "iso create failure",
 			args: []string{"vm", "create", "test-vm", "--role", "target"},
 			setupMocks: func() {
-				createISO = func(string, string, string, string, string, string, string) error {
+				createISO = func(string, string, string, string, string, string, string, string) error {
 					return errors.New("iso creation failed")
 				}
 			},
@@ -78,7 +78,7 @@ func TestVMCreateCommand(t *testing.T) {
 			name: "metadata save failure (warning)",
 			args: []string{"vm", "create", "test-vm", "--role", "target"},
 			setupMocks: func() {
-				metadata.Save = func(c *config.Config, _, _, _, _, _, _, _, _ string, i int) error {
+				metadata.Save = func(c *config.Config, _, _, _, _, _, _, _, _, _, _ string, i int) error {
 					return errors.New("metadata save failed")
 				}
 			},

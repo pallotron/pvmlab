@@ -27,10 +27,14 @@ for vm_file in "$VMS_DIR"/*.json; do
   # Extract MAC and IP for all other roles (e.g., "target")
   mac=$(jq -r '.mac' "$vm_file")
   ip=$(jq -r '.ip' "$vm_file")
+  ipv6=$(jq -r '.ipv6' "$vm_file")
 
   # Add the entry to our temporary hosts file
   if [[ -n "$mac" && -n "$ip" ]]; then
     echo "$mac,$ip" >> "$TMP_HOSTS_FILE"
+  fi
+  if [[ -n "$mac" && -n "$ipv6" && "$ipv6" != "null" ]]; then
+    echo "$mac,[$ipv6]" >> "$TMP_HOSTS_FILE"
   fi
 done
 

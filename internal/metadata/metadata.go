@@ -12,6 +12,8 @@ type Metadata struct {
 	Role             string `json:"role"`
 	IP               string `json:"ip,omitempty"`
 	Subnet           string `json:"subnet,omitempty"`
+	IPv6             string `json:"ipv6,omitempty"`
+	SubnetV6         string `json:"subnetv6,omitempty"`
 	MAC              string `json:"mac,omitempty"`
 	PxeBootStackTar  string `json:"pxe_boot_stack_tar,omitempty"`
 	DockerImagesPath string `json:"docker_images_path,omitempty"`
@@ -24,11 +26,13 @@ func getVMsDir(cfg *config.Config) string {
 }
 
 // Save saves the VM's metadata to a file.
-var Save = func(cfg *config.Config, vmName, role, ip, subnet, mac, pxeBootStackTar, dockerImagesPath, vmsPath string, sshPort int) error {
+var Save = func(cfg *config.Config, vmName, role, ip, subnet, ipv6, subnetv6, mac, pxeBootStackTar, dockerImagesPath, vmsPath string, sshPort int) error {
 	meta := Metadata{
 		Role:             role,
 		IP:               ip,
 		Subnet:           subnet,
+		IPv6:             ipv6,
+		SubnetV6:         subnetv6,
 		MAC:              mac,
 		PxeBootStackTar:  pxeBootStackTar,
 		DockerImagesPath: dockerImagesPath,
