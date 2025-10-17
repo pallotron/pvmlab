@@ -27,7 +27,7 @@ const (
 )
 
 var (
-	ip, role, mac, pxebootStackTar, dockerImagesPath, vmsPath, diskSize string
+	ip, ipv6, role, mac, pxebootStackTar, dockerImagesPath, vmsPath, diskSize string
 )
 
 // vmCreateCmd represents the create command
@@ -48,6 +48,10 @@ The --role flag determines the type of VM to create.
 		}
 
 		if err := validateIP(ip); err != nil {
+			return err
+		}
+
+		if err := validateIPv6(ipv6); err != nil {
 			return err
 		}
 
@@ -91,7 +95,7 @@ The --role flag determines the type of VM to create.
 		}
 
 		isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
-		if err := createISO(vmName, role, appDir, isoPath, ip, macForMetadata, pxebootStackTar); err != nil {
+		if err := createISO(vmName, role, appDir, isoPath, ip, ipv6, macForMetadata, pxebootStackTar); err != nil {
 			return errors.E("vm-create", err)
 		}
 
@@ -109,7 +113,17 @@ The --role flag determines the type of VM to create.
 			subnetForMetadata = parsedCIDR.String()
 		}
 
-		if err := metadata.Save(cfg, vmName, role, ipForMetadata, subnetForMetadata, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, 0); err != nil {
+		var ipv6ForMetadata, subnetv6ForMetadata string
+		if ipv6 != "" {
+			parsedIP, parsedCIDR, err := net.ParseCIDR(ipv6)
+			if err != nil {
+				return fmt.Errorf("internal error: failed to parse already validated IPv6/CIDR '%s': %w", ipv6, err)
+			}
+			ipv6ForMetadata = parsedIP.String()
+			subnetv6ForMetadata = parsedCIDR.String()
+		}
+
+		if err := metadata.Save(cfg, vmName, role, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, 0); err != nil {
 			color.Yellow("Warning: failed to save VM metadata: %v", err)
 		}
 		color.Green("✔ VM '%s' created successfully.", vmName)
@@ -129,6 +143,15 @@ func validateIP(ip string) error {
 	if ip != "" {
 		if _, _, err := net.ParseCIDR(ip); err != nil {
 			return fmt.Errorf("invalid IP/CIDR address '%s': %w. Please use CIDR notation, e.g., 192.168.1.1/24", ip, err)
+		}
+	}
+	return nil
+}
+
+func validateIPv6(ipv6 string) error {
+	if ipv6 != "" {
+		if _, _, err := net.ParseCIDR(ipv6); err != nil {
+			return fmt.Errorf("invalid IPv6/CIDR address '%s': %w. Please use CIDR notation, e.g., fd00:cafe:babe::1/64", ipv6, err)
 		}
 	}
 	return nil
@@ -217,13 +240,13 @@ var createDisk = func(imagePath, vmDiskPath, diskSize string) error {
 	return nil
 }
 
-var createISO = func(vmName, role, appDir, isoPath, ip, mac, tar string) error {
+var createISO = func(vmName, role, appDir, isoPath, ip, ipv6, mac, tar string) error {
 	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 	s.Suffix = " Generating cloud-config ISO..."
 	s.Start()
 	defer s.Stop()
 
-	if err := cloudinit.CreateISO(vmName, role, appDir, isoPath, ip, mac, tar); err != nil {
+	if err := cloudinit.CreateISO(vmName, role, appDir, isoPath, ip, ipv6, mac, tar); err != nil {
 		s.FinalMSG = color.RedString("✖ Failed to generate cloud-config ISO.\n")
 		return err
 	}
@@ -244,5 +267,6 @@ func init() {
 	vmCreateCmd.Flags().StringVar(&dockerImagesPath, "docker-images-path", "", "Path to docker images to share with the provisioner VM. Defaults to ~/.pvmlab/docker_images")
 	vmCreateCmd.Flags().StringVar(&vmsPath, "vms-path", "", "Path to vms to share with the provisioner VM. Defaults to ~/.pvmlab/vms")
 	vmCreateCmd.Flags().StringVar(&ip, "ip", "", "The IP address for the provisioner VM in CIDR format (e.g. 192.168.254.1/24)")
+	vmCreateCmd.Flags().StringVar(&ipv6, "ipv6", "", "The IPv6 address for the provisioner VM in CIDR format (e.g. fd00:cafe:babe::1/64)")
 	vmCreateCmd.Flags().StringVar(&diskSize, "disk-size", "10G", "The size of the VM disk")
 }

@@ -2,3 +2,5 @@
 .ssh
 *.tar
 build/*
+.vscode
+.jj

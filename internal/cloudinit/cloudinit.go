@@ -22,6 +22,11 @@ pxe_boot_stack_name: "[[ .PxeBootStackName ]]"
 provisioner_ip: "[[ .ProvisionerIp ]]"
 dhcp_range_start: "[[ .DhcpRangeStart ]]"
 dhcp_range_end: "[[ .DhcpRangeEnd ]]"
+[[ if .DhcpRangeV6Start -]]
+dhcp_range_v6_start: "[[ .DhcpRangeV6Start ]]"
+dhcp_range_v6_end: "[[ .DhcpRangeV6End ]]"
+ipv6_subnet: "[[ .ProvisionerIpV6 ]]/[[ .PrefixLenV6 ]]"
+[[ end -]]
 `
 	provisionerUserDataTemplate = `## template: jinja
 #cloud-config
@@ -73,17 +78,41 @@ write_files:
       [Service]
       Type=oneshot
       RemainAfterExit=yes
-      ExecStart=/usr/local/bin/pxeboot_stack_reload.sh {{ ds.meta_data.pxe_boot_stack_tar }} {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged -e PROVISIONER_IP={{ ds.meta_data.provisioner_ip }} -e DHCP_RANGE_START={{ ds.meta_data.dhcp_range_start }} -e DHCP_RANGE_END={{ ds.meta_data.dhcp_range_end }}
+      ExecStart=/usr/local/bin/pxeboot_stack_reload.sh {{ ds.meta_data.pxe_boot_stack_tar }} {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged -e PROVISIONER_IP={{ ds.meta_data.provisioner_ip }} -e DHCP_RANGE_START={{ ds.meta_data.dhcp_range_start }} -e DHCP_RANGE_END={{ ds.meta_data.dhcp_range_end }} {% if ds.meta_data.dhcp_range_v6_start %}-e DHCP_RANGE_V6_START={{ ds.meta_data.dhcp_range_v6_start }} -e DHCP_RANGE_V6_END={{ ds.meta_data.dhcp_range_v6_end }}{% endif %}
 
       [Install]
       WantedBy=multi-user.target
+  {% if ds.meta_data.subnet_v6 -}}
+  - path: /etc/radvd.conf
+	permissions: '0644'
+	content: |
+		interface enp0s2
+		{
+			AdvSendAdvert on;
+			AdvManagedFlag on;  # <-- This is the crucial "M" flag
+			AdvOtherConfigFlag off; # Or on, if you also provide DNS via DHCPv6
+
+			prefix [[ ds.meta_data.provisioner_ip_v6 ]];
+			{
+				AdvOnLink on;
+				AdvAutonomous on; # Tells clients to also use SLAAC for addresses
+				AdvRouterAddr on;
+			};
+		}
+  - path: /etc/systemd/networkd.conf.d/dhcpv6_duid_llt.conf
+	permissions: '0644'
+	content: |
+		[DHCPv6]
+		DUIDType=link-layer-time
+  {% endif -%}
 
 runcmd:
   - 'sed -i "/net.ipv4.ip_forward/d" /etc/sysctl.conf'
   - 'echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf'
+  - 'sed -i "/net.ipv6.conf.all.forwarding/d" /etc/sysctl.conf'
+  - 'echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.conf'
   - 'sysctl -p'
-  - 'DEBIAN_FRONTEND=noninteractive apt-get -y install acpid iptables-persistent ca-certificates curl gnupg'
-
+  - 'DEBIAN_FRONTEND=noninteractive apt-get -y install acpid iptables-persistent ca-certificates curl gnupg radvd'
   - 'install -m 0755 -d /etc/apt/keyrings'
   - 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg'
   - 'chmod a+r /etc/apt/keyrings/docker.gpg'
@@ -99,7 +128,9 @@ runcmd:
   - 'echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections'
   - 'DEBIAN_FRONTEND=noninteractive apt-get -y install iptables-persistent'
   - 'iptables -t nat -A POSTROUTING -o enp0s1 -j MASQUERADE'
+  - 'ip6tables -t nat -A POSTROUTING -o enp0s1 -j MASQUERADE'
   - 'iptables-save > /etc/iptables/rules.v4'
+  - 'ip6tables-save > /etc/iptables/rules.v6'
   - rm /etc/update-motd.d/50-landscape-sysinfo
   - rm /etc/update-motd.d/10-help-text
   - rm /etc/update-motd.d/50-motd-news
@@ -116,7 +147,11 @@ ethernets:
     dhcp4: true
   enp0s2:
     dhcp4: false
-    addresses: ["[[ .ProvisionerIp ]]/[[ .PrefixLen ]]"]
+    addresses:
+      - "[[ .ProvisionerIp ]]/[[ .PrefixLen ]]"
+      [[ if .ProvisionerIpV6 -]]
+      - "[[ .ProvisionerIpV6 ]]/[[ .PrefixLenV6 ]]"
+      [[ end -]]
 `
 	provisionerVendorData = ``
 )
@@ -159,6 +194,8 @@ runcmd:
       match:
         macaddress: "[[ .Mac ]]"
       dhcp4: true
+      dhcp6: true
+	  # TODO: figure out way to tell dhcpv6 client to use DUID-LL[T], hint: it's /etc/systemd/networkd.conf (DUIDType=link-layer-time)
 `
 	targetVendorData = ``
 )
@@ -175,7 +212,7 @@ func executeTemplate(name, tmplStr string, data interface{}) (string, error) {
 	return buf.String(), nil
 }
 
-var CreateISO = func(vmName, role, appDir, isoPath, ip, mac, tar string) error {
+var CreateISO = func(vmName, role, appDir, isoPath, ip, ipv6, mac, tar string) error {
 	sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa.pub")
 	sshKeyBytes, err := os.ReadFile(sshKeyPath)
 	if err != nil {
@@ -199,6 +236,31 @@ var CreateISO = func(vmName, role, appDir, isoPath, ip, mac, tar string) error {
 			return fmt.Errorf("failed to parse CIDR %s: %w", ip, err)
 		}
 
+		var provisionerIpV6 string
+		var prefixLenV6 int
+		var dhcpV6Start, dhcpV6End string
+		var subnetV6 string
+		if ipv6 != "" {
+			parsedIPV6, ipv6Net, err := net.ParseCIDR(ipv6)
+			if err != nil {
+				return fmt.Errorf("failed to parse CIDR %s: %w", ipv6, err)
+			}
+			prefixLenV6, _ = ipv6Net.Mask.Size()
+			provisionerIpV6 = parsedIPV6.String()
+			subnetV6 = ipv6Net.IP.String()
+
+			// When using "constructor" in dnsmasq, the prefix must be zero.
+			// We provide only the host part of the address.
+			startIP := net.ParseIP("::").To16()
+			startIP[len(startIP)-1] = 100 // ::64 in hex
+
+			endIP := net.ParseIP("::").To16()
+			endIP[len(endIP)-1] = 200 // ::c8 in hex
+
+			dhcpV6Start = startIP.String()
+			dhcpV6End = endIP.String()
+		}
+
 		ip4 := parsedIP.To4()
 		if ip4 == nil {
 			return fmt.Errorf("only IPv4 is supported")
@@ -217,16 +279,26 @@ var CreateISO = func(vmName, role, appDir, isoPath, ip, mac, tar string) error {
 			PxeBootStackName string
 			ProvisionerIp    string
 			PrefixLen        int
+			ProvisionerIpV6  string
+			PrefixLenV6      int
 			DhcpRangeStart   string
 			DhcpRangeEnd     string
+			DhcpRangeV6Start string
+			DhcpRangeV6End   string
+			SubnetV6         string
 		}{
 			SshKey:           sshKey,
 			PxeBootStackTar:  tar,
 			PxeBootStackName: pxebootStackName,
 			ProvisionerIp:    parsedIP.String(),
 			PrefixLen:        prefixLen,
+			ProvisionerIpV6:  provisionerIpV6,
+			PrefixLenV6:      prefixLenV6,
 			DhcpRangeStart:   dhcpStart,
 			DhcpRangeEnd:     dhcpEnd,
+			DhcpRangeV6Start: dhcpV6Start,
+			DhcpRangeV6End:   dhcpV6End,
+			SubnetV6:         subnetV6,
 		}
 		metaData, err = executeTemplate("provisionerMetaData", provisionerMetaDataTemplate, data)
 		if err != nil {

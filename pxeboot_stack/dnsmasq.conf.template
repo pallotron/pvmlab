@@ -1,25 +1,32 @@
-# DHCP configuration
 interface=enp0s2
 bind-interfaces
-dhcp-range=${DHCP_RANGE_START},${DHCP_RANGE_END},12h
-dhcp-option=option:router,${PROVISIONER_IP}
-dhcp-option=option:dns-server,8.8.8.8
+
+# No DNS
+port=0
+
+log-facility=/var/log/dnsmasq.log
+log-queries
+log-dhcp
+
 dhcp-authoritative
 dhcp-hostsfile=/var/lib/pvmlab/dnsmasq.hosts
 
 # TFTP configuration
 enable-tftp
 tftp-root=/tftpboot
-
 # Set the boot file name based on the client architecture.
 # The following tags are based on RFC4578, section 2.1
 dhcp-match=set:efi-x86_64,option:client-arch,7
 dhcp-match=set:efi-x86_64,option:client-arch,9
 dhcp-boot=tag:efi-x86_64,ipxe.efi
-
 dhcp-match=set:efi-aarch64,option:client-arch,11
 dhcp-boot=tag:efi-aarch64,ipxe-arm64.efi
 
-log-facility=/var/log/dnsmasq.log
-log-queries
-log-dhcp
+# DHCPv4 configuration
+dhcp-range=${DHCP_RANGE_START},${DHCP_RANGE_END},12h
+dhcp-option=option:router,${PROVISIONER_IP}
+dhcp-option=option:dns-server,8.8.8.8
+
+# DHCPv6 configuration
+# Use a ULA (Unique Local Address) range for the private network.
+dhcp-option=option6:dns-server,[2001:4860:4860::8888],[2001:4860:4860::8844]

@@ -101,7 +101,7 @@ var vmStartCmd = &cobra.Command{
 				return fmt.Errorf("could not find an available SSH port: %w", err)
 			}
 			meta.SSHPort = sshPort
-			if err := metadata.Save(cfg, vmName, meta.Role, meta.IP, meta.Subnet, meta.MAC, meta.PxeBootStackTar, meta.DockerImagesPath, meta.VMsPath, meta.SSHPort); err != nil {
+			if err := metadata.Save(cfg, vmName, meta.Role, meta.IP, meta.Subnet, meta.IPv6, meta.SubnetV6, meta.MAC, meta.PxeBootStackTar, meta.DockerImagesPath, meta.VMsPath, meta.SSHPort); err != nil {
 				return fmt.Errorf("failed to save updated metadata with new SSH port: %w", err)
 			}
 
@@ -112,7 +112,12 @@ var vmStartCmd = &cobra.Command{
 			if meta.PxeBootStackTar == "" {
 				return fmt.Errorf("PxeBootStackTar not set in metadata for provisioner")
 			}
-			pxeBootStackPath := filepath.Join(appDir, "docker_images", meta.PxeBootStackTar)
+			var pxeBootStackPath string
+			if filepath.IsAbs(meta.PxeBootStackTar) {
+				pxeBootStackPath = meta.PxeBootStackTar
+			} else {
+				pxeBootStackPath = filepath.Join(appDir, "docker_images", meta.PxeBootStackTar)
+			}
 			if _, err := os.Stat(pxeBootStackPath); os.IsNotExist(err) {
 				return fmt.Errorf("pxeboot stack tarball not found at %s. Please run `make -C pxeboot_stack save` from the project git root", pxeBootStackPath)
 			}
