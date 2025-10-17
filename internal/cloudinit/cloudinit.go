@@ -99,6 +99,11 @@ write_files:
 				AdvRouterAddr on;
 			};
 		}
+  - path: /etc/systemd/networkd.conf.d/dhcpv6_duid_llt.conf
+	permissions: '0644'
+	content: |
+		[DHCPv6]
+		DUIDType=link-layer-time
   {% endif -%}
 
 runcmd:
@@ -190,7 +195,7 @@ runcmd:
         macaddress: "[[ .Mac ]]"
       dhcp4: true
       dhcp6: true
-	  # TODO: figure out way to tell dhcpv6 client to use DUID-LL[T]
+	  # TODO: figure out way to tell dhcpv6 client to use DUID-LL[T], hint: it's /etc/systemd/networkd.conf (DUIDType=link-layer-time)
 `
 	targetVendorData = ``
 )
