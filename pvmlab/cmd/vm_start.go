@@ -21,6 +21,7 @@ import (
 )
 
 var wait, interactive bool
+var bootOverride string
 
 type vmStartOptions struct {
 	vmName string
@@ -33,17 +34,31 @@ type vmStartOptions struct {
 var vmStartCmd = &cobra.Command{
 	Use:               "start <vm-name>",
 	Short:             "Starts a VM",
-	Long:              `Starts a VM using qemu.`, 
+	Long:              `Starts a VM using qemu.`,
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: VmNameCompleter,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if wait && interactive {
 			return fmt.Errorf("the --wait and --interactive flags are mutually exclusive")
 		}
+		if bootOverride != "" && bootOverride != "disk" && bootOverride != "pxe" {
+			return fmt.Errorf("invalid --boot value: %s. Must be 'disk' or 'pxe'", bootOverride)
+		}
 
 		opts, err := gatherVMInfo(args[0])
 		if err != nil {
 			return err
+		}
+
+		isPxeBoot := opts.meta.PxeBoot
+		if bootOverride == "pxe" {
+			isPxeBoot = true
+		} else if bootOverride == "disk" {
+			isPxeBoot = false
+		}
+
+		if wait && isPxeBoot {
+			return fmt.Errorf("the --wait flag is not supported for PXE boot VMs")
 		}
 
 		qemuArgs, err := buildQEMUArgs(opts)
@@ -94,17 +109,15 @@ func gatherVMInfo(vmName string) (*vmStartOptions, error) {
 	}
 
 	// Check for necessary files
-	imagePath := filepath.Join(opts.appDir, "images", config.UbuntuARMImageName)
-	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("ubuntu cloud image not found. Please run `pvmlab setup` to download it")
-	}
 	vmDiskPath := filepath.Join(opts.appDir, "vms", opts.vmName+".qcow2")
 	if _, err := os.Stat(vmDiskPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("VM disk not found for '%s'. Please run 'pvmlab vm create %s' first", opts.vmName, opts.vmName)
 	}
-	isoPath := filepath.Join(opts.appDir, "configs", "cloud-init", opts.vmName+".iso")
-	if _, err := os.Stat(isoPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("cloud-init ISO for '%s' not found. Please create the VM first", opts.vmName)
+	if !opts.meta.PxeBoot {
+		isoPath := filepath.Join(opts.appDir, "configs", "cloud-init", opts.vmName+".iso")
+		if _, err := os.Stat(isoPath); os.IsNotExist(err) {
+			return nil, fmt.Errorf("cloud-init ISO for '%s' not found. Please create the VM first", opts.vmName)
+		}
 	}
 
 	return opts, nil
@@ -117,15 +130,78 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 	vmDiskPath := filepath.Join(opts.appDir, "vms", opts.vmName+".qcow2")
 	isoPath := filepath.Join(opts.appDir, "configs", "cloud-init", opts.vmName+".iso")
 
+	var qemuBinary, codePath string
+	if opts.meta.Arch == "aarch64" {
+		qemuBinary = "qemu-system-aarch64"
+		codePath = "/opt/homebrew/share/qemu/edk2-aarch64-code.fd"
+	} else { // x86_64
+		qemuBinary = "qemu-system-x86_64"
+		codePath = "/opt/homebrew/share/qemu/edk2-x86_64-code.fd"
+	}
+
+	machineType := "virt"
+	if opts.meta.Arch == "x86_64" {
+		machineType = "q35"
+	}
+
+	// Determine the effective boot mode
+	isPxeBoot := opts.meta.PxeBoot
+	if bootOverride == "pxe" {
+		isPxeBoot = true
+	} else if bootOverride == "disk" {
+		isPxeBoot = false
+	}
+
+	// TODO: https://github.com/pallotron/pvmlab/issues/3
+	// Use a more compatible NIC for PXE booting, as the EDK II firmware for aarch64
+	// does not have a built-in virtio-net driver, and the loadable ROM is x86-64.
+	// When x86-64 support is added, we can use the virtio-net device with its ROM.
+	netDevice := "virtio-net-pci"
+	if isPxeBoot {
+		netDevice = "e1000"
+	}
+
 	qemuArgs := []string{
-		"qemu-system-aarch64",
-		"-M", "virt",
+		qemuBinary,
+		"-M", machineType,
 		"-smp", "2",
-		"-drive", "if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
+	}
+
+	if opts.meta.Arch == "aarch64" {
+		// AARCH64 requires separate code and vars pflash drives.
+		varsTemplatePath := "/opt/homebrew/share/qemu/edk2-arm-vars.fd"
+		vmVarsPath := filepath.Join(opts.appDir, "vms", opts.vmName+"-vars.fd")
+		if _, err := os.Stat(vmVarsPath); os.IsNotExist(err) {
+			input, err := os.ReadFile(varsTemplatePath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read UEFI vars template: %w", err)
+			}
+			if err := os.WriteFile(vmVarsPath, input, 0644); err != nil {
+				return nil, fmt.Errorf("failed to write UEFI vars file: %w", err)
+			}
+		}
+		qemuArgs = append(qemuArgs,
+			"-drive", fmt.Sprintf("if=pflash,format=raw,readonly=on,file=%s", codePath),
+			"-drive", fmt.Sprintf("if=pflash,format=raw,file=%s", vmVarsPath),
+		)
+	} else {
+		// x86_64 can use a single, unified pflash drive.
+		qemuArgs = append(qemuArgs, "-drive", fmt.Sprintf("if=pflash,format=raw,readonly=on,file=%s", codePath))
+	}
+
+	qemuArgs = append(qemuArgs,
 		"-drive", fmt.Sprintf("file=%s,format=qcow2,if=virtio", vmDiskPath),
-		"-drive", fmt.Sprintf("file=%s,format=raw,if=virtio", isoPath),
 		"-pidfile", pidPath,
 		"-monitor", fmt.Sprintf("unix:%s,server,nowait", monitorPath),
+	)
+
+	// The ISO drive is only attached if the VM was created with one.
+	if !opts.meta.PxeBoot {
+		qemuArgs = append(qemuArgs, "-drive", fmt.Sprintf("file=%s,format=raw,if=virtio", isoPath))
+	}
+
+	if isPxeBoot {
+		qemuArgs = append(qemuArgs, "-boot", "n")
 	}
 
 	if interactive {
@@ -140,7 +216,7 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 			return nil, fmt.Errorf("could not find an available SSH port: %w", err)
 		}
 		opts.meta.SSHPort = sshPort
-		if err := metadata.Save(opts.cfg, opts.vmName, opts.meta.Role, opts.meta.IP, opts.meta.Subnet, opts.meta.IPv6, opts.meta.SubnetV6, opts.meta.MAC, opts.meta.PxeBootStackTar, opts.meta.DockerImagesPath, opts.meta.VMsPath, opts.meta.SSHPort); err != nil {
+		if err := metadata.Save(opts.cfg, opts.vmName, opts.meta.Role, opts.meta.Arch, opts.meta.IP, opts.meta.Subnet, opts.meta.IPv6, opts.meta.SubnetV6, opts.meta.MAC, opts.meta.PxeBootStackTar, opts.meta.DockerImagesPath, opts.meta.VMsPath, opts.meta.SSHPort, opts.meta.PxeBoot); err != nil {
 			return nil, fmt.Errorf("failed to save updated metadata with new SSH port: %w", err)
 		}
 
@@ -155,19 +231,23 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 
 		qemuArgs = append(qemuArgs,
 			"-m", "4096",
-			"-device", "virtio-net-pci,netdev=net0",
+			"-device", fmt.Sprintf("%s,netdev=net0", netDevice),
 			"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%d-:22,ipv6=on,ipv4=on,ipv6-net=fd00::/64", opts.meta.SSHPort),
-			"-device", fmt.Sprintf("virtio-net-pci,netdev=net1,mac=%s", opts.meta.MAC),
+			"-device", fmt.Sprintf("%s,netdev=net1,mac=%s", netDevice, opts.meta.MAC),
 			"-netdev", "socket,id=net1,fd=3",
 			"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_docker_images,security_model=passthrough", finalDockerImagesPath),
 			"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_vms,security_model=passthrough", finalVMsPath),
 		)
 	} else { // target
-		qemuArgs = append(qemuArgs, "-m", "2048", "-device", fmt.Sprintf("virtio-net-pci,netdev=net0,mac=%s", opts.meta.MAC), "-netdev", "socket,id=net0,fd=3")
+		qemuArgs = append(qemuArgs, "-m", "2048", "-device", fmt.Sprintf("%s,netdev=net0,mac=%s", netDevice, opts.meta.MAC), "-netdev", "socket,id=net0,fd=3")
 	}
 
 	if os.Getenv("CI") != "true" {
-		qemuArgs = append(qemuArgs, "-cpu", "host", "-accel", "hvf")
+		if opts.meta.Arch == "aarch64" {
+			qemuArgs = append(qemuArgs, "-cpu", "host", "-accel", "hvf")
+		} else {
+			qemuArgs = append(qemuArgs, "-cpu", "max")
+		}
 	}
 
 	return qemuArgs, nil
@@ -314,4 +394,5 @@ func init() {
 	vmCmd.AddCommand(vmStartCmd)
 	vmStartCmd.Flags().BoolVar(&wait, "wait", false, "Wait for cloud-init to complete before exiting.")
 	vmStartCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Attach to the VM's serial console.")
+	vmStartCmd.Flags().StringVar(&bootOverride, "boot", "", "Override boot device (disk or pxe)")
 }

@@ -83,7 +83,7 @@ func setupMocks(_ *testing.T) {
 	cloudinit.CreateISO = func(string, string, string, string, string, string, string, string) error {
 		return nil
 	}
-	metadata.Save = func(*config.Config, string, string, string, string, string, string, string, string, string, string, int) error {
+	metadata.Save = func(*config.Config, string, string, string, string, string, string, string, string, string, string, string, int, bool) error {
 		return nil
 	}
 	metadata.FindProvisioner = func(*config.Config) (string, error) {

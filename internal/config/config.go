@@ -14,6 +14,10 @@ const (
 	UbuntuARMImageName = "ubuntu-24.04-server-cloudimg-arm64.img"
 	// UbuntuARMImageURL is the full URL for the Ubuntu aarch64 cloud image
 	UbuntuARMImageURL = UbuntuCloudImageBaseURL + UbuntuARMImageName
+	// UbuntuAMD64ImageName is the filename for the Ubuntu x86_64 cloud image
+	UbuntuAMD64ImageName = "ubuntu-24.04-server-cloudimg-amd64.img"
+	// UbuntuAMD64ImageURL is the full URL for the Ubuntu x86_64 cloud image
+	UbuntuAMD64ImageURL = UbuntuCloudImageBaseURL + UbuntuAMD64ImageName
 )
 
 // Config holds the application's configuration.

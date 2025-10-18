@@ -27,7 +27,8 @@ const (
 )
 
 var (
-	ip, ipv6, role, mac, pxebootStackTar, dockerImagesPath, vmsPath, diskSize string
+	ip, ipv6, role, mac, pxebootStackTar, dockerImagesPath, vmsPath, diskSize, arch string
+	pxeboot                                                                         bool
 )
 
 // vmCreateCmd represents the create command
@@ -45,6 +46,14 @@ The --role flag determines the type of VM to create.
 
 		if err := validateRole(role); err != nil {
 			return err
+		}
+
+		if arch != "aarch64" && arch != "x86_64" {
+			return errors.E("vm-create", fmt.Errorf("--arch must be either 'aarch64' or 'x86_64'"))
+		}
+
+		if pxeboot && role != targetRole {
+			return errors.E("vm-create", fmt.Errorf("--pxeboot can only be used with --role=target"))
 		}
 
 		if err := validateIP(ip); err != nil {
@@ -88,19 +97,31 @@ The --role flag determines the type of VM to create.
 			return errors.E("vm-create", err)
 		}
 
-		imagePath := filepath.Join(appDir, "images", imageFileName)
-		if err := downloader.DownloadImageIfNotExists(imagePath, config.UbuntuARMImageURL); err != nil {
-			return errors.E("vm-create", err)
-		}
-
 		vmDiskPath := filepath.Join(appDir, "vms", vmName+".qcow2")
-		if err := createDisk(imagePath, vmDiskPath, diskSize); err != nil {
-			return errors.E("vm-create", err)
-		}
-
-		isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
-		if err := createISO(vmName, role, appDir, isoPath, ip, ipv6, macForMetadata, pxebootStackTar); err != nil {
-			return errors.E("vm-create", err)
+		if pxeboot {
+			if err := createBlankDisk(vmDiskPath, diskSize); err != nil {
+				return errors.E("vm-create", err)
+			}
+		} else {
+			var imageUrl, imageName string
+			if arch == "aarch64" {
+				imageUrl = config.UbuntuARMImageURL
+				imageName = config.UbuntuARMImageName
+			} else {
+				imageUrl = config.UbuntuAMD64ImageURL
+				imageName = config.UbuntuAMD64ImageName
+			}
+			imagePath := filepath.Join(appDir, "images", imageName)
+			if err := downloader.DownloadImageIfNotExists(imagePath, imageUrl); err != nil {
+				return errors.E("vm-create", err)
+			}
+			if err := createDisk(imagePath, vmDiskPath, diskSize); err != nil {
+				return errors.E("vm-create", err)
+			}
+			isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
+			if err := createISO(vmName, role, appDir, isoPath, ip, ipv6, macForMetadata, pxebootStackTar); err != nil {
+				return errors.E("vm-create", err)
+			}
 		}
 
 		if role != provisionerRole {
@@ -127,7 +148,7 @@ The --role flag determines the type of VM to create.
 			subnetv6ForMetadata = parsedCIDR.String()
 		}
 
-		if err := metadata.Save(cfg, vmName, role, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, 0); err != nil {
+		if err := metadata.Save(cfg, vmName, role, arch, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, 0, pxeboot); err != nil {
 			color.Yellow("Warning: failed to save VM metadata: %v", err)
 		}
 		color.Green("✔ VM '%s' created successfully.", vmName)
@@ -258,6 +279,21 @@ var createISO = func(vmName, role, appDir, isoPath, ip, ipv6, mac, tar string) e
 	return nil
 }
 
+var createBlankDisk = func(vmDiskPath, diskSize string) error {
+	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+	s.Suffix = " Creating blank VM disk..."
+	s.Start()
+	defer s.Stop()
+
+	cmdRun := exec.Command("qemu-img", "create", "-f", "qcow2", vmDiskPath, diskSize)
+	if err := runner.Run(cmdRun); err != nil {
+		s.FinalMSG = color.RedString("✖ Failed to create blank VM disk.\n")
+		return err
+	}
+	s.FinalMSG = color.GreenString("✔ Blank VM disk created successfully.\n")
+	return nil
+}
+
 func init() {
 	vmCmd.AddCommand(vmCreateCmd)
 	vmCreateCmd.Flags().StringVar(&role, "role", "target", "The role of the VM ('provisioner' or 'target')")
@@ -273,4 +309,6 @@ func init() {
 	vmCreateCmd.Flags().StringVar(&ip, "ip", "", "The IP address for the provisioner VM in CIDR format (e.g. 192.168.254.1/24)")
 	vmCreateCmd.Flags().StringVar(&ipv6, "ipv6", "", "The IPv6 address for the provisioner VM in CIDR format (e.g. fd00:cafe:babe::1/64)")
 	vmCreateCmd.Flags().StringVar(&diskSize, "disk-size", "10G", "The size of the VM disk")
+	vmCreateCmd.Flags().BoolVar(&pxeboot, "pxeboot", false, "Create a VM that boots from the network (target role only)")
+	vmCreateCmd.Flags().StringVar(&arch, "arch", "aarch64", "The architecture of the VM ('aarch64' or 'x86_64')")
 }
