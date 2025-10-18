@@ -56,7 +56,13 @@ var vmShellCmd = &cobra.Command{
 			}
 
 			provisionerPort := fmt.Sprintf("%d", provisioner.SSHPort)
-			targetConnect := fmt.Sprintf("ubuntu@%s", meta.IP)
+			var targetIP string
+if meta.IPv6 != "" {
+    targetIP = meta.IPv6
+} else {
+    targetIP = meta.IP
+}
+targetConnect := fmt.Sprintf("ubuntu@%s", targetIP)
 			proxyCommand := fmt.Sprintf("ssh -i %s -p %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %%h:%%p ubuntu@localhost", sshKeyPath, provisionerPort)
 
 			color.Cyan("i Connecting to target VM via provisioner on port %s...", provisionerPort)

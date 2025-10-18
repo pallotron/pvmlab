@@ -35,62 +35,100 @@ var vmListCmd = &cobra.Command{
 		}
 
 		table := tablewriter.NewWriter(os.Stdout)
-		header := []string{"NAME", "ROLE", "PRIVATE IP", "SSH ACCESS", "MAC", "STATUS"}
+
+		header := []string{"NAME", "ROLE", "PRIVATE IP", "PRIVATE IPV6", "MAC", "STATUS"}
+
 		boldHeader := make([]string, len(header))
+
 		for i, h := range header {
-			boldHeader[i] = color.New(color.Bold).Sprint(h)
+
+		    boldHeader[i] = color.New(color.Bold).Sprint(h)
+
 		}
+
+		
 
 		table.Header(header)
 
+		
+
 		// Sort VM names for consistent output
+
 		vmNames := make([]string, 0, len(allMeta))
+
 		for name := range allMeta {
-			vmNames = append(vmNames, name)
+
+		    vmNames = append(vmNames, name)
+
 		}
+
 		sort.Strings(vmNames)
 
+		
+
 		for _, vmName := range vmNames {
-			meta := allMeta[vmName]
-			status := color.RedString("Stopped")
-			isRunning, err := pidfile.IsRunning(cfg, vmName)
-			if err != nil {
-				color.Yellow("! Warning: could not check status for %s: %v", vmName, err)
-			}
-			if isRunning {
-				status = color.GreenString("Running")
-			}
 
-			            var sshAccess string
-			            if meta.Role == "provisioner" {
-			                if meta.SSHPort != 0 {
-			                    sshAccess = fmt.Sprintf("localhost:%d", meta.SSHPort)
-			                } else {
-			                    sshAccess = "N/A"
-			                }
-			            } else { // target
-			                if meta.IP != "" {
-			                    sshAccess = fmt.Sprintf("%s (from provisioner)", meta.IP)
-			                } else {
-			                    sshAccess = "N/A"
-			                }
-			            }
-			if meta.Role == "provisioner" {
-				role = color.RedString(role)
-			}
+		    meta := allMeta[vmName]
 
-			            if err := table.Append([]string{
-			                vmName,
-			                meta.Role,
-			                meta.IP,
-			                sshAccess,
-			                meta.MAC,
-			                status,
-			            }); err != nil {
-			                return err
-			            }
-			        }
-			        return table.Render()	},
+		    status := color.RedString("Stopped")
+
+		    isRunning, err := pidfile.IsRunning(cfg, vmName)
+
+		    if err != nil {
+
+		        color.Yellow("! Warning: could not check status for %s: %v", vmName, err)
+
+		    }
+
+		    if isRunning {
+
+		        status = color.GreenString("Running")
+
+		    }
+
+		
+
+		    if meta.Role == "provisioner" {
+
+		        role = color.RedString(role)
+
+		    }
+
+		
+
+		    ipv6 := meta.IPv6
+
+		    if ipv6 == "" {
+
+		        ipv6 = "N/A"
+
+		    }
+
+		
+
+		    if err := table.Append([]string{
+
+		        vmName,
+
+		        meta.Role,
+
+		        meta.IP,
+
+		        ipv6,
+
+		        meta.MAC,
+
+		        status,
+
+		    }); err != nil {
+
+		        return err
+
+		    }
+
+		}
+
+		return table.Render()	},
 }
 
 func init() {

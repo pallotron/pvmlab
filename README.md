@@ -1,173 +1,172 @@
-# pvmlab: A Simple QEMU based provisioning lab for macOS
+# pvmlab: your local pxeboot virtual lab
 
 This project provides a command-line tool, `pvmlab`, to automate the setup of a simple virtual provisioning lab on macOS. It uses `QEMU`, `socket_vmnet`, `cloud-init`, and `Docker` to create and manage an environment where multiple "target" VMs are deployed in a private virtual network and one VM functions as the "provisioner" VM offering pxeboot services and working as default gw for internet access for those VMs.
 
 All generated artifacts (VM disks, ISOs, logs, etc.) are stored neatly in `~/.pvmlab/`, keeping the project repository clean.
 
-## Architecture
+## Use Cases
 
+This virtual lab is ideal for a variety of network-based provisioning and testing scenarios, such as:
+
+-   **Testing OS Installers:** Develop and test automated OS installation configurations like Ubuntu Autoinstall, Debian Preseed, or Red Hat Kickstart. Or test your own ;)
+-   **Developing Network Boot Environments:** Experiment with and develop iPXE scripts or other network boot setups.
+-   **Simulating Bare-Metal Provisioning:** Mimic the process of provisioning physical servers in a fully virtualized, local environment.
+-   **Network Service Testing:** Safely test DHCP, TFTP, and HTTP services in an isolated network.
+-   **Learning and Experimentation:** Provide a hands-on environment for learning about PXE boot, network automation, and cloud-init.
+
+## Core Concepts
+
+### Features
+- **Automated VM Creation:** Quickly create Ubuntu VMs from cloud images.
+- **Provisioner/Target Architecture:** Set up a dedicated "provisioner" VM to serve network resources (DHCP, PXE boot) to multiple "target" VMs.
+- **Private Networking:** Uses `socket_vmnet` to create an isolated virtual network for your lab environment.
+- **Dual-stack Networking:** Configure VMs with both IPv4 and IPv6 addresses on the private network.
+- **Direct SSH Access:** Connect directly to any VM (`provisioner` or `target`) with a single command.
+- **Simple CLI:** Manage the entire lab lifecycle with intuitive `pvmlab` commands.
+
+### Architecture
 For a detailed explanation of the project's architecture, features, and VM roles, please see the [Architecture documentation](docs/architecture.md).
-
-## Artifacts Directory
-
-For details on the directory structure used to store generated artifacts, please see the [Artifacts documentation](docs/artifacts.md).
 
 ## Getting Started
 
-### Prerequisites
+### Installation
 
-- macOS
-- [Homebrew](https://brew.sh/)
-- The Go language ecosystem (e.g., `brew install go`)
+1.  **Install Dependencies with Homebrew:**
+    The `pvmlab setup` command will check for dependencies, but it will not install them for you. You must install them manually:
+    ```bash
+    brew install qemu cdrtools socat socket_vmnet docker
+    ```
+    > **Note:** `docker` refers to the Docker CLI, which is included with Docker Desktop for Mac.
 
-### Installation for developers
+2.  **Clone the Repository:**
+    ```bash
+    git clone --recurse-submodules https://github.com/pallotron/pvmlab.git
+    cd pvmlab
+    ```
 
-1. **Install Dependencies with Homebrew:**
+3.  **Build and Install:**
+    This command compiles the `pvmlab` CLI, installs the `socket_vmnet` daemons, builds the pxeboot stack Docker container, and sets up shell completion.
+    ```bash
+    make all
+    ```
 
-   The `pvmlab setup` command will check for dependencies, but it will not install them for you. You must install them manually:
+4.  **Set up the Lab Environment:**
+    This command creates the `~/.pvmlab/` directory structure and generates an SSH key for accessing the VMs. It may require your `sudo` password to configure `socket_vmnet`.
+    ```bash
+    pvmlab setup
+    ```
 
-   ```bash
-   brew install qemu cdrtools socat socket_vmnet docker
-   ```
-
-   > **Note:** `docker` refers to the Docker CLI, which is included with Docker Desktop for Mac.
-
-2. **Clone the Repository:**
-
-   ```bash
-   git clone https://github.com/pallotron/pvmlab.git
-   cd pvmlab
-   ```
-
-3. **Build and Install:**
-
-   This command compiles the `pvmlab` CLI, installs the `socket_vmnet` daemons, builds the pxeboot stack Docker container, and sets up shell completion.
-
-   ```bash
-   make all
-   ```
-
-4. **Set up the Lab Environment:**
-
-   This command creates the `~/.pvmlab/` directory structure and generates an SSH key for accessing the VMs. It may require your `sudo` password to configure `socket_vmnet`.
-
-   ```bash
-   pvmlab setup
-   ```
-
-5. **Source Shell Completions (Optional but Recommended):**
-
-   The `make all` command attempts to install shell completions. If it doesn't work for your shell, you may need to source them manually.
-   Either open a new terminal or reload your shell's rc file.
-
-   For Zsh:
-
-   ```bash
-   source ~/.zshrc
-   ```
-
-   For Bash:
-
-   ```bash
-   source ~/.bashrc
-   ```
+5.  **Source Shell Completions (Optional but Recommended):**
+    The `make all` command attempts to install shell completions. If it doesn't work for your shell, you may need to source them manually. Either open a new terminal or reload your shell's rc file.
+    - For Zsh: `source ~/.zshrc`
+    - For Bash: `source ~/.bashrc`
 
 After installation, you can run the command as `pvmlab` from any directory.
 
-## Usage
+## Usage: A Typical Workflow
 
-**Start the `socket_vmnet` Service:**
+Here is a step-by-step guide to a common workflow.
 
+### Step 1: Start the Network Service
 This service manages the private virtual network. You may be prompted for your password.
-
 ```bash
 pvmlab socket_vmnet start
 ```
 
-**Create the VMs:**
-
-This command downloads cloud images, creates VM disks, and generates cloud-init configurations in the `~/.pvmlab/` directory.
-
+### Step 2: Create the VMs
+This command downloads cloud images, creates VM disks, and generates cloud-init configurations.
 ```bash
 # Create the provisioner
-pvmlab vm create provisioner --role provisioner --ip 192.168.100.1
+pvmlab vm create provisioner --role provisioner --ip 192.168.100.1/24 --ipv6 fd00:cafe:babe::1/64
 
 # Create a target VM
-pvmlab vm create target1 --role target --ip 192.168.100.2 --role target
+pvmlab vm create target1 --role target --ip 192.168.100.2/24 --ipv6 fd00:cafe:babe::2/64
 ```
 
-**Start the VMs:**
+### Step 3: Manage the VMs
+Once created, you can start, stop, and interact with your VMs.
 
+**Start VMs:**
 ```bash
 pvmlab vm start provisioner
 pvmlab vm start target1
 ```
 
 **List VMs:**
-
 ```bash
 ❯ pvmlab vm list
-┌─────────────┬─────────────┬───────────────┬──────────────────────────────────┬───────────────────┬─────────┐
-│    NAME     │    ROLE     │  PRIVATE IP   │            SSH ACCESS            │        MAC        │ STATUS  │
-├─────────────┼─────────────┼───────────────┼──────────────────────────────────┼───────────────────┼─────────┤
-│ client      │ target      │ 192.168.100.2 │ 192.168.100.2 (from provisioner) │ 46:cc:46:cd:02:76 │ Stopped │
-│ provisioner │ provisioner │ 192.168.100.1 │ localhost:49000                  │ be:f9:b8:75:70:0d │ Running │
-└─────────────┴─────────────┴───────────────┴──────────────────────────────────┴───────────────────┴─────────┘
+❯ pvmlab vm list
+┌─────────────┬─────────────┬───────────────┬───────────────────┬───────────────────┬─────────┐
+│    NAME     │    ROLE     │  PRIVATE IP   │   PRIVATE IPV 6   │        MAC        │ STATUS  │
+├─────────────┼─────────────┼───────────────┼───────────────────┼───────────────────┼─────────┤
+│ client1     │ target      │ 192.168.100.2 │ N/A               │ fa:d8:bb:15:de:eb │ Stopped │
+│ client2     │ target      │ 192.168.100.3 │ fd00:cafe:babe::3 │ 6e:32:e0:ea:b9:c8 │ Running │
+│ provisioner │ provisioner │ 192.168.100.1 │ fd00:cafe:babe::1 │ 62:a8:6a:f6:5b:3c │ Running │
+└─────────────┴─────────────┴───────────────┴───────────────────┴───────────────────┴─────────┘
 ```
 
-**Access the Provisioner VM:**
-
+**Access a VM's Shell:**
 ```bash
+# Access the Provisioner VM
 pvmlab vm shell provisioner
+
+# Access a Target VM
+pvmlab vm shell target1
 ```
-
-**Access a Target VM:**
-First, SSH into the provisioner, then connect to the target's private IP:
-
-```bash
-# From your Mac
-pvmlab vm shell provisioner
-# From inside the provisioner VM, take the IP from dnsmasq (this will improve)
-ssh ubuntu@<private IP from DHCPD>
-```
-
-[Issue #4](https://github.com/pallotron/pvmlab/issues/4) will make this better.
 
 **Monitor Logs:**
-
 ```bash
 pvmlab vm logs provisioner
 pvmlab vm logs target1
 ```
 
-**Stopping the VMs:**
-
+**Stop VMs:**
 ```bash
 pvmlab vm stop provisioner
 pvmlab vm stop target1
 ```
 
-**Cleanup:**
-To stop a VM and remove its files from `~/.pvmlab/`:
+### Step 4: Clean Up
+You can clean up individual VMs or the entire lab environment.
 
+**Clean a single VM:**
+This stops the VM and removes all its associated files from `~/.pvmlab/`.
 ```bash
 pvmlab vm clean provisioner
 ```
 
-To clean up everything, including the `socket_vmnet` service and the entire `~/.pvmlab/` directory:
-
+**Clean the entire lab:**
+This removes everything, including the `socket_vmnet` service and the `~/.pvmlab/` directory.
 ```bash
 pvmlab clean
 ```
 
-### Interacting with the pxeboot Container inside the provisioner VM
+## Artifacts Directory
 
-For details on how to interact with and manage the pxeboot Docker container, please see the [pxeboot Container documentation](docs/pxeboot_container.md).
+All files generated by `pvmlab` are stored in a hidden directory in your home folder to keep the project's working directory clean.
 
-## CLI Commands
+The structure of this directory is as follows:
 
-For a full list of commands and their descriptions, please see the [CLI Reference](docs/cli_reference.md).
+```shell
+~/.pvmlab/
+├── configs/        # Generated cloud-init ISO files (.iso) for each VM
+├── docker_images/  # Docker images saved as .tar files to be shared with the provisioner VM
+├── images/         # Downloaded Ubuntu cloud image templates
+├── logs/           # VM console logs
+├── monitors/       # QEMU monitor sockets for interacting with the hypervisor
+├── pids/           # Process ID files for running VMs
+├── ssh/            # Generated SSH key pair (vm_rsa, vm_rsa.pub) for VM access
+└── vms/            # VM disk images (.qcow2) created from the base images
+```
 
-## Project Structure
+## Missing Features
 
-For details on the project's directory structure, please see the [Project Structure documentation](docs/project_structure.md).
+Missing features are being tracked as issues in the [GitHub repository](https://github.com/pallotron/pvmlab/issues). Please feel free to contribute!
+
+## Advanced Topics & Further Reading
+
+For more detailed information, please refer to the documentation in the `docs/` directory:
+
+- **[CLI Command Reference](docs/cli_reference.md):** A full list of all commands and their flags.
+- **[Architecture](docs/architecture.md):** A detailed explanation of the project's design and components.
+- **[Interacting with the pxeboot Container](docs/pxeboot_container.md):** How to manage the pxeboot Docker container inside the provisioner VM.
