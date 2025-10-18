@@ -24,7 +24,7 @@ func TestCheckForDuplicateIPs(t *testing.T) {
 		{
 			name: "duplicate IPv4",
 			vms: map[string]*Metadata{
-				"vm1": {IP: "192.168.1.1/24"},
+				"vm1": {IP: "192.168.1.1"},
 			},
 			newIP:   "192.168.1.1/24",
 			newIPv6: "fd00::1/64",
@@ -33,7 +33,7 @@ func TestCheckForDuplicateIPs(t *testing.T) {
 		{
 			name: "duplicate IPv6",
 			vms: map[string]*Metadata{
-				"vm1": {IPv6: "fd00::1/64"},
+				"vm1": {IPv6: "fd00::1"},
 			},
 			newIP:   "192.168.1.1/24",
 			newIPv6: "fd00::1/64",
@@ -42,7 +42,7 @@ func TestCheckForDuplicateIPs(t *testing.T) {
 		{
 			name: "no duplicates",
 			vms: map[string]*Metadata{
-				"vm1": {IP: "192.168.1.2/24", IPv6: "fd00::2/64"},
+				"vm1": {IP: "192.168.1.2", IPv6: "fd00::2"},
 			},
 			newIP:   "192.168.1.1/24",
 			newIPv6: "fd00::1/64",
