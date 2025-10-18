@@ -65,6 +65,10 @@ The --role flag determines the type of VM to create.
 		}
 		appDir := cfg.GetAppDir()
 
+		if err := metadata.CheckForDuplicateIPs(cfg, ip, ipv6); err != nil {
+			return errors.E("vm-create", err)
+		}
+
 		finalDockerImagesPath, err := resolvePath(dockerImagesPath, filepath.Join(appDir, "docker_images"))
 		if err != nil {
 			return errors.E("vm-create", err)
