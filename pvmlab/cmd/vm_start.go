@@ -17,9 +17,10 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
-var wait bool
+var wait, interactive bool
 
 // vmStartCmd represents the start command
 var vmStartCmd = &cobra.Command{
@@ -31,6 +32,10 @@ var vmStartCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		vmName := args[0]
 		color.Cyan("i Starting VM: %s", vmName)
+
+		if wait && interactive {
+			return fmt.Errorf("the --wait and --interactive flags are mutually exclusive")
+		}
 
 		cfg, err := config.New()
 		if err != nil {
@@ -87,11 +92,22 @@ var vmStartCmd = &cobra.Command{
 			"-drive", "if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
 			"-drive", fmt.Sprintf("file=%s,format=qcow2,if=virtio", vmDiskPath),
 			"-drive", fmt.Sprintf("file=%s,format=raw,if=virtio", isoPath),
-			"-display", "none",
-			"-daemonize",
 			"-pidfile", pidPath,
 			"-monitor", fmt.Sprintf("unix:%s,server,nowait", monitorPath),
-			"-serial", fmt.Sprintf("file:%s", logPath),
+		}
+
+		if interactive {
+			qemuArgs = append(qemuArgs,
+				"-nographic",
+				"-chardev", "stdio,id=char0,mux=on,signal=off",
+				"-serial", "chardev:char0",
+			)
+		} else {
+			qemuArgs = append(qemuArgs,
+				"-display", "none",
+				"-daemonize",
+				"-serial", fmt.Sprintf("file:%s", logPath),
+			)
 		}
 
 		if meta.Role == "provisioner" {
@@ -181,54 +197,97 @@ var vmStartCmd = &cobra.Command{
 		}
 
 		cmdRun := exec.Command(finalCmd[0], finalCmd[1:]...)
-		output, err := cmdRun.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("error starting VM '%s': %w\nQEMU output:\n%s", vmName, err, string(output))
-		}
+		if interactive {
+			// Clear screen and display instructions
+			fmt.Print("\033[H\033[J")
+			color.Yellow("--- Interactive Console ---")
+			fmt.Println()
+			color.Cyan("You are about to connect to the VM's serial console.")
+			fmt.Println()
+			color.Red("To exit the QEMU session, press: Ctrl-a x")
+			fmt.Println()
+			color.Yellow("---------------------------")
+			fmt.Print("Press Enter to continue, or ESC to cancel...")
 
-		// The command can succeed even if the daemon fails.
-		// A short sleep allows the PID file to be created.
-		time.Sleep(1 * time.Second)
-		running, pidErr := pidfile.IsRunning(cfg, vmName)
-		if pidErr != nil || !running {
-			return fmt.Errorf("VM command executed, but VM '%s' is not running.\nError checking PID file: %v\nQEMU output (if any):\n%s", vmName, pidErr, string(output))
-		}
-
-		// TODO: switch to using QEMU guest agent and unix socket
-		if wait {
-			color.Cyan("i Waiting for VM to become ready (this may take a few minutes)...")
-			timeoutSeconds := 300 // Default to 5 minutes
-			if timeoutStr := os.Getenv("PVMLAB_WAIT_TIMEOUT"); timeoutStr != "" {
-				if timeout, err := strconv.Atoi(timeoutStr); err == nil {
-					timeoutSeconds = timeout
-				}
+			// Switch to raw mode to capture single key presses
+			fd := int(os.Stdin.Fd())
+			oldState, err := term.MakeRaw(fd)
+			if err != nil {
+				return fmt.Errorf("failed to enter raw mode: %w", err)
 			}
-			timeoutDuration := time.Duration(timeoutSeconds) * time.Second
-			sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa")
+			defer term.Restore(fd, oldState)
 
-			if meta.Role == "provisioner" {
-				if err := waiter.ForPort("localhost", meta.SSHPort, timeoutDuration); err != nil {
-					return err
-				}
-				if err := waiter.ForCloudInitProvisioner(meta.SSHPort, sshKeyPath, timeoutDuration); err != nil {
-					return err
-				}
-			} else { // target
-				provisioner, err := metadata.GetProvisioner(cfg)
-				if err != nil {
-					return fmt.Errorf("failed to find a running provisioner to wait for target VM: %w", err)
-				}
-				if provisioner.SSHPort == 0 {
-					return fmt.Errorf("provisioner found, but it does not have a forwarded SSH port; is it running?")
-				}
-				if err := waiter.ForCloudInitTarget(provisioner.SSHPort, meta.IP, sshKeyPath, timeoutDuration); err != nil {
-					return err
-				}
+			// Read a single byte from the terminal
+			buf := make([]byte, 1)
+			os.Stdin.Read(buf)
+
+			// Restore terminal and check the input
+			term.Restore(fd, oldState)
+			fmt.Println()
+
+			// 27 is ESC, 3 is Ctrl-C
+			if buf[0] == 27 || buf[0] == 3 {
+				color.Red("Operation cancelled.")
+				return nil
 			}
-			color.Green("✔ %s VM is ready.", vmName)
+
+			cmdRun.Stdin = os.Stdin
+			cmdRun.Stdout = os.Stdout
+			cmdRun.Stderr = os.Stderr
+			if err := cmdRun.Run(); err != nil {
+				return fmt.Errorf("error during interactive VM session: %w", err)
+			}
 		} else {
-			color.Green("✔ %s VM has been launched in the background.", vmName)
-			color.Yellow("  To check its status, run: pvmlab vm logs %s", vmName)
+			output, err := cmdRun.CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("error starting VM '%s': %w\nQEMU output:\n%s", vmName, err, string(output))
+			}
+			// The command can succeed even if the daemon fails.
+			// A short sleep allows the PID file to be created.
+			time.Sleep(1 * time.Second)
+			running, pidErr := pidfile.IsRunning(cfg, vmName)
+			if pidErr != nil || !running {
+				return fmt.Errorf("VM command executed, but VM '%s' is not running.\nError checking PID file: %v\nQEMU output (if any):\n%s", vmName, pidErr, string(output))
+			}
+		}
+
+		if !interactive {
+			// TODO: switch to using QEMU guest agent and unix socket
+			if wait {
+				color.Cyan("i Waiting for VM to become ready (this may take a few minutes)...")
+				timeoutSeconds := 300 // Default to 5 minutes
+				if timeoutStr := os.Getenv("PVMLAB_WAIT_TIMEOUT"); timeoutStr != "" {
+					if timeout, err := strconv.Atoi(timeoutStr); err == nil {
+						timeoutSeconds = timeout
+					}
+				}
+				timeoutDuration := time.Duration(timeoutSeconds) * time.Second
+				sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa")
+
+				if meta.Role == "provisioner" {
+					if err := waiter.ForPort("localhost", meta.SSHPort, timeoutDuration); err != nil {
+						return err
+					}
+					if err := waiter.ForCloudInitProvisioner(meta.SSHPort, sshKeyPath, timeoutDuration); err != nil {
+						return err
+					}
+				} else { // target
+					provisioner, err := metadata.GetProvisioner(cfg)
+					if err != nil {
+						return fmt.Errorf("failed to find a running provisioner to wait for target VM: %w", err)
+					}
+					if provisioner.SSHPort == 0 {
+						return fmt.Errorf("provisioner found, but it does not have a forwarded SSH port; is it running?")
+					}
+					if err := waiter.ForCloudInitTarget(provisioner.SSHPort, meta.IP, sshKeyPath, timeoutDuration); err != nil {
+						return err
+					}
+				}
+				color.Green("✔ %s VM is ready.", vmName)
+			} else {
+				color.Green("✔ %s VM has been launched in the background.", vmName)
+				color.Yellow("  To check its status, run: pvmlab vm logs %s", vmName)
+			}
 		}
 		return nil
 	},
@@ -259,4 +318,5 @@ func getSocketVMNetClientPath() (string, error) {
 func init() {
 	vmCmd.AddCommand(vmStartCmd)
 	vmStartCmd.Flags().BoolVar(&wait, "wait", false, "Wait for cloud-init to complete before exiting.")
+	vmStartCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Attach to the VM's serial console.")
 }
