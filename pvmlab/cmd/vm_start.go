@@ -194,9 +194,9 @@ var vmStartCmd = &cobra.Command{
 			return fmt.Errorf("VM command executed, but VM '%s' is not running.\nError checking PID file: %v\nQEMU output (if any):\n%s", vmName, pidErr, string(output))
 		}
 
-		color.Green("✔ %s VM started successfully.", vmName)
 		// TODO: switch to using QEMU guest agent and unix socket
 		if wait {
+			color.Cyan("i Waiting for VM to become ready (this may take a few minutes)...")
 			timeoutSeconds := 300 // Default to 5 minutes
 			if timeoutStr := os.Getenv("PVMLAB_WAIT_TIMEOUT"); timeoutStr != "" {
 				if timeout, err := strconv.Atoi(timeoutStr); err == nil {
@@ -225,6 +225,10 @@ var vmStartCmd = &cobra.Command{
 					return err
 				}
 			}
+			color.Green("✔ %s VM is ready.", vmName)
+		} else {
+			color.Green("✔ %s VM has been launched in the background.", vmName)
+			color.Yellow("  To check its status, run: pvmlab vm logs %s", vmName)
 		}
 		return nil
 	},
@@ -254,5 +258,5 @@ func getSocketVMNetClientPath() (string, error) {
 
 func init() {
 	vmCmd.AddCommand(vmStartCmd)
-	vmStartCmd.Flags().BoolVar(&wait, "wait", true, "Wait for cloud-init to complete before exiting.")
+	vmStartCmd.Flags().BoolVar(&wait, "wait", false, "Wait for cloud-init to complete before exiting.")
 }
