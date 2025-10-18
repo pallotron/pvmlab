@@ -195,7 +195,7 @@ runcmd:
         macaddress: "[[ .Mac ]]"
       dhcp4: true
       dhcp6: true
-	  # TODO: figure out way to tell dhcpv6 client to use DUID-LL[T], hint: it's /etc/systemd/networkd.conf (DUIDType=link-layer-time)
+      # TODO: figure out way to tell dhcpv6 client to use DUID-LL[T], hint: it's /etc/systemd/networkd.conf (DUIDType=link-layer-time)
 `
 	targetVendorData = ``
 )

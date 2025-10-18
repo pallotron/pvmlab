@@ -35,11 +35,7 @@ var vmListCmd = &cobra.Command{
 		}
 
 		table := tablewriter.NewWriter(os.Stdout)
-		header := []string{"NAME", "ROLE", "PRIVATE IP", "PRIVATE IPV6", "MAC", "STATUS"}
-		boldHeader := make([]string, len(header))
-		for i, h := range header {
-			boldHeader[i] = color.New(color.Bold).Sprint(h)
-		}
+		header := []string{"NAME", "ARCH", "BOOT TYPE", "PRIVATE IP", "PRIVATE IPV6", "MAC", "STATUS"}
 		table.Header(header)
 		// Sort VM names for consistent output
 		vmNames := make([]string, 0, len(allMeta))
@@ -57,25 +53,35 @@ var vmListCmd = &cobra.Command{
 			if isRunning {
 				status = color.GreenString("Running")
 			}
+			displayName := vmName
 			if meta.Role == "provisioner" {
-				role = color.RedString(role)
+				displayName = color.RedString(vmName)
 			}
 			ipv6 := meta.IPv6
 			if ipv6 == "" {
 				ipv6 = "N/A"
 			}
-			if err := table.Append([]string{
-				vmName,
-				meta.Role,
+			bootType := "disk"
+			if meta.PxeBoot {
+				bootType = "pxe"
+			}
+			arch := "aarch64"
+			if meta.Arch == "x86_64" {
+				arch = "x86_64"
+			}
+			row := []string{
+				displayName,
+				arch,
+				bootType,
 				meta.IP,
 				ipv6,
 				meta.MAC,
 				status,
-			}); err != nil {
-				return err
 			}
+			table.Append(row)
 		}
-		return table.Render()
+		table.Render()
+		return nil
 	},
 }
 
