@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="images/pvmlab_logo.png" alt="pvmlab logo" width="500"/>
+</p>
+
 # pvmlab: your local pxeboot virtual lab
 
 This project provides a command-line tool, `pvmlab`, to automate the setup of a simple virtual provisioning lab on macOS. It uses `QEMU`, `socket_vmnet`, `cloud-init`, and `Docker` to create and manage an environment where multiple "target" VMs are deployed in a private virtual network and one VM functions as the "provisioner" VM offering pxeboot services and working as default gw for internet access for those VMs.
