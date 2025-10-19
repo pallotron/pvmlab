@@ -30,3 +30,5 @@ dhcp-option=option:dns-server,8.8.8.8
 # DHCPv6 configuration
 # Use a ULA (Unique Local Address) range for the private network.
 dhcp-option=option6:dns-server,[2001:4860:4860::8888],[2001:4860:4860::8844]
+enable-ra
+dhcp-range=interface:enp0s2,::64,::c8,12h

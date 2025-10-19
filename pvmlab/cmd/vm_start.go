@@ -265,14 +265,6 @@ func runQEMU(opts *vmStartOptions, qemuArgs []string) error {
 
 	finalCmd := append([]string{clientPath, socketPath}, qemuArgs...)
 
-	if os.Getenv("PVMLAB_DEBUG") == "true" {
-		color.Yellow("--- QEMU Command ---")
-		for _, arg := range finalCmd {
-			fmt.Println("  " + arg)
-		}
-		color.Yellow("--------------------\n")
-	}
-
 	cmdRun := exec.Command(finalCmd[0], finalCmd[1:]...)
 	if interactive {
 		return runInteractiveSession(cmdRun)

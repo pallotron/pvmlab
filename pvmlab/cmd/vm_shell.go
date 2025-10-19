@@ -14,14 +14,13 @@ import (
 
 // vmShellCmd represents the shell command
 var vmShellCmd = &cobra.Command{
-	Use:               "shell <vm-name>",
-	Short:             "Connects to a VM via SSH",
-	Long:              `Connects to a VM via SSH.`,
-	Args:              cobra.ExactArgs(1),
+	Use:               "shell <vm-name> [command]",
+	Short:             "Connects to a VM via SSH or executes a command",
+	Long:              `Connects to a VM via SSH. If a command is provided, it will be executed non-interactively.`,
+	Args:              cobra.MinimumNArgs(1),
 	ValidArgsFunction: VmNameCompleter,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		vmName := args[0]
-		color.Cyan("i Connecting to VM via SSH: %s", vmName)
 
 		cfg, err := config.New()
 		if err != nil {
@@ -34,35 +33,44 @@ var vmShellCmd = &cobra.Command{
 		}
 
 		appDir := cfg.GetAppDir()
-
 		sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa")
 		var sshCmd *exec.Cmd
+
+		baseSSHArgs := []string{
+			"-4",
+			"-i", sshKeyPath,
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+		}
 
 		if meta.Role == "provisioner" {
 			if meta.SSHPort == 0 {
 				return fmt.Errorf("SSH port not found in metadata, is the VM running?")
 			}
 			sshPort := fmt.Sprintf("%d", meta.SSHPort)
-			color.Cyan("i Connecting to provisioner VM via forwarded port %s...", sshPort)
-			sshCmd = exec.Command("ssh", "-4", "-i", sshKeyPath, "-p", sshPort, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "ubuntu@127.0.0.1")
+			provisionerArgs := append(baseSSHArgs, "-p", sshPort, "ubuntu@127.0.0.1")
+			sshCmd = exec.Command("ssh", provisionerArgs...)
 		} else {
 			provisioner, err := metadata.GetProvisioner(cfg)
 			if err != nil {
 				return fmt.Errorf("failed to find provisioner: %w", err)
 			}
-
 			if provisioner.SSHPort == 0 {
 				return fmt.Errorf("provisioner SSH port not found in metadata, is the provisioner running?")
 			}
-
 			provisionerPort := fmt.Sprintf("%d", provisioner.SSHPort)
-			var targetIP string
-			targetIP = meta.IP
-			targetConnect := fmt.Sprintf("ubuntu@%s", targetIP)
 			proxyCommand := fmt.Sprintf("ssh -4 -i %s -p %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %%h:%%p ubuntu@127.0.0.1", sshKeyPath, provisionerPort)
+			targetIP := meta.IP
+			targetConnect := fmt.Sprintf("ubuntu@%s", targetIP)
+			targetArgs := append(baseSSHArgs, "-o", fmt.Sprintf("ProxyCommand=%s", proxyCommand), targetConnect)
+			sshCmd = exec.Command("ssh", targetArgs...)
+		}
 
-			color.Cyan("i Connecting to target VM via provisioner on port %s...", provisionerPort)
-			sshCmd = exec.Command("ssh", "-4", "-i", sshKeyPath, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", fmt.Sprintf("ProxyCommand=%s", proxyCommand), targetConnect)
+		// If there are arguments after the vmName, treat them as a command to execute
+		if len(args) > 1 {
+			sshCmd.Args = append(sshCmd.Args, args[1:]...)
+		} else {
+			color.Cyan("i Connecting to VM via SSH: %s", vmName)
 		}
 
 		sshCmd.Stdout = os.Stdout
@@ -70,10 +78,12 @@ var vmShellCmd = &cobra.Command{
 		sshCmd.Stderr = os.Stderr
 
 		if err := sshCmd.Run(); err != nil {
-			// Ignore normal SSH exit errors.
-			if _, ok := err.(*exec.ExitError); !ok {
-				return fmt.Errorf("error running ssh: %w", err)
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				// SSH commands often exit with a non-zero status, which is not necessarily an error in execution.
+				// We just pass on the exit code.
+				os.Exit(exitErr.ExitCode())
 			}
+			return fmt.Errorf("error running ssh: %w", err)
 		}
 		return nil
 	},
