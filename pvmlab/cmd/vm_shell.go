@@ -44,7 +44,7 @@ var vmShellCmd = &cobra.Command{
 			}
 			sshPort := fmt.Sprintf("%d", meta.SSHPort)
 			color.Cyan("i Connecting to provisioner VM via forwarded port %s...", sshPort)
-			sshCmd = exec.Command("ssh", "-i", sshKeyPath, "-p", sshPort, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost")
+			sshCmd = exec.Command("ssh", "-4", "-i", sshKeyPath, "-p", sshPort, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "ubuntu@127.0.0.1")
 		} else {
 			provisioner, err := metadata.GetProvisioner(cfg)
 			if err != nil {
@@ -57,16 +57,16 @@ var vmShellCmd = &cobra.Command{
 
 			provisionerPort := fmt.Sprintf("%d", provisioner.SSHPort)
 			var targetIP string
-			if meta.IPv6 != "" {
-				targetIP = meta.IPv6
-			} else {
-				targetIP = meta.IP
-			}
+			// if meta.IPv6 != "" {
+			// 	targetIP = meta.IPv6
+			// } else {
+			targetIP = meta.IP
+			// }
 			targetConnect := fmt.Sprintf("ubuntu@%s", targetIP)
-			proxyCommand := fmt.Sprintf("ssh -i %s -p %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %%h:%%p ubuntu@localhost", sshKeyPath, provisionerPort)
+			proxyCommand := fmt.Sprintf("ssh -4 -i %s -p %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %%h:%%p ubuntu@127.0.0.1", sshKeyPath, provisionerPort)
 
 			color.Cyan("i Connecting to target VM via provisioner on port %s...", provisionerPort)
-			sshCmd = exec.Command("ssh", "-i", sshKeyPath, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", fmt.Sprintf("ProxyCommand=%s", proxyCommand), targetConnect)
+			sshCmd = exec.Command("ssh", "-4", "-i", sshKeyPath, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", fmt.Sprintf("ProxyCommand=%s", proxyCommand), targetConnect)
 		}
 
 		sshCmd.Stdout = os.Stdout
