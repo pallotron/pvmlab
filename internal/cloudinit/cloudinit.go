@@ -82,29 +82,23 @@ write_files:
 
       [Install]
       WantedBy=multi-user.target
-  {% if ds.meta_data.subnet_v6 -}}
+  {% if ds.meta_data.dhcp_range_v6_start -%}
   - path: /etc/radvd.conf
-	permissions: '0644'
-	content: |
-		interface enp0s2
-		{
-			AdvSendAdvert on;
-			AdvManagedFlag on;  # <-- This is the crucial "M" flag
-			AdvOtherConfigFlag off; # Or on, if you also provide DNS via DHCPv6
-
-			prefix [[ ds.meta_data.provisioner_ip_v6 ]];
-			{
-				AdvOnLink on;
-				AdvAutonomous on; # Tells clients to also use SLAAC for addresses
-				AdvRouterAddr on;
-			};
-		}
-  - path: /etc/systemd/networkd.conf.d/dhcpv6_duid_llt.conf
-	permissions: '0644'
-	content: |
-		[DHCPv6]
-		DUIDType=link-layer-time
-  {% endif -%}
+    permissions: '0644'
+    content: |
+        interface enp0s2
+        {
+            AdvSendAdvert on;
+            AdvManagedFlag on;  # <-- This is the crucial "M" flag
+            AdvOtherConfigFlag off; # Or on, if you also provide DNS via DHCPv6
+            prefix {{ ds.meta_data.ipv6_subnet }}
+            {
+                AdvOnLink on;
+                AdvAutonomous on; # Tells clients to also use SLAAC for addresses
+                AdvRouterAddr on;
+            };
+        };
+   {%- endif %}
 
 runcmd:
   - 'sed -i "/net.ipv4.ip_forward/d" /etc/sysctl.conf'
@@ -112,7 +106,7 @@ runcmd:
   - 'sed -i "/net.ipv6.conf.all.forwarding/d" /etc/sysctl.conf'
   - 'echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.conf'
   - 'sysctl -p'
-  - 'DEBIAN_FRONTEND=noninteractive apt-get -y install acpid iptables-persistent ca-certificates curl gnupg radvd'
+  - 'DEBIAN_FRONTEND=noninteractive apt-get -y install acpid iptables-persistent ca-certificates curl gnupg'
   - 'install -m 0755 -d /etc/apt/keyrings'
   - 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg'
   - 'chmod a+r /etc/apt/keyrings/docker.gpg'
@@ -131,6 +125,9 @@ runcmd:
   - 'ip6tables -t nat -A POSTROUTING -o enp0s1 -j MASQUERADE'
   - 'iptables-save > /etc/iptables/rules.v4'
   - 'ip6tables-save > /etc/iptables/rules.v6'
+  - 'DEBIAN_FRONTEND=noninteractive apt-get -y install radvd'
+  - 'systemctl daemon-reload'
+  - 'systemctl enable --now radvd.service'
   - rm /etc/update-motd.d/50-landscape-sysinfo
   - rm /etc/update-motd.d/10-help-text
   - rm /etc/update-motd.d/50-motd-news
@@ -195,7 +192,6 @@ runcmd:
         macaddress: "[[ .Mac ]]"
       dhcp4: true
       dhcp6: true
-      # TODO: figure out way to tell dhcpv6 client to use DUID-LL[T], hint: it's /etc/systemd/networkd.conf (DUIDType=link-layer-time)
 `
 	targetVendorData = ``
 )
