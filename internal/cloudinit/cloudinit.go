@@ -181,6 +181,13 @@ runcmd:
   - rm /etc/update-motd.d/10-help-text
   - rm /etc/update-motd.d/50-motd-news
   - rm /etc/update-motd.d/90-updates-available
+
+write_files:
+  - path: /etc/systemd/networkd.conf.d/dhcpv6_duid_llt.conf
+    permissions: '0644'
+    content: |
+        [DHCPv6]
+        DUIDType=link-layer-time
 `
 
 	// jinja templates not supported for network-config in cloud-init/cloud-config

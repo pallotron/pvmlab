@@ -57,11 +57,7 @@ var vmShellCmd = &cobra.Command{
 
 			provisionerPort := fmt.Sprintf("%d", provisioner.SSHPort)
 			var targetIP string
-			// if meta.IPv6 != "" {
-			// 	targetIP = meta.IPv6
-			// } else {
 			targetIP = meta.IP
-			// }
 			targetConnect := fmt.Sprintf("ubuntu@%s", targetIP)
 			proxyCommand := fmt.Sprintf("ssh -4 -i %s -p %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %%h:%%p ubuntu@127.0.0.1", sshKeyPath, provisionerPort)
 
