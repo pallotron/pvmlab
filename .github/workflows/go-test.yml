@@ -31,5 +31,4 @@ jobs:
 
       - name: Test
         run: |
-          export RUN_INTEGRATION_TESTS=false
           make test

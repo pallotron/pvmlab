@@ -162,7 +162,7 @@ uninstall-pxeboot-stack-container:
 
 
 test: 
-	@ go test ./...
+	@ go test -v ./...
 
 integration.test: 
 	@make -C pxeboot_stack tar

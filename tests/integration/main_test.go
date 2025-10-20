@@ -214,6 +214,28 @@ func TestVMLifecycle(t *testing.T) {
 	clientIPv6 := "fd00:cafe:baba::2/64"
 
 	defer func() {
+		if t.Failed() {
+			log.Println("--- Integration test failed, collecting VM logs ---")
+			logDir := filepath.Join(os.Getenv("PVMLAB_HOME"), ".pvmlab", "logs")
+
+			provisionerLogPath := filepath.Join(logDir, provisionerName+".log")
+			if _, err := os.Stat(provisionerLogPath); err == nil {
+				logContent, _ := os.ReadFile(provisionerLogPath)
+				log.Printf("--- Logs for %s ---\n%s", provisionerName, string(logContent))
+			} else {
+				log.Printf("Log file for %s not found.", provisionerName)
+			}
+
+			clientLogPath := filepath.Join(logDir, clientName+".log")
+			if _, err := os.Stat(clientLogPath); err == nil {
+				logContent, _ := os.ReadFile(clientLogPath)
+				log.Printf("--- Logs for %s ---\n%s", clientName, string(logContent))
+			} else {
+				log.Printf("Log file for %s not found.", clientName)
+			}
+			log.Println("--- End of VM logs ---")
+		}
+
 		if os.Getenv("PVMLAB_DEBUG") != "true" {
 			_, _ = runCmdWithLiveOutput(pathToCLI, "vm", "clean", provisionerName)
 			_, _ = runCmdWithLiveOutput(pathToCLI, "vm", "clean", clientName)
