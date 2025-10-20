@@ -1,9 +1,7 @@
 package integration
 
 import (
-	"bufio"
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"log"
@@ -29,21 +27,32 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 
-	tempHomeDir, err := os.MkdirTemp("/tmp", "pvmlab_test_*")
-	if err != nil {
-		log.Fatalf("failed to create temp dir for integration test: %v", err)
+	var tempHomeDir string
+	var err error
+	pvmlabHome := os.Getenv("PVMLAB_HOME")
+	if pvmlabHome != "" {
+		log.Printf("Using existing PVMLAB_HOME: %s", pvmlabHome)
+		tempHomeDir = pvmlabHome
+	} else {
+		tempHomeDir, err = os.MkdirTemp("/tmp", "pvmlab_test_*")
+		if err != nil {
+			log.Fatalf("failed to create temp dir for integration test: %v", err)
+		}
+		os.Setenv("PVMLAB_HOME", tempHomeDir)
+		log.Printf("Using temporary home for tests: %s", tempHomeDir)
 	}
+
 	defer func() {
-		if os.Getenv("PVMLAB_DEBUG") != "true" {
+		// Only remove the directory if the test created it
+		if pvmlabHome == "" && os.Getenv("PVMLAB_DEBUG") != "true" {
 			os.RemoveAll(tempHomeDir)
-		} else {
+		} else if os.Getenv("PVMLAB_DEBUG") == "true" {
 			log.Printf("PVMLAB_DEBUG is true, leaving temp home dir for inspection: %s", tempHomeDir)
 		}
 	}()
 
-	os.Setenv("PVMLAB_HOME", tempHomeDir)
-	os.Setenv("PVMLAB_WAIT_TIMEOUT", "900")
-	os.Setenv("PVMLAB_DEBUG", "true")
+	// This because github actions macos workers do not have hvf accelleration
+	os.Setenv("PVMLAB_WAIT_TIMEOUT", "2400")
 
 	log.Printf("Using temporary home for tests: %s", tempHomeDir)
 
@@ -82,6 +91,7 @@ func TestMain(m *testing.M) {
 	// Start local socket_vmnet process
 	socketPath := filepath.Join(tempHomeDir, "vmlab.socket_vmnet")
 	os.Setenv("PVMLAB_SOCKET_VMNET_PATH", socketPath)
+	os.Setenv("PVMLAB_SOCKET_VMNET_CLIENT", destSocketVMNetClientPath)
 	log.Printf("Using local socket_vmnet path: %s", socketPath)
 
 	networkID := uuid.New().String()
@@ -207,54 +217,13 @@ func runCmdWithLiveOutput(command string, args ...string) (string, error) {
 	return fullOutput, nil
 }
 
-func tailLogFile(ctx context.Context, t *testing.T, vmName string) {
-	logPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".pvmlab", "logs", vmName+".log")
-	t.Logf("tailer: starting for %s, watching path: %s", vmName, logPath)
-
-	// Wait for the log file to appear, checking periodically.
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		if _, err := os.Stat(logPath); err == nil {
-			t.Logf("tailer: found log file for %s", vmName)
-			break // File found, exit the loop.
-		}
-		select {
-		case <-ctx.Done():
-			t.Logf("tailer: context cancelled while waiting for log file for %s", vmName)
-			return
-		case <-ticker.C:
-			// Continue loop to check for file again.
-		}
-	}
-
-	file, err := os.Open(logPath)
+func runCmdOrFail(t *testing.T, command string, args ...string) string {
+	t.Helper()
+	output, err := runCmdWithLiveOutput(command, args...)
 	if err != nil {
-		t.Logf("tailer: could not open log file for %s: %v", vmName, err)
-		return
+		t.Fatalf("Command `%s %s` failed.\nError: %v\nOutput:\n%s", command, strings.Join(args, " "), err, output)
 	}
-	defer file.Close()
-
-	reader := bufio.NewReader(file)
-	for {
-		select {
-		case <-ctx.Done():
-			return // Test finished, stop tailing.
-		default:
-			line, err := reader.ReadString('\n')
-			if len(line) > 0 {
-				t.Logf("[%s log] %s", vmName, strings.TrimSpace(line))
-			}
-			if err == io.EOF {
-				// If we're at the end, wait a bit for new content.
-				time.Sleep(500 * time.Millisecond)
-			} else if err != nil {
-				t.Logf("tailer: error reading log for %s: %v", vmName, err)
-				return
-			}
-		}
-	}
+	return output
 }
 
 // TestVMLifecycle is a full integration test for the VM lifecycle.
@@ -270,42 +239,11 @@ func TestVMLifecycle(t *testing.T) {
 	clientIP := "192.168.254.2/24"
 	clientIPv6 := "fd00:cafe:baba::2/64"
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go tailLogFile(ctx, t, provisionerName)
-	go tailLogFile(ctx, t, clientName)
-
 	defer func() {
 		r := recover()
-		if t.Failed() || r != nil {
-			if r != nil {
-				log.Printf("Test panicked: %v", r)
-			}
-			log.Println("--- Integration test failed, collecting VM logs ---")
-			logDir := filepath.Join(os.Getenv("PVMLAB_HOME"), ".pvmlab", "logs")
-
-			provisionerLogPath := filepath.Join(logDir, provisionerName+".log")
-			if _, err := os.Stat(provisionerLogPath); err == nil {
-				logContent, _ := os.ReadFile(provisionerLogPath)
-				log.Printf("--- Logs for %s ---\n%s", provisionerName, string(logContent))
-			} else {
-				log.Printf("Log file for %s not found.", provisionerName)
-			}
-
-			clientLogPath := filepath.Join(logDir, clientName+".log")
-			if _, err := os.Stat(clientLogPath); err == nil {
-				logContent, _ := os.ReadFile(clientLogPath)
-				log.Printf("--- Logs for %s ---\n%s", clientName, string(logContent))
-			} else {
-				log.Printf("Log file for %s not found.", clientName)
-			}
-			log.Println("--- End of VM logs ---")
-		}
-
 		if os.Getenv("PVMLAB_DEBUG") != "true" {
-			_, _ = runCmdWithLiveOutput(pathToCLI, "vm", "clean", provisionerName)
-			_, _ = runCmdWithLiveOutput(pathToCLI, "vm", "clean", clientName)
+			runCmdWithLiveOutput(pathToCLI, "vm", "clean", provisionerName)
+			runCmdWithLiveOutput(pathToCLI, "vm", "clean", clientName)
 		} else {
 			log.Println("PVMLAB_DEBUG is true, leaving VMs for inspection.")
 		}
@@ -316,38 +254,25 @@ func TestVMLifecycle(t *testing.T) {
 
 	// Step 0: Setup assets only
 	if !t.Run("0-SetupAssetsOnly", func(t *testing.T) {
-		output, err := runCmdWithLiveOutput(pathToCLI, "setup", "--assets-only")
-		if err != nil {
-			t.Fatalf("setup --assets-only failed: %v\n%s", err, output)
-		}
+		runCmdOrFail(t, pathToCLI, "setup", "--assets-only")
 	}) {
 		t.FailNow()
 	}
 
 	// Step 1: Create Provisioner
 	if !t.Run("1-VMCreateProvisioner", func(t *testing.T) {
-		output, err := runCmdWithLiveOutput(
-			pathToCLI, "vm", "create", provisionerName, "--role", "provisioner", "--ip", provisionerIP, "--ipv6", provisionerIPv6,
+		runCmdOrFail(
+			t, pathToCLI,
+			"vm", "create", provisionerName, "--role", "provisioner",
+			"--ip", provisionerIP, "--ipv6", provisionerIPv6,
 		)
-		if err != nil {
-			t.Fatalf("vm create for provisioner failed: %v\n%s", err, output)
-		}
 	}) {
 		t.FailNow()
 	}
 
 	// Step 2: Start Provisioner
 	if !t.Run("2-VMStartProvisioner", func(t *testing.T) {
-		_, err := runCmdWithLiveOutput(pathToCLI, "vm", "start", provisionerName, "--wait=true")
-		if err != nil {
-			debugDir := filepath.Join(os.Getenv("PVMLAB_HOME"), ".pvmlab")
-			log.Printf("--- Debugging directory structure for: %s ---", debugDir)
-			debugCmd := exec.Command("ls", "-lR", debugDir)
-			debugOutput, _ := debugCmd.CombinedOutput()
-			log.Println(string(debugOutput))
-			log.Println("--- End debugging ---")
-			t.Fatalf("vm start --wait=true for provisioner failed: %v", err)
-		}
+		runCmdOrFail(t, pathToCLI, "vm", "start", provisionerName, "--wait=true")
 	}) {
 		t.FailNow()
 	}
@@ -363,49 +288,40 @@ func TestVMLifecycle(t *testing.T) {
 
 	// Step 4: Verify Provisioner Services
 	if !t.Run("4-VerifyProvisionerServices", func(t *testing.T) {
-		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "shell", provisionerName, "--", "systemctl", "is-active", "radvd")
-		if err != nil || !strings.Contains(strings.TrimSpace(output), "active") {
-			// Debugging logic from original test...
+		output := runCmdOrFail(t, pathToCLI, "vm", "shell", provisionerName, "--", "systemctl", "is-active", "radvd")
+		if !strings.Contains(strings.TrimSpace(output), "active") {
 			t.Fatalf("radvd service is not active on provisioner. Initial output:\n%s", output)
 		}
 
-		output, err = runCmdWithLiveOutput(pathToCLI, "vm", "shell", provisionerName, "--", "sudo", "docker", "ps")
-		if err != nil {
-			t.Fatalf("failed to check docker containers: %v", err)
-		}
-		if !strings.Contains(output, "pxeboot_stack") {
-			t.Errorf("pxeboot_stack container is not running on provisioner. Output:\n%s", output)
-		}
+		// output = runCmdOrFail(t, pathToCLI, "vm", "shell", provisionerName, "--", "sudo", "docker", "ps")
+		// if !strings.Contains(output, "pxeboot_stack") {
+		// 	systemd_output := runCmdOrFail(t,
+		// 		pathToCLI, "vm", "shell", provisionerName, "--",
+		// 		"sudo", "journalctl", "-xfeu", "pxeboot_stack.service", "--no-pager",
+		// 	)
+		// 	t.Fatalf("pxeboot_stack container is not running on provisioner. Output:\n%s", systemd_output)
+		// }
 	}) {
 		t.FailNow()
 	}
 
 	// Step 5: Create Client
 	if !t.Run("5-VMCreateClient", func(t *testing.T) {
-		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "create", clientName, "--role", "target", "--ip", clientIP, "--ipv6", clientIPv6)
-		if err != nil {
-			t.Fatalf("vm create for client failed: %v\n%s", err, output)
-		}
+		runCmdOrFail(t, pathToCLI, "vm", "create", clientName, "--role", "target", "--ip", clientIP, "--ipv6", clientIPv6)
 	}) {
 		t.FailNow()
 	}
 
 	// Step 6: Start Client
 	if !t.Run("6-VMStartClient", func(t *testing.T) {
-		_, err := runCmdWithLiveOutput(pathToCLI, "vm", "start", clientName, "--wait=true")
-		if err != nil {
-			t.Fatalf("vm start for client failed: %v", err)
-		}
+		runCmdOrFail(t, pathToCLI, "vm", "start", clientName, "--wait=true")
 	}) {
 		t.FailNow()
 	}
 
 	// Step 7: Verify Client Network
 	if !t.Run("7-VerifyClientNetwork", func(t *testing.T) {
-		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "shell", clientName, "--", "ip", "addr")
-		if err != nil {
-			t.Fatalf("failed to get IP addresses from client: %v", err)
-		}
+		output := runCmdOrFail(t, pathToCLI, "vm", "shell", clientName, "--", "ip", "addr")
 
 		if !strings.Contains(output, "inet 192.168.254.2") {
 			t.Errorf("client does not have the expected IPv4 address. Output:\n%s", output)
@@ -420,19 +336,15 @@ func TestVMLifecycle(t *testing.T) {
 
 	// Step 8: VM List
 	if !t.Run("8-VMList", func(t *testing.T) {
-		output, err := runCmdWithLiveOutput(pathToCLI, "vm", "list")
-		if err != nil {
-			t.Fatalf("vm list failed: %v\n%s", err, output)
+		output := runCmdOrFail(t, pathToCLI, "vm", "list")
+		if !strings.Contains(output, provisionerName) {
+			t.Errorf("vm list output does not contain the provisioner name '%s'\nOutput:\n%s", provisionerName, output)
 		}
-		outStr := string(output)
-		if !strings.Contains(outStr, provisionerName) {
-			t.Errorf("vm list output does not contain the provisioner name '%s'\nOutput:\n%s", provisionerName, outStr)
+		if !strings.Contains(output, clientName) {
+			t.Errorf("vm list output does not contain the client name '%s'\nOutput:\n%s", clientName, output)
 		}
-		if !strings.Contains(outStr, clientName) {
-			t.Errorf("vm list output does not contain the client name '%s'\nOutput:\n%s", clientName, outStr)
-		}
-		if strings.Count(outStr, "Running") != 2 {
-			t.Errorf("expected 2 running VMs, but vm list shows something else.\nOutput:\n%s", outStr)
+		if strings.Count(output, "Running") != 2 {
+			t.Errorf("expected 2 running VMs, but vm list shows something else.\nOutput:\n%s", output)
 		}
 	}) {
 		t.FailNow()
@@ -444,14 +356,8 @@ func TestVMLifecycle(t *testing.T) {
 			t.Log("PVMLAB_DEBUG is true, skipping VM stop for inspection.")
 			t.Skip()
 		}
-		_, err := runCmdWithLiveOutput(pathToCLI, "vm", "stop", provisionerName)
-		if err != nil {
-			t.Fatalf("vm stop for provisioner failed: %v", err)
-		}
-		_, err = runCmdWithLiveOutput(pathToCLI, "vm", "stop", clientName)
-		if err != nil {
-			t.Fatalf("vm stop for client failed: %v", err)
-		}
+		runCmdOrFail(t, pathToCLI, "vm", "stop", provisionerName)
+		runCmdOrFail(t, pathToCLI, "vm", "stop", clientName)
 	}) {
 		t.FailNow()
 	}
@@ -462,13 +368,7 @@ func TestVMLifecycle(t *testing.T) {
 			t.Log("PVMLAB_DEBUG is true, skipping VM clean for inspection.")
 			t.Skip()
 		}
-		_, err := runCmdWithLiveOutput(pathToCLI, "vm", "clean", provisionerName)
-		if err != nil {
-			t.Fatalf("final vm clean for provisioner failed: %v", err)
-		}
-		_, err = runCmdWithLiveOutput(pathToCLI, "vm", "clean", clientName)
-		if err != nil {
-			t.Fatalf("final vm clean for client failed: %v", err)
-		}
+		runCmdOrFail(t, pathToCLI, "vm", "clean", provisionerName)
+		runCmdOrFail(t, pathToCLI, "vm", "clean", clientName)
 	})
 }

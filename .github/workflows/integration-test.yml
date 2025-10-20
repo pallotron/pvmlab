@@ -2,60 +2,79 @@ name: Integration Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build-docker-image:
     name: Build PXE Boot Stack Image
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Build and export to tar
-      run: |
-        docker build -t pxeboot_stack:latest ./pxeboot_stack
-        docker save pxeboot_stack:latest -o pxeboot_stack.tar
+      - name: Build and export to tar
+        run: |
+          docker buildx build --platform linux/arm64 -t pxeboot_stack:latest --load ./pxeboot_stack
+          docker save pxeboot_stack:latest -o pxeboot_stack.tar
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: pxeboot_stack_tar
-        path: pxeboot_stack.tar
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pxeboot_stack_tar
+          path: pxeboot_stack.tar
 
   integration-test-macos:
     name: macOS Integration Test
     needs: build-docker-image # This ensures the build job finishes first
     runs-on: macos-latest
+    env:
+      PVMLAB_QEMU_ACCEL: tcg
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.25.1'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.1"
 
-    - name: Install Dependencies
-      run: brew install qemu cdrtools socat docker
+      - name: Install Dependencies
+        run: brew install qemu cdrtools socat
 
-    - name: Download PXE Boot Stack Artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: pxeboot_stack_tar
-        path: pxeboot_stack/
+      - name: Setup PVMLAB_HOME
+        id: setup_home
+        run: |
+          PVMLAB_HOME=$(mktemp -d)
+          echo "PVMLAB_HOME=${PVMLAB_HOME}" >> $GITHUB_ENV
+          echo "Created temporary directory for PVMLAB_HOME: ${PVMLAB_HOME}"
 
-    - name: Build and Install Environment
-      run: make install-pvmlab install.socket_vmnet install.launchd
-        
-    - name: Run Integration Tests
-      run: |
-        export RUN_INTEGRATION_TESTS=true
-        go test -v ./tests/integration/...
+      - name: Download PXE Boot Stack Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: pxeboot_stack_tar
+          path: pxeboot_stack/
+
+      - name: Run Integration Tests
+        run: |
+          export RUN_INTEGRATION_TESTS=true
+          go test -v -timeout 30m ./tests/integration/...
+
+      - name: Display VM Logs on Failure
+        if: failure()
+        run: |
+          echo "Displaying logs from ${{ env.PVMLAB_HOME }}/.pvmlab/logs..."
+          cat "${{ env.PVMLAB_HOME }}/.pvmlab/logs/"*.log
+
+      - name: Upload VM Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vm-logs
+          path: ${{ env.PVMLAB_HOME }}/.pvmlab/logs/

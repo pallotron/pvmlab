@@ -139,7 +139,7 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 		codePath = "/opt/homebrew/share/qemu/edk2-x86_64-code.fd"
 	}
 
-	machineType := "virt"
+	machineType := "virt,gic-version=3"
 	if opts.meta.Arch == "x86_64" {
 		machineType = "q35"
 	}
@@ -243,7 +243,15 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 	}
 
 	if opts.meta.Arch == "aarch64" {
-		qemuArgs = append(qemuArgs, "-cpu", "host", "-accel", "hvf")
+		accel := os.Getenv("PVMLAB_QEMU_ACCEL")
+		if accel == "" {
+			accel = "hvf"
+		}
+		cpu := "host"
+		if accel == "tcg" {
+			cpu = "max"
+		}
+		qemuArgs = append(qemuArgs, "-cpu", cpu, "-accel", accel)
 	} else {
 		qemuArgs = append(qemuArgs, "-cpu", "max")
 	}
@@ -363,6 +371,11 @@ func waitForVM(opts *vmStartOptions) error {
 }
 
 func getSocketVMNetClientPath() (string, error) {
+	// if PVMLAB_SOCKET_VMNET_PATH is set use the client in that directory
+	if path := os.Getenv("PVMLAB_SOCKET_VMNET_CLIENT"); path != "" {
+		return path, nil
+	}
+
 	paths := []string{
 		"/opt/socket_vmnet/bin/socket_vmnet_client",
 		"/opt/homebrew/opt/socket_vmnet/bin/socket_vmnet_client",

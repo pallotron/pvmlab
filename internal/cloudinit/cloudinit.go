@@ -64,8 +64,23 @@ write_files:
       docker rm ${CONTAINER_NAME} || true
       echo "Loading new image from /mnt/host/docker_images/${TAR_FILE}..."
       docker load -i /mnt/host/docker_images/${TAR_FILE}
+      export PROVISIONER_IP={{ ds.meta_data.provisioner_ip }}
+      export DHCP_RANGE_START={{ ds.meta_data.dhcp_range_start }}
+      export DHCP_RANGE_END={{ ds.meta_data.dhcp_range_end }}
+      {% if ds.meta_data.dhcp_range_v6_start %}
+      export DHCP_RANGE_V6_START={{ ds.meta_data.dhcp_range_v6_start }}
+      export DHCP_RANGE_V6_END={{ ds.meta_data.dhcp_range_v6_end }}
+      {% endif %}
       echo "Starting new container..."
-      docker run --mount type=bind,source=/mnt/host/vms,target=/mnt/host/vms -d --name ${CONTAINER_NAME} ${DOCKER_RUN_FLAGS} ${CONTAINER_NAME}:latest
+      docker run --mount type=bind,source=/mnt/host/vms,target=/mnt/host/vms -d \
+        -e PROVISIONER_IP=$PROVISIONER_IP \
+        -e DHCP_RANGE_START=$DHCP_RANGE_START \
+        -e DHCP_RANGE_END=$DHCP_RANGE_END \
+        {% if ds.meta_data.dhcp_range_v6_start %}
+        -e DHCP_RANGE_V6_START=$DHCP_RANGE_V6_START \
+        -e DHCP_RANGE_V6_END=$DHCP_RANGE_V6_END \
+        {% endif %} \
+        --name ${CONTAINER_NAME} ${DOCKER_RUN_FLAGS} ${CONTAINER_NAME}:latest
       echo "Done."
   - path: /etc/systemd/system/pxeboot.service
     permissions: '0644'
@@ -78,7 +93,7 @@ write_files:
       [Service]
       Type=oneshot
       RemainAfterExit=yes
-      ExecStart=/usr/local/bin/pxeboot_stack_reload.sh {{ ds.meta_data.pxe_boot_stack_tar }} {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged -e PROVISIONER_IP={{ ds.meta_data.provisioner_ip }} -e DHCP_RANGE_START={{ ds.meta_data.dhcp_range_start }} -e DHCP_RANGE_END={{ ds.meta_data.dhcp_range_end }} {% if ds.meta_data.dhcp_range_v6_start %}-e DHCP_RANGE_V6_START={{ ds.meta_data.dhcp_range_v6_start }} -e DHCP_RANGE_V6_END={{ ds.meta_data.dhcp_range_v6_end }}{% endif %}
+      ExecStart=/usr/local/bin/pxeboot_stack_reload.sh {{ ds.meta_data.pxe_boot_stack_tar }} {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged
 
       [Install]
       WantedBy=multi-user.target
@@ -117,7 +132,6 @@ runcmd:
   - 'mkdir -p /mnt/host/vms'
   - 'systemctl daemon-reload'
   - 'systemctl enable --now pxeboot.service'
-
   - 'echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections'
   - 'echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections'
   - 'DEBIAN_FRONTEND=noninteractive apt-get -y install iptables-persistent'

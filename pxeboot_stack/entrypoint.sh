@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+echo $PROVISIONER_IP
+
 # Ensure required environment variables are set
 if [ -z "$PROVISIONER_IP" ]; then
   echo "Error: PROVISIONER_IP environment variable is not set."
