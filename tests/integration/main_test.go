@@ -1,7 +1,9 @@
 package integration
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -205,6 +207,56 @@ func runCmdWithLiveOutput(command string, args ...string) (string, error) {
 	return fullOutput, nil
 }
 
+func tailLogFile(ctx context.Context, t *testing.T, vmName string) {
+	logPath := filepath.Join(os.Getenv("PVMLAB_HOME"), ".pvmlab", "logs", vmName+".log")
+	t.Logf("tailer: starting for %s, watching path: %s", vmName, logPath)
+
+	// Wait for the log file to appear, checking periodically.
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if _, err := os.Stat(logPath); err == nil {
+			t.Logf("tailer: found log file for %s", vmName)
+			break // File found, exit the loop.
+		}
+		select {
+		case <-ctx.Done():
+			t.Logf("tailer: context cancelled while waiting for log file for %s", vmName)
+			return
+		case <-ticker.C:
+			// Continue loop to check for file again.
+		}
+	}
+
+	file, err := os.Open(logPath)
+	if err != nil {
+		t.Logf("tailer: could not open log file for %s: %v", vmName, err)
+		return
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+	for {
+		select {
+		case <-ctx.Done():
+			return // Test finished, stop tailing.
+		default:
+			line, err := reader.ReadString('\n')
+			if len(line) > 0 {
+				t.Logf("[%s log] %s", vmName, strings.TrimSpace(line))
+			}
+			if err == io.EOF {
+				// If we're at the end, wait a bit for new content.
+				time.Sleep(500 * time.Millisecond)
+			} else if err != nil {
+				t.Logf("tailer: error reading log for %s: %v", vmName, err)
+				return
+			}
+		}
+	}
+}
+
 // TestVMLifecycle is a full integration test for the VM lifecycle.
 func TestVMLifecycle(t *testing.T) {
 	if os.Getenv("RUN_INTEGRATION_TESTS") != "true" {
@@ -217,6 +269,12 @@ func TestVMLifecycle(t *testing.T) {
 	provisionerIPv6 := "fd00:cafe:baba::1/64"
 	clientIP := "192.168.254.2/24"
 	clientIPv6 := "fd00:cafe:baba::2/64"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go tailLogFile(ctx, t, provisionerName)
+	go tailLogFile(ctx, t, clientName)
 
 	defer func() {
 		r := recover()

@@ -242,12 +242,10 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 		qemuArgs = append(qemuArgs, "-m", "2048", "-device", fmt.Sprintf("%s,netdev=net0,mac=%s", netDevice, opts.meta.MAC), "-netdev", "socket,id=net0,fd=3")
 	}
 
-	if os.Getenv("CI") != "true" {
-		if opts.meta.Arch == "aarch64" {
-			qemuArgs = append(qemuArgs, "-cpu", "host", "-accel", "hvf")
-		} else {
-			qemuArgs = append(qemuArgs, "-cpu", "max")
-		}
+	if opts.meta.Arch == "aarch64" {
+		qemuArgs = append(qemuArgs, "-cpu", "host", "-accel", "hvf")
+	} else {
+		qemuArgs = append(qemuArgs, "-cpu", "max")
 	}
 
 	return qemuArgs, nil
