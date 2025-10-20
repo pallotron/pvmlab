@@ -22,6 +22,11 @@ var (
 
 // TestMain handles setup and teardown for the integration tests.
 func TestMain(m *testing.M) {
+	if os.Getenv("RUN_INTEGRATION_TESTS") != "true" {
+		log.Println("Skipping integration tests. Set RUN_INTEGRATION_TESTS=true to run.")
+		os.Exit(0)
+	}
+
 	tempHomeDir, err := os.MkdirTemp("/tmp", "pvmlab_test_*")
 	if err != nil {
 		log.Fatalf("failed to create temp dir for integration test: %v", err)

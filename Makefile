@@ -5,26 +5,26 @@
 all: install-pvmlab build.socket_vmnet install.completions install.socket_vmnet install.launchd build-pxeboot-stack-container
 	@echo "🚀"
 clean: clean.socket_vmnet
-	@ make -C socket_vmnet clean
+	@make -C socket_vmnet clean
 
 install-pvmlab:
-	@ go install ./pvmlab
+	@go install ./pvmlab
 
 build.socket_vmnet:
 	logger echo "Building socket_vmnet..."
-	@ make -C socket_vmnet all
+	@make -C socket_vmnet all
 
 clean.socket_vmnet:
 	logger echo "Cleaning socket_vmnet..."
-	@ make -C socket_vmnet clean
+	@make -C socket_vmnet clean
 
 install.socket_vmnet: build.socket_vmnet
 	logger "Installing socket_vmnet... sudo access might be required..."
-	@ sudo make -C socket_vmnet install.bin
-	@ sudo chown root:staff /opt/socket_vmnet/bin/socket_vmnet_client
+	@sudo make -C socket_vmnet install.bin
+	@sudo chown root:staff /opt/socket_vmnet/bin/socket_vmnet_client
 
 build-pxeboot-stack-container:
-	@ make -C pxeboot_stack all
+	@make -C pxeboot_stack all
 
 define load_launchd
 	@if pvmlab vm list 2>/dev/null | grep -q Running; then \
@@ -98,7 +98,7 @@ release:
 		echo "Git working directory is not clean. Please commit or stash your changes."; \
 		exit 1; \
 	fi
-	@ git tag -a $(VERSION) -m "Version $(VERSION)"
+	@git tag -a $(VERSION) -m "Version $(VERSION)"
 	@git push origin $(VERSION)
 	@echo "🎉"
 
@@ -158,11 +158,11 @@ uninstall.completions:
 
 uninstall-pxeboot-stack-container:
 	@echo "Uninstalling pxeboot stack container..."
-	@ make -C pxeboot_stack clean
+	@make -C pxeboot_stack clean
 
 
 test: 
-	@ go test -v ./...
+	RUN_INTEGRATION_TESTS=false go test -v ./...
 
 integration.test: 
 	@make -C pxeboot_stack tar
