@@ -219,7 +219,11 @@ func TestVMLifecycle(t *testing.T) {
 	clientIPv6 := "fd00:cafe:baba::2/64"
 
 	defer func() {
-		if t.Failed() {
+		r := recover()
+		if t.Failed() || r != nil {
+			if r != nil {
+				log.Printf("Test panicked: %v", r)
+			}
 			log.Println("--- Integration test failed, collecting VM logs ---")
 			logDir := filepath.Join(os.Getenv("PVMLAB_HOME"), ".pvmlab", "logs")
 
@@ -246,6 +250,9 @@ func TestVMLifecycle(t *testing.T) {
 			_, _ = runCmdWithLiveOutput(pathToCLI, "vm", "clean", clientName)
 		} else {
 			log.Println("PVMLAB_DEBUG is true, leaving VMs for inspection.")
+		}
+		if r != nil {
+			panic(r) // re-panic after cleanup
 		}
 	}()
 
