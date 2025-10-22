@@ -21,6 +21,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+var assetsOnly bool
+
 // setupCmd represents the setup command
 var setupCmd = &cobra.Command{
 	Use:   "setup",
@@ -47,18 +49,19 @@ Make sure launchd is configured to launch the socket_vmnet service.`,
 		}
 
 		imagePath := filepath.Join(appDir, "images", config.UbuntuARMImageName)
-		if err := downloader.DownloadImageIfNotExists(imagePath, config.UbuntuARMImageURL); err != nil {
-			return err
-		}
-
-		if err := checkDependencies(); err != nil {
-			return err
-		}
-
-		if err := checkSocketVmnetStatus(); err != nil {
-			return err
-		}
-
+		        if err := downloader.DownloadImageIfNotExists(imagePath, config.UbuntuARMImageURL); err != nil {
+		            return err
+		        }
+		
+		        if !assetsOnly {
+		            if err := checkDependencies(); err != nil {
+		                return err
+		            }
+		
+		            if err := checkSocketVmnetStatus(); err != nil {
+		                return err
+		            }
+		        }
 		color.Green("✔ Setup completed successfully.")
 		return nil
 	},
@@ -196,4 +199,6 @@ func generateSSHKeys(sshDir string) error {
 
 func init() {
 	rootCmd.AddCommand(setupCmd)
+	setupCmd.Flags().BoolVar(&assetsOnly, "assets-only", false, "Only download assets, skip dependency checks and system setup.")
+	setupCmd.Flags().MarkHidden("assets-only")
 }

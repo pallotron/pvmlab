@@ -51,20 +51,20 @@ func TestSaveLoad(t *testing.T) {
 		t.Fatalf("Load() failed: %v", err)
 	}
 
-	expected := &Metadata{
-		Role:             role,
+	want := &Metadata{
+		Name:             vmName,
+		Role:             "provisioner",
 		Arch:             "aarch64",
-		IP:               ip,
-		Subnet:           subnet,
-		MAC:              mac,
-		PxeBootStackTar:  pxeBootStackTar,
-		DockerImagesPath: dockerImagesPath,
-		VMsPath:          vmsPath,
-		SSHPort:          0,
+		IP:               "192.168.1.1",
+		Subnet:           "192.168.1.0/24",
+		MAC:              "52:54:00:12:34:56",
+		PxeBootStackTar:  "pxe-stack.tar",
+		DockerImagesPath: "/path/to/docker/images",
+		VMsPath:          "/path/to/vms",
 	}
 
-	if !reflect.DeepEqual(meta, expected) {
-		t.Errorf("Load() got = %v, want %v", meta, expected)
+	if !reflect.DeepEqual(meta, want) {
+		t.Errorf("Load() got = %v, want %v", meta, want)
 	}
 }
 

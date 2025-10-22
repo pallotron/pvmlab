@@ -3,6 +3,7 @@ package socketvmnet
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -14,6 +15,11 @@ const (
 
 // GetSocketPath returns the path to the socket_vmnet socket.
 func GetSocketPath() (string, error) {
+	// Check for an override via environment variable, useful for testing.
+	if socketPath := os.Getenv("PVMLAB_SOCKET_VMNET_PATH"); socketPath != "" {
+		return socketPath, nil
+	}
+
 	// TODO: when https://github.com/lima-vm/socket_vmnet/pull/140 is merged
 	// we can use the brew socket_vmnet path
 	// cmd := exec.Command("brew", "--prefix")

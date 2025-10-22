@@ -11,6 +11,7 @@ import (
 	"pvmlab/internal/downloader"
 	"pvmlab/internal/errors"
 	"pvmlab/internal/metadata"
+	"pvmlab/internal/netutil"
 	"pvmlab/internal/runner"
 	"regexp"
 	"time"
@@ -148,7 +149,18 @@ The --role flag determines the type of VM to create.
 			subnetv6ForMetadata = parsedCIDR.String()
 		}
 
-		if err := metadata.Save(cfg, vmName, role, arch, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, 0, pxeboot); err != nil {
+		// The provisioner is the only VM that gets a forwarded port from the host,
+		// as it acts as a jump-box to the other VMs on the private network.
+		var sshPort int
+		if role == provisionerRole {
+			var err error
+			sshPort, err = netutil.FindRandomPort()
+			if err != nil {
+				return errors.E("vm-create", fmt.Errorf("could not find an available SSH port: %w", err))
+			}
+		}
+
+		if err := metadata.Save(cfg, vmName, role, arch, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, sshPort, pxeboot); err != nil {
 			color.Yellow("Warning: failed to save VM metadata: %v", err)
 		}
 		color.Green("✔ VM '%s' created successfully.", vmName)

@@ -1,29 +1,24 @@
 package netutil
 
 import (
-	"fmt"
 	"net"
-	"time"
 )
 
-// FindRandomPort finds an available TCP port in the range 40000-49999.
+// FindRandomPort asks the kernel for a free open port that is ready to be used.
+// It does this by listening on TCP address "127.0.0.1:0", which tells the
+// OS to assign an ephemeral port. It then closes the listener and returns
+// the assigned port number. This is a race-condition-free way to find an
+// available port.
 func FindRandomPort() (int, error) {
-	for i := 0; i < 100; i++ { // Try 100 times
-		port := 40000 + int(time.Now().UnixNano()%10000)
-		if IsPortAvailable(port) {
-			return port, nil
-		}
-	}
-	return 0, fmt.Errorf("could not find a free port after 100 attempts")
-}
-
-// IsPortAvailable checks if a TCP port is available to be listened on.
-func IsPortAvailable(port int) bool {
-	address := fmt.Sprintf("127.0.0.1:%d", port)
-	listener, err := net.Listen("tcp", address)
+	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
 	if err != nil {
-		return false
+		return 0, err
 	}
-	_ = listener.Close()
-	return true
+
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
 }
