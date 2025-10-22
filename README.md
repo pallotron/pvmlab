@@ -2,6 +2,12 @@
   <img src="images/pvmlab_logo.png" alt="pvmlab logo" width="500"/>
 </p>
 
+<p align="center">
+  <a href="https://github.com/pallotron/pvmlab/actions/workflows/go-test.yml"><img src="https://github.com/pallotron/pvmlab/actions/workflows/go-test.yml/badge.svg" alt="Go Test Status"></a>
+  <a href="https://github.com/pallotron/pvmlab/actions/workflows/integration-test.yml"><img src="https://github.com/pallotron/pvmlab/actions/workflows/integration-test.yml/badge.svg" alt="Integration Test Status"></a>
+  <a href="https://codecov.io/gh/pallotron/pvmlab"><img src="https://codecov.io/gh/pallotron/pvmlab/graph/badge.svg" alt="Codecov"></a>
+</p>
+
 # pvmlab: your local pxeboot virtual lab
 
 This project provides a command-line tool, `pvmlab`, to automate the setup of a simple virtual provisioning lab on macOS. It uses `QEMU`, `socket_vmnet`, `cloud-init`, and `Docker` to create and manage an environment where multiple "target" VMs are deployed in a private virtual network and one VM functions as the "provisioner" VM offering pxeboot services and working as default gw for internet access for those VMs.
