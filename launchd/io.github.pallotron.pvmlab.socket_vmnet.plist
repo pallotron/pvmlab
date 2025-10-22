@@ -6,14 +6,7 @@
 		<key>Label</key>
 		<string>io.github.pallotron.pvmlab.socket_vmnet</string>
 		<key>Program</key>
-		<string>/opt/socket_vmnet/bin/socket_vmnet</string>
-		<key>ProgramArguments</key>
-		<array>
-			<string>/opt/socket_vmnet/bin/socket_vmnet</string>
-			<string>--vmnet-mode=host</string>
-			<string>--vmnet-network-identifier=random</string>
-			<string>/var/run/vmlab.socket_vmnet</string>
-		</array>
+		<string>/opt/pvmlab/libexec/socket_vmnet_wrapper.sh</string>
 		<key>StandardErrorPath</key>
 		<string>/var/log/vmlab.socket_vmnet/stderr</string>
 		<key>StandardOutPath</key>

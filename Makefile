@@ -1,8 +1,8 @@
-.DEFAULT_GOAL := all
+.DEFAULT_GOAL := install
 
-.PHONY: all socket_vmnet clean install.socket_vmnet install.socket_vmnet.launchd install.completions test integration.test uninstall uninstall-pvmlab uninstall.socket_vmnet uninstall.launchd uninstall.completions uninstall-pxeboot-stack-container
+.PHONY: isntall socket_vmnet clean install.socket_vmnet install.socket_vmnet.launchd install.completions test integration.test uninstall uninstall-pvmlab uninstall.socket_vmnet uninstall.launchd uninstall.completions uninstall-pxeboot-stack-container
 
-all: install-pvmlab build.socket_vmnet install.completions install.socket_vmnet install.launchd build-pxeboot-stack-container
+install: install-pvmlab build.socket_vmnet install.completions install.socket_vmnet install.launchd build-pxeboot-stack-container
 	@echo "🚀"
 clean: clean.socket_vmnet
 	@make -C socket_vmnet clean
@@ -52,9 +52,14 @@ define unload_launchd
 endef
 
 install.launchd:
+	logger "Installing launchd wrapper script..."
+	@sudo cp launchd/socket_vmnet_wrapper.sh /opt/pvmlab/libexec/socket_vmnet_wrapper.sh
+	@sudo chmod +x /opt/pvmlab/libexec/socket_vmnet_wrapper.sh
 	$(call load_launchd,io.github.pallotron.pvmlab.socket_vmnet)
 
 uninstall.launchd:
+	logger "Uninstalling launchd wrapper script..."
+	@sudo rm -f /opt/pvmlab/libexec/socket_vmnet_wrapper.sh
 	$(call unload_launchd,io.github.pallotron.pvmlab.socket_vmnet)
 
 install.completions: install-pvmlab
@@ -108,9 +113,9 @@ uninstall: uninstall-pvmlab uninstall.socket_vmnet uninstall.launchd uninstall.c
 
 uninstall-pvmlab:
 	@echo "stopping all VMs..."
-	@pvmlab clean --purge
 	@echo "Uninstalling pvmlab binary..."
 	@if [ -f "$$(go env GOPATH)/bin/pvmlab" ]; then \
+		pvmlab clean --purge \
 		rm "$$(go env GOPATH)/bin/pvmlab"; \
 		echo "Removed $$(go env GOPATH)/bin/pvmlab"; \
 	else \
@@ -169,7 +174,7 @@ integration.test:
 	@RUN_INTEGRATION_TESTS=true go test -v ./tests/integration/...
 
 integration.test.ssh.provisioner:
-	@PVMLAB_HOME=$$(./find-test-pvmlab-home.sh) ./build/pvmlab_test vm shell test-provisioner
+	@PVMLAB_HOME=$$(./tests/find-test-pvmlab-home.sh) ./build/pvmlab_test vm shell test-provisioner
 
 integration.test.ssh.client:
-	@PVMLAB_HOME=$$(./find-test-pvmlab-home.sh) ./build/pvmlab_test vm shell test-client
+	@PVMLAB_HOME=$$(./tests/find-test-pvmlab-home.sh) ./build/pvmlab_test vm shell test-client
