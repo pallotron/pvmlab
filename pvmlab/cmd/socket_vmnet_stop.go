@@ -17,7 +17,7 @@ var serviceStopCmd = &cobra.Command{
 		if err := socketvmnet.StopSocketVmnet(); err != nil {
 			return err
 		}
-		color.Green("✔ Socket_vmnet service stopped successfully.")
+		color.Green("✔ %s service stopped successfully.", socketvmnet.ServiceName)
 		return nil
 	},
 }

@@ -21,6 +21,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// used in integration tests to skip dependency checks as they are installed by the Github Actions runner
 var assetsOnly bool
 
 // setupCmd represents the setup command
@@ -38,6 +39,7 @@ Make sure launchd is configured to launch the socket_vmnet service.`,
 		if err != nil {
 			return err
 		}
+
 		appDir := cfg.GetAppDir()
 
 		if err := createDirectories(appDir); err != nil {
@@ -49,19 +51,20 @@ Make sure launchd is configured to launch the socket_vmnet service.`,
 		}
 
 		imagePath := filepath.Join(appDir, "images", config.UbuntuARMImageName)
-		        if err := downloader.DownloadImageIfNotExists(imagePath, config.UbuntuARMImageURL); err != nil {
-		            return err
-		        }
-		
-		        if !assetsOnly {
-		            if err := checkDependencies(); err != nil {
-		                return err
-		            }
-		
-		            if err := checkSocketVmnetStatus(); err != nil {
-		                return err
-		            }
-		        }
+		if err := downloader.DownloadImageIfNotExists(imagePath, config.UbuntuARMImageURL); err != nil {
+			return err
+		}
+
+		if !assetsOnly {
+			if err := checkDependencies(); err != nil {
+				return err
+			}
+
+			if err := checkSocketVmnetStatus(); err != nil {
+				return err
+			}
+		}
+
 		color.Green("✔ Setup completed successfully.")
 		return nil
 	},

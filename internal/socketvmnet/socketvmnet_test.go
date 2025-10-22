@@ -43,17 +43,21 @@ func TestHelperProcess(t *testing.T) {
 		}
 	}
 
-	if cmd == "launchctl" && len(args) > 1 && args[0] == "start" {
-		if os.Getenv("LAUNCHCTL_START_FAIL") == "1" {
+	if cmd == "launchctl" && len(args) > 1 && args[0] == "load" {
+		if os.Getenv("LAUNCHCTL_LOAD_FAIL") == "1" {
 			os.Exit(1)
 		}
 		os.Exit(0)
 	}
 
-	if cmd == "launchctl" && len(args) > 1 && args[0] == "stop" {
-		if os.Getenv("LAUNCHCTL_STOP_FAIL") == "1" {
+	if cmd == "launchctl" && len(args) > 1 && args[0] == "unload" {
+		if os.Getenv("LAUNCHCTL_UNLOAD_FAIL") == "1" {
 			os.Exit(1)
 		}
+		os.Exit(0)
+	}
+
+	if cmd == "mkdir" {
 		os.Exit(0)
 	}
 
@@ -111,7 +115,7 @@ func TestStartSocketVmnet(t *testing.T) {
 	})
 
 	t.Run("start succeeds", func(t *testing.T) {
-		os.Unsetenv("LAUNCHCTL_START_FAIL")
+		os.Unsetenv("LAUNCHCTL_LOAD_FAIL")
 		err := StartSocketVmnet()
 		if err != nil {
 			t.Fatalf("StartSocketVmnet() returned an error: %v", err)
@@ -119,8 +123,8 @@ func TestStartSocketVmnet(t *testing.T) {
 	})
 
 	t.Run("start fails", func(t *testing.T) {
-		os.Setenv("LAUNCHCTL_START_FAIL", "1")
-		defer os.Unsetenv("LAUNCHCTL_START_FAIL")
+		os.Setenv("LAUNCHCTL_LOAD_FAIL", "1")
+		defer os.Unsetenv("LAUNCHCTL_LOAD_FAIL")
 		err := StartSocketVmnet()
 		if err == nil {
 			t.Fatal("StartSocketVmnet() did not return an error")
@@ -136,7 +140,7 @@ func TestStopSocketVmnet(t *testing.T) {
 	})
 
 	t.Run("stop succeeds", func(t *testing.T) {
-		os.Unsetenv("LAUNCHCTL_STOP_FAIL")
+		os.Unsetenv("LAUNCHCTL_UNLOAD_FAIL")
 		err := StopSocketVmnet()
 		if err != nil {
 			t.Fatalf("StopSocketVmnet() returned an error: %v", err)
@@ -144,8 +148,8 @@ func TestStopSocketVmnet(t *testing.T) {
 	})
 
 	t.Run("stop fails", func(t *testing.T) {
-		os.Setenv("LAUNCHCTL_STOP_FAIL", "1")
-		defer os.Unsetenv("LAUNCHCTL_STOP_FAIL")
+		os.Setenv("LAUNCHCTL_UNLOAD_FAIL", "1")
+		defer os.Unsetenv("LAUNCHCTL_UNLOAD_FAIL")
 		err := StopSocketVmnet()
 		if err == nil {
 			t.Fatal("StopSocketVmnet() did not return an error")

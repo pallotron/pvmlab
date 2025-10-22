@@ -54,12 +54,23 @@ func IsSocketVmnetRunning() (bool, error) {
 }
 
 func StartSocketVmnet() error {
-	cmd := execCommand("sudo", "launchctl", "start", ServiceName)
+	// Ensure the log directory and files exist.
+	if err := execCommand("sudo", "mkdir", "-p", "/var/log/vmlab.socket_vmnet").Run(); err != nil {
+		return fmt.Errorf("failed to create log directory: %w", err)
+	}
+	// Ensure the state directory exists.
+	if err := execCommand("sudo", "mkdir", "-p", "/var/run/pvmlab").Run(); err != nil {
+		return fmt.Errorf("failed to create state directory: %w", err)
+	}
+
+	plistPath := fmt.Sprintf("/Library/LaunchDaemons/%s.plist", ServiceName)
+	cmd := execCommand("sudo", "launchctl", "load", "-w", plistPath)
 	return cmd.Run()
 }
 
 func StopSocketVmnet() error {
-	cmd := execCommand("sudo", "launchctl", "stop", ServiceName)
+	plistPath := fmt.Sprintf("/Library/LaunchDaemons/%s.plist", ServiceName)
+	cmd := execCommand("sudo", "launchctl", "unload", "-w", plistPath)
 	return cmd.Run()
 }
 

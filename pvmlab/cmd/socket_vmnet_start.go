@@ -17,7 +17,7 @@ var serviceStartCmd = &cobra.Command{
 		if err := socketvmnet.StartSocketVmnet(); err != nil {
 			return err
 		}
-		color.Green("✔ Socket_vmnet service started successfully.")
+		color.Green("✔ %s service started successfully.", socketvmnet.ServiceName)
 		return nil
 	},
 }
