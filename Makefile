@@ -5,23 +5,23 @@
 install: install-pvmlab build.socket_vmnet install.completions install.socket_vmnet install.launchd build-pxeboot-stack-container
 	@echo "🚀"
 clean: clean.socket_vmnet
-	@make -C socket_vmnet clean
+	make -C socket_vmnet clean
 
 install-pvmlab:
-	@go install ./pvmlab
+	go install ./pvmlab
 
 build.socket_vmnet:
 	logger echo "Building socket_vmnet..."
-	@make -C socket_vmnet all
+	make -C socket_vmnet all
 
 clean.socket_vmnet:
 	logger echo "Cleaning socket_vmnet..."
-	@make -C socket_vmnet clean
+	make -C socket_vmnet clean
 
 install.socket_vmnet: build.socket_vmnet
 	logger "Installing socket_vmnet... sudo access might be required..."
-	@sudo make -C socket_vmnet install.bin
-	@sudo chown root:staff /opt/socket_vmnet/bin/socket_vmnet_client
+	sudo make -C socket_vmnet install.bin
+	sudo chown root:staff /opt/socket_vmnet/bin/socket_vmnet_client
 
 build-pxeboot-stack-container:
 	@make -C pxeboot_stack all
@@ -32,13 +32,13 @@ define load_launchd
 		exit 1; \
 	fi
 	logger "Stopping launchd service $(1) if running..."
-	@sudo launchctl bootout system "/Library/LaunchDaemons/$(1).plist" || true
+	sudo launchctl bootout system "/Library/LaunchDaemons/$(1).plist" || true
 	@logger "Installing launchd service for socket_vmnet in /Library/LaunchDaemons/$(1).plist"
-	@sudo cp launchd/$(1).plist  /Library/LaunchDaemons/$(1).plist
-	@sudo launchctl bootstrap system "/Library/LaunchDaemons/$(1).plist" || true
-	@sudo launchctl enable system/$(1)
-	@sudo launchctl kickstart -kp system/$(1)
-	@sudo launchctl list $(1)
+	sudo cp launchd/$(1).plist  /Library/LaunchDaemons/$(1).plist
+	sudo launchctl enable system/$(1) 
+	sudo launchctl bootstrap system "/Library/LaunchDaemons/$(1).plist" || true
+	sudo launchctl kickstart -kp system/$(1) 
+	sudo launchctl list $(1)
 endef
 
 define unload_launchd
@@ -47,20 +47,20 @@ define unload_launchd
 		exit 1; \
 	fi
 	logger "Uninstalling launchd service for ${1}"
-	@sudo launchctl bootout system "$(DESTDIR)/Library/LaunchDaemons/$(1).plist" || true
-	@sudo rm -f /Library/LaunchDaemons/$(1).plist
+	sudo launchctl bootout system "$(DESTDIR)/Library/LaunchDaemons/$(1).plist" || true
+	sudo rm -f /Library/LaunchDaemons/$(1).plist
 endef
 
 install.launchd:
 	logger "Installing launchd wrapper script..."
-	@sudo mkdir -p /opt/pvmlab/libexec/
-	@sudo cp launchd/socket_vmnet_wrapper.sh /opt/pvmlab/libexec/socket_vmnet_wrapper.sh
-	@sudo chmod +x /opt/pvmlab/libexec/socket_vmnet_wrapper.sh
+	sudo mkdir -p /opt/pvmlab/libexec/
+	sudo cp launchd/socket_vmnet_wrapper.sh /opt/pvmlab/libexec/socket_vmnet_wrapper.sh
+	sudo chmod +x /opt/pvmlab/libexec/socket_vmnet_wrapper.sh
 	$(call load_launchd,io.github.pallotron.pvmlab.socket_vmnet)
 
 uninstall.launchd:
 	logger "Uninstalling launchd wrapper script..."
-	@sudo rm -f /opt/pvmlab/libexec/socket_vmnet_wrapper.sh
+	sudo rm -f /opt/pvmlab/libexec/socket_vmnet_wrapper.sh
 	$(call unload_launchd,io.github.pallotron.pvmlab.socket_vmnet)
 
 install.completions: install-pvmlab
@@ -104,8 +104,8 @@ release:
 		echo "Git working directory is not clean. Please commit or stash your changes."; \
 		exit 1; \
 	fi
-	@git tag -a $(VERSION) -m "Version $(VERSION)"
-	@git push origin $(VERSION)
+	git tag -a $(VERSION) -m "Version $(VERSION)"
+	git push origin $(VERSION)
 	@echo "🎉"
 
 uninstall: uninstall-pvmlab uninstall.socket_vmnet uninstall.launchd uninstall.completions uninstall-pxeboot-stack-container
@@ -125,6 +125,7 @@ uninstall-pvmlab:
 
 uninstall.socket_vmnet:
 	@echo "Uninstalling socket_vmnet..."
+	@sudo rm -f /var/run/vmlab.socket_vmnet
 	@if [ -f "/opt/socket_vmnet/bin/socket_vmnet" ]; then \
 		sudo make -C socket_vmnet uninstall; \
 	else \
@@ -164,8 +165,7 @@ uninstall.completions:
 
 uninstall-pxeboot-stack-container:
 	@echo "Uninstalling pxeboot stack container..."
-	@make -C pxeboot_stack clean
-
+	@make -C pxeboot_stack clean || true
 
 test: 
 	RUN_INTEGRATION_TESTS=false go test -v ./...
