@@ -53,6 +53,7 @@ endef
 
 install.launchd:
 	logger "Installing launchd wrapper script..."
+	@sudo mkdir -p /opt/pvmlab/libexec/
 	@sudo cp launchd/socket_vmnet_wrapper.sh /opt/pvmlab/libexec/socket_vmnet_wrapper.sh
 	@sudo chmod +x /opt/pvmlab/libexec/socket_vmnet_wrapper.sh
 	$(call load_launchd,io.github.pallotron.pvmlab.socket_vmnet)
