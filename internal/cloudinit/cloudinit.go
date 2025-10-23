@@ -195,6 +195,7 @@ runcmd:
   - rm /etc/update-motd.d/10-help-text
   - rm /etc/update-motd.d/50-motd-news
   - rm /etc/update-motd.d/90-updates-available
+  - systemctl restart systemd-networkd
 
 write_files:
   - path: /etc/systemd/networkd.conf.d/dhcpv6_duid_llt.conf
