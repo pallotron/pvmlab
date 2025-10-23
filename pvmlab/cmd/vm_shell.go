@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"pvmlab/internal/config"
 	"pvmlab/internal/metadata"
+	"pvmlab/internal/ssh"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -32,39 +32,20 @@ var vmShellCmd = &cobra.Command{
 			return fmt.Errorf("error loading VM metadata: %w", err)
 		}
 
-		appDir := cfg.GetAppDir()
-		sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa")
-		var sshCmd *exec.Cmd
-
-		baseSSHArgs := []string{
-			"-4",
-			"-i", sshKeyPath,
-			"-o", "StrictHostKeyChecking=no",
-			"-o", "UserKnownHostsFile=/dev/null",
+		sshArgs, err := ssh.GetSSHArgs(cfg, meta, false)
+		if err != nil {
+			return err
 		}
 
+		var target string
 		if meta.Role == "provisioner" {
-			if meta.SSHPort == 0 {
-				return fmt.Errorf("SSH port not found in metadata, is the VM running?")
-			}
-			sshPort := fmt.Sprintf("%d", meta.SSHPort)
-			provisionerArgs := append(baseSSHArgs, "-p", sshPort, "ubuntu@127.0.0.1")
-			sshCmd = exec.Command("ssh", provisionerArgs...)
+			target = "ubuntu@127.0.0.1"
 		} else {
-			provisioner, err := metadata.GetProvisioner(cfg)
-			if err != nil {
-				return fmt.Errorf("failed to find provisioner: %w", err)
-			}
-			if provisioner.SSHPort == 0 {
-				return fmt.Errorf("provisioner SSH port not found in metadata, is the provisioner running?")
-			}
-			provisionerPort := fmt.Sprintf("%d", provisioner.SSHPort)
-			proxyCommand := fmt.Sprintf("ssh -4 -i %s -p %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %%h:%%p ubuntu@127.0.0.1", sshKeyPath, provisionerPort)
-			targetIP := meta.IP
-			targetConnect := fmt.Sprintf("ubuntu@%s", targetIP)
-			targetArgs := append(baseSSHArgs, "-o", fmt.Sprintf("ProxyCommand=%s", proxyCommand), targetConnect)
-			sshCmd = exec.Command("ssh", targetArgs...)
+			target = fmt.Sprintf("ubuntu@%s", meta.IP)
 		}
+
+		finalArgs := append(sshArgs, target)
+		sshCmd := exec.Command("ssh", finalArgs...)
 
 		// If there are arguments after the vmName, treat them as a command to execute
 		if len(args) > 1 {
