@@ -3,7 +3,9 @@ package cmd
 import (
 	"crypto/rand"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"pvmlab/internal/cloudinit"
@@ -87,6 +89,28 @@ The --role flag determines the type of VM to create.
 		finalVMsPath, err := resolvePath(vmsPath, filepath.Join(appDir, "vms"))
 		if err != nil {
 			return errors.E("vm-create", err)
+		}
+
+		if role == provisionerRole {
+			absTarPath, err := filepath.Abs(pxebootStackTar)
+			if err != nil {
+				return errors.E("vm-create", fmt.Errorf("failed to resolve path for --docker-pxeboot-stack-tar: %w", err))
+			}
+
+			if _, err := os.Stat(absTarPath); err == nil {
+				// File exists at the provided path, so copy it.
+				if err := os.MkdirAll(finalDockerImagesPath, 0755); err != nil {
+					return errors.E("vm-create", fmt.Errorf("failed to create docker images directory: %w", err))
+				}
+				destTarPath := filepath.Join(finalDockerImagesPath, filepath.Base(absTarPath))
+				if err := copyFile(absTarPath, destTarPath); err != nil {
+					return errors.E("vm-create", fmt.Errorf("failed to copy pxeboot stack tar file: %w", err))
+				}
+				pxebootStackTar = filepath.Base(absTarPath)
+			} else if !os.IsNotExist(err) {
+				// Some other error with os.Stat
+				return errors.E("vm-create", fmt.Errorf("error checking --docker-pxeboot-stack-tar path: %w", err))
+			}
 		}
 
 		if err := checkExistingVMs(cfg, vmName, role); err != nil {
@@ -304,6 +328,26 @@ var createBlankDisk = func(vmDiskPath, diskSize string) error {
 	}
 	s.FinalMSG = color.GreenString("✔ Blank VM disk created successfully.\n")
 	return nil
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return out.Close()
 }
 
 func init() {
