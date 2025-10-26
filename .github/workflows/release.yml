@@ -26,6 +26,8 @@ jobs:
 
   build-and-release-images:
     needs: create-release
+    permissions:
+      contents: write
     strategy:
       matrix:
         arch: [amd64, arm64]
