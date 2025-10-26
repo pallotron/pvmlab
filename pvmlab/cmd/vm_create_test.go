@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"pvmlab/internal/cloudinit"
 	"pvmlab/internal/config"
 	"pvmlab/internal/metadata"
 	"strings"
@@ -68,7 +69,7 @@ func TestVMCreateCommand(t *testing.T) {
 			name: "iso create failure",
 			args: []string{"vm", "create", "test-vm", "--role", "target"},
 			setupMocks: func() {
-				createISO = func(string, string, string, string, string, string, string, string) error {
+				cloudinit.CreateISO = func(string, string, string, string, string, string, string, string, string) error {
 					return errors.New("iso creation failed")
 				}
 			},

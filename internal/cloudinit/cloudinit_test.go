@@ -61,7 +61,7 @@ func TestCreateISO(t *testing.T) {
 	// Test case for "provisioner" role
 	t.Run("provisioner", func(t *testing.T) {
 		isoPath := filepath.Join(appDir, "provisioner.iso")
-		err := CreateISO("test-vm", "provisioner", appDir, isoPath, "192.168.1.1/24", "", "", "pxe-stack.tar")
+		err := CreateISO("test-vm", "provisioner", appDir, isoPath, "192.168.1.1/24", "", "", "pxe-stack.tar", "ghcr.io/user/repo:tag")
 		if err != nil {
 			t.Fatalf("CreateISO() for provisioner returned an error: %v", err)
 		}
@@ -75,7 +75,7 @@ func TestCreateISO(t *testing.T) {
 	// Test case for "target" role
 	t.Run("target", func(t *testing.T) {
 		isoPath := filepath.Join(appDir, "target.iso")
-		err := CreateISO("test-vm-target", "target", appDir, isoPath, "", "", "52:54:00:12:34:56", "")
+		err := CreateISO("test-vm-target", "target", appDir, isoPath, "", "", "52:54:00:12:34:56", "", "")
 		if err != nil {
 			t.Fatalf("CreateISO() for target returned an error: %v", err)
 		}

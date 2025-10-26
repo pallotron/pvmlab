@@ -1,14 +1,30 @@
 .DEFAULT_GOAL := install
 
-.PHONY: isntall socket_vmnet clean install.socket_vmnet install.socket_vmnet.launchd install.completions test integration.test uninstall uninstall-pvmlab uninstall.socket_vmnet uninstall.launchd uninstall.completions uninstall-pxeboot-stack-container
+VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "devel")
+GIT_DIRTY ?= $(shell git status --porcelain 2>/dev/null)
+
+ifeq ($(GIT_DIRTY),)
+	BUILD_VERSION = $(VERSION)
+else
+	BUILD_VERSION = devel
+endif
+
+LDFLAGS = -ldflags="-X 'pvmlab/internal/config.Version=$(BUILD_VERSION)'"
+
+.PHONY: isntall socket_vmnet clean clean-iso install.socket_vmnet install.socket_vmnet.launchd install.completions test integration.test uninstall uninstall-pvmlab uninstall.socket_vmnet uninstall.launchd uninstall.completions uninstall-pxeboot-stack-container
 
 install: install-pvmlab build.socket_vmnet install.completions install.socket_vmnet install.launchd build-pxeboot-stack-container
 	@echo "🚀"
-clean: clean.socket_vmnet
+	
+clean: clean.socket_vmnet clean-iso
 	make -C socket_vmnet clean
 
+clean-iso:
+	@echo "Cleaning generated ISOs..."
+	@rm -f ~/.pvmlab/configs/cloud-init/*.iso
+
 install-pvmlab:
-	go install ./pvmlab
+	go install $(LDFLAGS) ./pvmlab
 
 build.socket_vmnet:
 	logger echo "Building socket_vmnet..."

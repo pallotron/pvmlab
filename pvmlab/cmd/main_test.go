@@ -77,10 +77,10 @@ func setupMocks(_ *testing.T) {
 	createDisk = func(string, string, string) error {
 		return nil
 	}
-	createISO = func(string, string, string, string, string, string, string, string) error {
+	createISO = func(string, string, string, string, string, string, string, string, string) error {
 		return nil
 	}
-	cloudinit.CreateISO = func(string, string, string, string, string, string, string, string) error {
+	cloudinit.CreateISO = func(string, string, string, string, string, string, string, string, string) error {
 		return nil
 	}
 	metadata.Save = func(*config.Config, string, string, string, string, string, string, string, string, string, string, string, int, bool) error {

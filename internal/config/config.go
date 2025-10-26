@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -19,6 +20,40 @@ const (
 	// UbuntuAMD64ImageURL is the full URL for the Ubuntu x86_64 cloud image
 	UbuntuAMD64ImageURL = UbuntuCloudImageBaseURL + UbuntuAMD64ImageName
 )
+
+// Version is the version of the application. It is set at build time.
+var Version = "devel"
+
+// GetProvisionerImageURL returns the URL for the provisioner image based on the
+// application version and architecture.
+func GetProvisionerImageURL(arch string) (string, string) {
+
+	var imageName string
+	if arch == "aarch64" {
+		imageName = "provisioner-custom.arm64.qcow2"
+	} else {
+		imageName = "provisioner-custom.amd64.qcow2"
+	}
+
+	var url string
+	if Version == "devel" {
+		url = fmt.Sprintf("https://github.com/pallotron/pvmlab/releases/latest/download/%s", imageName)
+	} else {
+		url = fmt.Sprintf("https://github.com/pallotron/pvmlab/releases/download/%s/%s", Version, imageName)
+	}
+
+	return url, imageName
+}
+
+// GetPxeBootStackImageURL returns the URL for the pxeboot stack image based on
+// the application version.
+func GetPxeBootStackImageURL() string {
+	version := Version
+	if Version == "devel" {
+		version = "latest"
+	}
+	return fmt.Sprintf("ghcr.io/pallotron/pvmlab/pxeboot_stack:%s", version)
+}
 
 // Config holds the application's configuration.
 type Config struct {
