@@ -139,7 +139,7 @@ func Delete(cfg *config.Config, vmName string) error {
 	return nil
 }
 
-func GetAll(cfg *config.Config) (map[string]*Metadata, error) {
+var GetAll = func(cfg *config.Config) (map[string]*Metadata, error) {
 	vmsDir := getVMsDir(cfg)
 
 	allMeta := make(map[string]*Metadata)

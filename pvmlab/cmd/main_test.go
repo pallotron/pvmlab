@@ -9,6 +9,7 @@ import (
 	"pvmlab/internal/config"
 	"pvmlab/internal/downloader"
 	"pvmlab/internal/metadata"
+	"pvmlab/internal/pidfile"
 	"pvmlab/internal/runner"
 	"pvmlab/internal/socketvmnet"
 	"pvmlab/internal/ssh"
@@ -65,9 +66,11 @@ func TestMain(m *testing.M) {
 	originalMetadataSave := metadata.Save
 	originalMetadataFindProvisioner := metadata.FindProvisioner
 	originalMetadataFindVM := metadata.FindVM
+	originalMetadataGetAll := metadata.GetAll
 	originalRunnerRun := runner.Run
 	originalSSHGenerateKey := ssh.GenerateKey
 	originalSocketVmnetIsSocketVmnetRunning := socketvmnet.IsSocketVmnetRunning
+	originalPidfileIsRunning := pidfile.IsRunning
 
 	// Defer restoration of original functions
 	defer func() {
@@ -79,9 +82,11 @@ func TestMain(m *testing.M) {
 		metadata.Save = originalMetadataSave
 		metadata.FindProvisioner = originalMetadataFindProvisioner
 		metadata.FindVM = originalMetadataFindVM
+		metadata.GetAll = originalMetadataGetAll
 		runner.Run = originalRunnerRun
 		ssh.GenerateKey = originalSSHGenerateKey
 		socketvmnet.IsSocketVmnetRunning = originalSocketVmnetIsSocketVmnetRunning
+		pidfile.IsRunning = originalPidfileIsRunning
 	}()
 
 	// Run tests
@@ -114,6 +119,9 @@ func setupMocks(_ *testing.T) {
 	metadata.FindVM = func(*config.Config, string) (string, error) {
 		return "", nil // No VM exists by default
 	}
+	metadata.GetAll = func(*config.Config) (map[string]*metadata.Metadata, error) {
+		return make(map[string]*metadata.Metadata), nil // No VMs exist by default
+	}
 	runner.Run = func(*exec.Cmd) error {
 		return nil
 	}
@@ -122,5 +130,8 @@ func setupMocks(_ *testing.T) {
 	}
 	socketvmnet.IsSocketVmnetRunning = func() (bool, error) {
 		return true, nil
+	}
+	pidfile.IsRunning = func(c *config.Config, name string) (bool, error) {
+		return false, nil
 	}
 }

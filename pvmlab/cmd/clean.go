@@ -39,6 +39,12 @@ Use the --purge flag to remove the entire ~/.pvmlab directory.`,
 		if err != nil {
 			return fmt.Errorf("error getting VM list: %w", err)
 		}
+
+		if len(allMeta) == 0 && !purge {
+			color.Yellow("No VMs found to clean.")
+			return nil
+		}
+
 		for vmName := range allMeta {
 			color.Cyan("i Stopping VM: %s", vmName)
 			// We can ignore errors here, as the VM might already be stopped.
