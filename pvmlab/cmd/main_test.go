@@ -37,21 +37,24 @@ func executeCommandC(root *cobra.Command, args ...string) (*cobra.Command, strin
 	color.Output = cobraBuf
 	defer func() { color.Output = originalColorOutput }()
 
-	// Capture direct stderr writes (for spinner)
+	// Capture direct stdout/stderr writes
+	oldStdout := os.Stdout
 	oldStderr := os.Stderr
 	r, w, _ := os.Pipe()
+	os.Stdout = w
 	os.Stderr = w
 
 	c, err := root.ExecuteC()
 
-	// Restore stderr and read from the pipe
+	// Restore stdout/stderr and read from the pipe
 	w.Close()
+	os.Stdout = oldStdout
 	os.Stderr = oldStderr
-	stderrBuf := new(bytes.Buffer)
-	io.Copy(stderrBuf, r)
+	capturedBuf := new(bytes.Buffer)
+	io.Copy(capturedBuf, r)
 
 	// Combine outputs
-	combinedOutput := cobraBuf.String() + stderrBuf.String()
+	combinedOutput := cobraBuf.String() + capturedBuf.String()
 
 	return c, combinedOutput, err
 }
