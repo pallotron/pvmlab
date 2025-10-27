@@ -215,6 +215,7 @@ write_files:
 	targetVendorData = ``
 )
 
+
 func executeTemplate(name, tmplStr string, data interface{}) (string, error) {
 	tmpl, err := template.New(name).Delims("[[", "]]").Parse(tmplStr)
 	if err != nil {

@@ -60,29 +60,73 @@ func TestCreateISO(t *testing.T) {
 
 	// Test case for "provisioner" role
 	t.Run("provisioner", func(t *testing.T) {
+		vmName := "test-vm"
 		isoPath := filepath.Join(appDir, "provisioner.iso")
-		err := CreateISO("test-vm", "provisioner", appDir, isoPath, "192.168.1.1/24", "", "", "pxe-stack.tar", "ghcr.io/user/repo:tag")
+		err := CreateISO(vmName, "provisioner", appDir, isoPath, "192.168.1.1/24", "", "", "pxe-stack.tar", "ghcr.io/user/repo:tag")
 		if err != nil {
 			t.Fatalf("CreateISO() for provisioner returned an error: %v", err)
 		}
-		// Check if config files were created
-		configDir := filepath.Join(appDir, "configs", "cloud-init", "test-vm")
-		if _, err := os.Stat(filepath.Join(configDir, "meta-data")); os.IsNotExist(err) {
-			t.Error("meta-data file was not created for provisioner")
-		}
+
+		configDir := filepath.Join(appDir, "configs", "cloud-init", vmName)
+		checkFileContent(t, filepath.Join(configDir, "meta-data"), `instance-id: iid-cloudimg-provisioner
+local-hostname: provisioner
+public-keys:
+  - "ssh-rsa AAAA..."
+pxe_boot_stack_tar: "pxe-stack.tar"
+pxe_boot_stack_name: "pxe-stack"
+pxe_boot_stack_image: "ghcr.io/user/repo:tag"
+provisioner_ip: "192.168.1.1"
+dhcp_range_start: "192.168.1.100"
+dhcp_range_end: "192.168.1.200"
+`)
+		checkFileContent(t, filepath.Join(configDir, "user-data"), provisionerUserDataTemplate)
+		checkFileContent(t, filepath.Join(configDir, "network-config"), `version: 2
+ethernets:
+  enp0s1:
+    dhcp4: true
+    dhcp6: true
+  enp0s2:
+    dhcp4: false
+    addresses:
+      - "192.168.1.1/24"
+      `)
 	})
 
 	// Test case for "target" role
 	t.Run("target", func(t *testing.T) {
+		vmName := "test-vm-target"
 		isoPath := filepath.Join(appDir, "target.iso")
-		err := CreateISO("test-vm-target", "target", appDir, isoPath, "", "", "52:54:00:12:34:56", "", "")
+		err := CreateISO(vmName, "target", appDir, isoPath, "", "", "52:54:00:12:34:56", "", "")
 		if err != nil {
 			t.Fatalf("CreateISO() for target returned an error: %v", err)
 		}
-		// Check if config files were created
-		configDir := filepath.Join(appDir, "configs", "cloud-init", "test-vm-target")
-		if _, err := os.Stat(filepath.Join(configDir, "user-data")); os.IsNotExist(err) {
-			t.Error("user-data file was not created for target")
-		}
+
+		configDir := filepath.Join(appDir, "configs", "cloud-init", vmName)
+		checkFileContent(t, filepath.Join(configDir, "meta-data"), `instance-id: iid-cloudimg-test-vm-target
+local-hostname: test-vm-target
+public-keys:
+  - "ssh-rsa AAAA..."
+`)
+		checkFileContent(t, filepath.Join(configDir, "user-data"), targetUserData)
+		checkFileContent(t, filepath.Join(configDir, "network-config"), `network:
+  version: 2
+  ethernets:
+    static-interface:
+      match:
+        macaddress: "52:54:00:12:34:56"
+      dhcp4: true
+      dhcp6: true
+`)
 	})
+}
+
+func checkFileContent(t *testing.T, path, expectedContent string) {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Failed to read file %s: %v", path, err)
+	}
+	if string(content) != expectedContent {
+		t.Errorf("File content for %s does not match expected content.\nGot:\n%s\nWant:\n%s", path, string(content), expectedContent)
+	}
 }

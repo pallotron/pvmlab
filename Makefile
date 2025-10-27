@@ -184,11 +184,11 @@ uninstall-pxeboot-stack-container:
 	@make -C pxeboot_stack clean || true
 
 test: 
-	RUN_INTEGRATION_TESTS=false go test -v ./...
+	RUN_INTEGRATION_TESTS=false go test ./...
 
 integration.test: 
 	@make -C pxeboot_stack tar
-	@RUN_INTEGRATION_TESTS=true go test -v ./tests/integration/...
+	@RUN_INTEGRATION_TESTS=true go test ./tests/integration/...
 
 integration.test.ssh.provisioner:
 	@PVMLAB_HOME=$$(./tests/find-test-pvmlab-home.sh) ./build/pvmlab_test vm shell test-provisioner
