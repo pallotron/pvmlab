@@ -1,24 +1,19 @@
 package cmd
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"pvmlab/internal/config"
-	"pvmlab/internal/downloader"
 	"pvmlab/internal/runner"
 	"pvmlab/internal/socketvmnet"
+	"pvmlab/internal/ssh"
 	"time"
 
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"golang.org/x/crypto/ssh"
 )
 
 // used in integration tests to skip dependency checks as they are installed by the Github Actions runner
@@ -46,14 +41,16 @@ Make sure launchd is configured to launch the socket_vmnet service.`,
 			return err
 		}
 
-		if err := generateSSHKeys(filepath.Join(appDir, "ssh")); err != nil {
+		s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+		s.Suffix = " Generating SSH keys..."
+		s.Start()
+		sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa")
+		if err := ssh.GenerateKey(sshKeyPath); err != nil {
+			s.FinalMSG = color.RedString("✖ Failed to generate SSH keys.\n")
 			return err
 		}
-
-		imagePath := filepath.Join(appDir, "images", config.UbuntuARMImageName)
-		if err := downloader.DownloadImageIfNotExists(imagePath, config.UbuntuARMImageURL); err != nil {
-			return err
-		}
+		s.FinalMSG = color.GreenString("✔ SSH keys generated successfully.\n")
+		s.Stop()
 
 		if !assetsOnly {
 			if err := checkDependencies(); err != nil {
@@ -153,50 +150,6 @@ func checkDependencies() error {
 		}
 	}
 	s.FinalMSG = color.GreenString("✔ Dependencies checked successfully.\n")
-	return nil
-}
-
-func generateSSHKeys(sshDir string) error {
-	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
-	s.Suffix = " Generating SSH keys..."
-	s.Start()
-	defer s.Stop()
-
-	privateKeyPath := filepath.Join(sshDir, "vm_rsa")
-	publicKeyPath := filepath.Join(sshDir, "vm_rsa.pub")
-
-	// Generate a new private key
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		s.FinalMSG = color.RedString("✖ Failed to generate SSH keys.\n")
-		return err
-	}
-
-	// Encode the private key to the PEM format
-	privateKeyPEM := &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
-	}
-
-	privateKeyBytes := pem.EncodeToMemory(privateKeyPEM)
-	if err := os.WriteFile(privateKeyPath, privateKeyBytes, 0600); err != nil {
-		s.FinalMSG = color.RedString("✖ Failed to write private key.\n")
-		return err
-	}
-
-	// Create the public key
-	publicKey, err := ssh.NewPublicKey(&privateKey.PublicKey)
-	if err != nil {
-		s.FinalMSG = color.RedString("✖ Failed to create public key.\n")
-		return err
-	}
-
-	// Write the public key to a file
-	if err := os.WriteFile(publicKeyPath, ssh.MarshalAuthorizedKey(publicKey), 0644); err != nil {
-		s.FinalMSG = color.RedString("✖ Failed to write public key.\n")
-		return err
-	}
-	s.FinalMSG = color.GreenString("✔ SSH keys generated successfully.\n")
 	return nil
 }
 

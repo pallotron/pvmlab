@@ -1,9 +1,16 @@
 package ssh
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
+
+	"golang.org/x/crypto/ssh"
 
 	"pvmlab/internal/config"
 	"pvmlab/internal/metadata"
@@ -45,4 +52,50 @@ func GetSSHArgs(cfg *config.Config, meta *metadata.Metadata, forSCP bool) ([]str
 	proxyCommand := fmt.Sprintf("ssh -4 -i %s -p %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -W %%h:%%p ubuntu@127.0.0.1", sshKeyPath, provisionerPort)
 
 	return append(baseArgs, "-o", fmt.Sprintf("ProxyCommand=%s", proxyCommand)), nil
+}
+
+// GenerateKey generates a new SSH key pair and saves it to the specified path.
+// If the key already exists, it does nothing.
+func GenerateKey(privateKeyPath string) error {
+	if _, err := os.Stat(privateKeyPath); err == nil {
+		// Key already exists
+		return nil
+	}
+
+	sshDir := filepath.Dir(privateKeyPath)
+	if err := os.MkdirAll(sshDir, 0755); err != nil {
+		return fmt.Errorf("failed to create ssh directory: %w", err)
+	}
+
+	publicKeyPath := privateKeyPath + ".pub"
+
+	// Generate a new private key
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return fmt.Errorf("failed to generate private key: %w", err)
+	}
+
+	// Encode the private key to the PEM format
+	privateKeyPEM := &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+	}
+
+	privateKeyBytes := pem.EncodeToMemory(privateKeyPEM)
+	if err := os.WriteFile(privateKeyPath, privateKeyBytes, 0600); err != nil {
+		return fmt.Errorf("failed to write private key: %w", err)
+	}
+
+	// Create the public key
+	publicKey, err := ssh.NewPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to create public key: %w", err)
+	}
+
+	// Write the public key to a file
+	if err := os.WriteFile(publicKeyPath, ssh.MarshalAuthorizedKey(publicKey), 0644); err != nil {
+		return fmt.Errorf("failed to write public key: %w", err)
+	}
+
+	return nil
 }

@@ -19,13 +19,14 @@ public-keys:
   - "[[ .SshKey ]]"
 pxe_boot_stack_tar: "[[ .PxeBootStackTar ]]"
 pxe_boot_stack_name: "[[ .PxeBootStackName ]]"
+pxe_boot_stack_image: "[[ .PxeBootStackImage ]]"
 provisioner_ip: "[[ .ProvisionerIp ]]"
 dhcp_range_start: "[[ .DhcpRangeStart ]]"
 dhcp_range_end: "[[ .DhcpRangeEnd ]]"
 [[ if .DhcpRangeV6Start -]]
 dhcp_range_v6_start: "[[ .DhcpRangeV6Start ]]"
 dhcp_range_v6_end: "[[ .DhcpRangeV6End ]]"
-ipv6_subnet: "[[ .ProvisionerIpV6 ]]/[[ .PrefixLenV6 ]]"
+ipv6_subnet: "[[ .ProvisionerIpV6 ]]\/[[ .PrefixLenV6 ]]"
 [[ end -]]
 `
 	provisionerUserDataTemplate = `## template: jinja
@@ -80,7 +81,7 @@ write_files:
         -e DHCP_RANGE_V6_START=$DHCP_RANGE_V6_START \
         -e DHCP_RANGE_V6_END=$DHCP_RANGE_V6_END \
         {% endif %} \
-        --name ${CONTAINER_NAME} ${DOCKER_RUN_FLAGS} ${CONTAINER_NAME}:latest
+        --name ${CONTAINER_NAME} ${DOCKER_RUN_FLAGS} {{ ds.meta_data.pxe_boot_stack_image }}
       echo "Done."
   - path: /etc/systemd/system/pxeboot.service
     permissions: '0644'
@@ -121,31 +122,21 @@ runcmd:
   - 'sed -i "/net.ipv6.conf.all.forwarding/d" /etc/sysctl.conf'
   - 'echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.conf'
   - 'sysctl -p'
-  - 'DEBIAN_FRONTEND=noninteractive apt-get -y install acpid iptables-persistent ca-certificates curl gnupg'
-  - 'install -m 0755 -d /etc/apt/keyrings'
-  - 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg'
-  - 'chmod a+r /etc/apt/keyrings/docker.gpg'
-  - 'sh -c ''echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null'''
-  - 'apt-get update'
-  - 'DEBIAN_FRONTEND=noninteractive apt-get -y install docker-ce docker-ce-cli containerd.io'
   - 'mkdir -p /mnt/host/docker_images'
   - 'mkdir -p /mnt/host/vms'
   - 'systemctl daemon-reload'
   - 'systemctl enable --now pxeboot.service'
   - 'echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections'
   - 'echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections'
-  - 'DEBIAN_FRONTEND=noninteractive apt-get -y install iptables-persistent'
   - 'iptables -t nat -A POSTROUTING -o enp0s1 -j MASQUERADE'
+  - 'iptables -A FORWARD -i enp0s2 -o enp0s1 -j ACCEPT'
+  - 'iptables -A FORWARD -i enp0s1 -o enp0s2 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT'
   - 'ip6tables -t nat -A POSTROUTING -o enp0s1 -j MASQUERADE'
+  - 'ip6tables -A FORWARD -i enp0s2 -o enp0s1 -j ACCEPT'
+  - 'ip6tables -A FORWARD -i enp0s1 -o enp0s2 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT'
   - 'iptables-save > /etc/iptables/rules.v4'
   - 'ip6tables-save > /etc/iptables/rules.v6'
-  - 'DEBIAN_FRONTEND=noninteractive apt-get -y install radvd'
-  - 'systemctl daemon-reload'
   - 'systemctl enable --now radvd.service'
-  - rm /etc/update-motd.d/50-landscape-sysinfo
-  - rm /etc/update-motd.d/10-help-text
-  - rm /etc/update-motd.d/50-motd-news
-  - rm /etc/update-motd.d/90-updates-available
 
 mounts:
   - ["host_share_docker_images", "/mnt/host/docker_images", "9p", "trans=virtio,version=9p2000.L,rw", "0", "0"]
@@ -156,12 +147,13 @@ mounts:
 ethernets:
   enp0s1:
     dhcp4: true
+    dhcp6: true
   enp0s2:
     dhcp4: false
     addresses:
-      - "[[ .ProvisionerIp ]]/[[ .PrefixLen ]]"
+      - "[[ .ProvisionerIp ]]\/[[ .PrefixLen ]]"
       [[ if .ProvisionerIpV6 -]]
-      - "[[ .ProvisionerIpV6 ]]/[[ .PrefixLenV6 ]]"
+      - "[[ .ProvisionerIpV6 ]]\/[[ .PrefixLenV6 ]]"
       [[ end -]]
 `
 	provisionerVendorData = ``
@@ -230,7 +222,7 @@ func executeTemplate(name, tmplStr string, data interface{}) (string, error) {
 	return buf.String(), nil
 }
 
-var CreateISO = func(vmName, role, appDir, isoPath, ip, ipv6, mac, tar string) error {
+var CreateISO = func(vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image string) error {
 	sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa.pub")
 	sshKeyBytes, err := os.ReadFile(sshKeyPath)
 	if err != nil {
@@ -292,31 +284,33 @@ var CreateISO = func(vmName, role, appDir, isoPath, ip, ipv6, mac, tar string) e
 
 		pxebootStackName := strings.TrimSuffix(tar, filepath.Ext(tar))
 		data := struct {
-			SshKey           string
-			PxeBootStackTar  string
-			PxeBootStackName string
-			ProvisionerIp    string
-			PrefixLen        int
-			ProvisionerIpV6  string
-			PrefixLenV6      int
-			DhcpRangeStart   string
-			DhcpRangeEnd     string
-			DhcpRangeV6Start string
-			DhcpRangeV6End   string
-			SubnetV6         string
+			SshKey            string
+			PxeBootStackTar   string
+			PxeBootStackName  string
+			PxeBootStackImage string
+			ProvisionerIp     string
+			PrefixLen         int
+			ProvisionerIpV6   string
+			PrefixLenV6       int
+			DhcpRangeStart    string
+			DhcpRangeEnd      string
+			DhcpRangeV6Start  string
+			DhcpRangeV6End    string
+			SubnetV6          string
 		}{
-			SshKey:           sshKey,
-			PxeBootStackTar:  tar,
-			PxeBootStackName: pxebootStackName,
-			ProvisionerIp:    parsedIP.String(),
-			PrefixLen:        prefixLen,
-			ProvisionerIpV6:  provisionerIpV6,
-			PrefixLenV6:      prefixLenV6,
-			DhcpRangeStart:   dhcpStart,
-			DhcpRangeEnd:     dhcpEnd,
-			DhcpRangeV6Start: dhcpV6Start,
-			DhcpRangeV6End:   dhcpV6End,
-			SubnetV6:         subnetV6,
+			SshKey:            sshKey,
+			PxeBootStackTar:   tar,
+			PxeBootStackName:  pxebootStackName,
+			PxeBootStackImage: image,
+			ProvisionerIp:     parsedIP.String(),
+			PrefixLen:         prefixLen,
+			ProvisionerIpV6:   provisionerIpV6,
+			PrefixLenV6:       prefixLenV6,
+			DhcpRangeStart:    dhcpStart,
+			DhcpRangeEnd:      dhcpEnd,
+			DhcpRangeV6Start:  dhcpV6Start,
+			DhcpRangeV6End:    dhcpV6End,
+			SubnetV6:          subnetV6,
 		}
 		metaData, err = executeTemplate("provisionerMetaData", provisionerMetaDataTemplate, data)
 		if err != nil {

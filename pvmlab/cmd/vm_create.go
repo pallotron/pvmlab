@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -15,7 +17,10 @@ import (
 	"pvmlab/internal/metadata"
 	"pvmlab/internal/netutil"
 	"pvmlab/internal/runner"
+	"pvmlab/internal/ssh"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -26,12 +31,11 @@ import (
 const (
 	provisionerRole = "provisioner"
 	targetRole      = "target"
-	imageFileName   = config.UbuntuARMImageName
 )
 
 var (
-	ip, ipv6, role, mac, pxebootStackTar, dockerImagesPath, vmsPath, diskSize, arch string
-	pxeboot                                                                         bool
+	ip, ipv6, role, mac, pxebootStackTar, dockerImagesPath, vmsPath, diskSize, arch, pxebootStackImage string
+	pxeboot                                                                                            bool
 )
 
 // vmCreateCmd represents the create command
@@ -77,6 +81,10 @@ The --role flag determines the type of VM to create.
 		}
 		appDir := cfg.GetAppDir()
 
+		if err := createDirectories(appDir); err != nil {
+			return errors.E("vm-create", fmt.Errorf("failed to create app directories: %w", err))
+		}
+
 		if err := metadata.CheckForDuplicateIPs(cfg, ip, ipv6); err != nil {
 			return errors.E("vm-create", err)
 		}
@@ -92,24 +100,58 @@ The --role flag determines the type of VM to create.
 		}
 
 		if role == provisionerRole {
-			absTarPath, err := filepath.Abs(pxebootStackTar)
-			if err != nil {
-				return errors.E("vm-create", fmt.Errorf("failed to resolve path for --docker-pxeboot-stack-tar: %w", err))
-			}
+			// If user specifies a tar file, use it. Otherwise, pull from registry.
+			if cmd.Flags().Changed("docker-pxeboot-stack-tar") {
+				absTarPath, err := filepath.Abs(pxebootStackTar)
+				if err != nil {
+					return errors.E("vm-create", fmt.Errorf("failed to resolve path for --docker-pxeboot-stack-tar: %w", err))
+				}
 
-			if _, err := os.Stat(absTarPath); err == nil {
-				// File exists at the provided path, so copy it.
+				if _, err := os.Stat(absTarPath); err == nil {
+					// File exists at the provided path, so copy it.
+					if err := os.MkdirAll(finalDockerImagesPath, 0755); err != nil {
+						return errors.E("vm-create", fmt.Errorf("failed to create docker images directory: %w", err))
+					}
+					destTarPath := filepath.Join(finalDockerImagesPath, filepath.Base(absTarPath))
+					if err := copyFile(absTarPath, destTarPath); err != nil {
+						return errors.E("vm-create", fmt.Errorf("failed to copy pxeboot stack tar file: %w", err))
+					}
+					pxebootStackTar = filepath.Base(absTarPath)
+				} else if !os.IsNotExist(err) {
+					// Some other error with os.Stat
+					return errors.E("vm-create", fmt.Errorf("error checking --docker-pxeboot-stack-tar path: %w", err))
+				}
+			} else { // Pull image from registry
+				s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+				s.Suffix = fmt.Sprintf(" Pulling docker image %s...", pxebootStackImage)
+				s.Start()
+
+				// Pull the docker image
+				pullCmd := exec.Command("docker", "pull", pxebootStackImage)
+				if err := runner.Run(pullCmd); err != nil {
+					s.FinalMSG = color.RedString("✖ Failed to pull docker image.\n")
+					return errors.E("vm-create", fmt.Errorf("failed to pull docker image %s: %w", pxebootStackImage, err))
+				}
+				s.FinalMSG = color.GreenString("✔ Docker image pulled successfully.\n")
+				s.Stop()
+
+				s.Suffix = " Saving docker image to tar..."
+				s.Start()
+
+				// Save the docker image to a tar file
 				if err := os.MkdirAll(finalDockerImagesPath, 0755); err != nil {
+					s.FinalMSG = color.RedString("✖ Failed to create docker images directory.\n")
 					return errors.E("vm-create", fmt.Errorf("failed to create docker images directory: %w", err))
 				}
-				destTarPath := filepath.Join(finalDockerImagesPath, filepath.Base(absTarPath))
-				if err := copyFile(absTarPath, destTarPath); err != nil {
-					return errors.E("vm-create", fmt.Errorf("failed to copy pxeboot stack tar file: %w", err))
+				destTarPath := filepath.Join(finalDockerImagesPath, pxebootStackTar)
+				saveCmd := exec.Command("docker", "save", pxebootStackImage, "-o", destTarPath)
+				if err := runner.Run(saveCmd); err != nil {
+					s.FinalMSG = color.RedString("✖ Failed to save docker image.\n")
+					return errors.E("vm-create", fmt.Errorf("failed to save docker image %s to %s: %w", pxebootStackImage, destTarPath, err))
 				}
-				pxebootStackTar = filepath.Base(absTarPath)
-			} else if !os.IsNotExist(err) {
-				// Some other error with os.Stat
-				return errors.E("vm-create", fmt.Errorf("error checking --docker-pxeboot-stack-tar path: %w", err))
+				pxebootStackTar = filepath.Base(destTarPath)
+				s.FinalMSG = color.GreenString("✔ Docker image saved successfully in %s.\n", destTarPath)
+				s.Stop()
 			}
 		}
 
@@ -122,6 +164,11 @@ The --role flag determines the type of VM to create.
 			return errors.E("vm-create", err)
 		}
 
+		sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa")
+		if err := ssh.GenerateKey(sshKeyPath); err != nil {
+			return errors.E("vm-create", fmt.Errorf("failed to ensure ssh key exists: %w", err))
+		}
+
 		vmDiskPath := filepath.Join(appDir, "vms", vmName+".qcow2")
 		if pxeboot {
 			if err := createBlankDisk(vmDiskPath, diskSize); err != nil {
@@ -129,12 +176,16 @@ The --role flag determines the type of VM to create.
 			}
 		} else {
 			var imageUrl, imageName string
-			if arch == "aarch64" {
-				imageUrl = config.UbuntuARMImageURL
-				imageName = config.UbuntuARMImageName
+			if role == provisionerRole {
+				imageUrl, imageName = config.GetProvisionerImageURL(arch)
 			} else {
-				imageUrl = config.UbuntuAMD64ImageURL
-				imageName = config.UbuntuAMD64ImageName
+				if arch == "aarch64" {
+					imageUrl = config.UbuntuARMImageURL
+					imageName = config.UbuntuARMImageName
+				} else {
+					imageUrl = config.UbuntuAMD64ImageURL
+					imageName = config.UbuntuAMD64ImageName
+				}
 			}
 			imagePath := filepath.Join(appDir, "images", imageName)
 			if err := downloader.DownloadImageIfNotExists(imagePath, imageUrl); err != nil {
@@ -144,7 +195,7 @@ The --role flag determines the type of VM to create.
 				return errors.E("vm-create", err)
 			}
 			isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
-			if err := createISO(vmName, role, appDir, isoPath, ip, ipv6, macForMetadata, pxebootStackTar); err != nil {
+			if err := cloudinit.CreateISO(vmName, role, appDir, isoPath, ip, ipv6, macForMetadata, pxebootStackTar, pxebootStackImage); err != nil {
 				return errors.E("vm-create", err)
 			}
 		}
@@ -285,10 +336,40 @@ var createDisk = func(imagePath, vmDiskPath, diskSize string) error {
 	s.Start()
 	defer s.Stop()
 
+	// Ensure the destination directory exists.
+	dir := filepath.Dir(vmDiskPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		s.FinalMSG = color.RedString("✖ Failed to create VM disk directory.\n")
+		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
 	cmdRun := exec.Command("qemu-img", "create", "-f", "qcow2", "-F", "qcow2", "-b", imagePath, vmDiskPath)
 	if err := runner.Run(cmdRun); err != nil {
 		s.FinalMSG = color.RedString("✖ Failed to create VM disk.\n")
 		return err
+	}
+
+	// Get base image size
+	baseImageSize, err := getImageVirtualSize(imagePath)
+	if err != nil {
+		// Don't fail the whole process, just warn and proceed.
+		// qemu-img will fail anyway if it's a shrink, and we can rely on that.
+		// However, our custom error is more user-friendly.
+		color.Yellow("Warning: could not determine base image size: %v. Proceeding with resize...", err)
+	} else {
+		// Get target disk size
+		targetDiskSize, err := parseSize(diskSize)
+		if err != nil {
+			// This should be caught by validation earlier, but as a safeguard:
+			return fmt.Errorf("invalid disk size format '%s': %w", diskSize, err)
+		}
+
+		if targetDiskSize < baseImageSize {
+			s.FinalMSG = color.RedString("✖ Failed to create VM disk.\n")
+			// Convert baseImageSize to human-readable format for the error message
+			humanReadableBaseSize := fmt.Sprintf("%.2fG", float64(baseImageSize)/float64(1024*1024*1024))
+			return fmt.Errorf("requested disk size '%s' is smaller than the base image size '%s'. Shrinking images is not supported", diskSize, humanReadableBaseSize)
+		}
 	}
 
 	s.Suffix = " Resizing VM disk..."
@@ -301,13 +382,13 @@ var createDisk = func(imagePath, vmDiskPath, diskSize string) error {
 	return nil
 }
 
-var createISO = func(vmName, role, appDir, isoPath, ip, ipv6, mac, tar string) error {
+var createISO = func(vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image string) error {
 	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 	s.Suffix = " Generating cloud-config ISO..."
 	s.Start()
 	defer s.Stop()
 
-	if err := cloudinit.CreateISO(vmName, role, appDir, isoPath, ip, ipv6, mac, tar); err != nil {
+	if err := cloudinit.CreateISO(vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image); err != nil {
 		s.FinalMSG = color.RedString("✖ Failed to generate cloud-config ISO.\n")
 		return err
 	}
@@ -320,6 +401,13 @@ var createBlankDisk = func(vmDiskPath, diskSize string) error {
 	s.Suffix = " Creating blank VM disk..."
 	s.Start()
 	defer s.Stop()
+
+	// Ensure the destination directory exists.
+	dir := filepath.Dir(vmDiskPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		s.FinalMSG = color.RedString("✖ Failed to create VM disk directory.\n")
+		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
 
 	cmdRun := exec.Command("qemu-img", "create", "-f", "qcow2", vmDiskPath, diskSize)
 	if err := runner.Run(cmdRun); err != nil {
@@ -350,9 +438,73 @@ func copyFile(src, dst string) error {
 	return out.Close()
 }
 
+// getImageVirtualSize executes `qemu-img info` to get the virtual size of an image in bytes.
+func getImageVirtualSize(imagePath string) (int64, error) {
+	cmd := exec.Command("qemu-img", "info", "--output=json", imagePath)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return 0, fmt.Errorf("failed to get image info for %s: %w", imagePath, err)
+	}
+
+	var info struct {
+		VirtualSize int64 `json:"virtual-size"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &info); err != nil {
+		return 0, fmt.Errorf("failed to parse qemu-img info output: %w", err)
+	}
+
+	return info.VirtualSize, nil
+}
+
+// parseSize converts a size string like "10G", "512M", "2048K" into bytes.
+func parseSize(sizeStr string) (int64, error) {
+	// Trim whitespace
+	sizeStr = strings.TrimSpace(sizeStr)
+	if sizeStr == "" {
+		return 0, fmt.Errorf("size string is empty")
+	}
+
+	// Find the first non-digit character
+	var valueStr string
+	var unitStr string
+	for i, r := range sizeStr {
+		if r >= '0' && r <= '9' {
+			valueStr += string(r)
+		} else {
+			unitStr = strings.TrimSpace(sizeStr[i:])
+			break
+		}
+	}
+
+	value, err := strconv.ParseInt(valueStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid size value in '%s': %w", sizeStr, err)
+	}
+
+	unit := strings.ToUpper(unitStr)
+	switch unit {
+	case "K", "KB":
+		value *= 1024
+	case "M", "MB":
+		value *= 1024 * 1024
+	case "G", "GB":
+		value *= 1024 * 1024 * 1024
+	case "T", "TB":
+		value *= 1024 * 1024 * 1024 * 1024
+	case "", "B":
+		// value is already in bytes
+	default:
+		return 0, fmt.Errorf("unknown size unit '%s' in '%s'", unit, sizeStr)
+	}
+
+	return value, nil
+}
+
 func init() {
 	vmCmd.AddCommand(vmCreateCmd)
-	vmCreateCmd.Flags().StringVar(&role, "role", "target", "The role of the VM ('provisioner' or 'target')")
+	vmCreateCmd.Flags().StringVar(&role, "role", "", "The role of the VM ('provisioner' or 'target')")
+	vmCreateCmd.MarkFlagRequired("role")
 	vmCreateCmd.Flags().StringVar(&mac, "mac", "", "The MAC address of the VM (Required for Target VMs)")
 	vmCreateCmd.Flags().StringVar(
 		&pxebootStackTar,
@@ -360,11 +512,17 @@ func init() {
 		"pxeboot_stack.tar",
 		"Path to the pxeboot stack docker tar file (Required for the provisioner VM, otherwise defaults to ~/.pvmlab/pxeboot_stack.tar)",
 	)
+	vmCreateCmd.Flags().StringVar(
+		&pxebootStackImage,
+		"docker-pxeboot-stack-image",
+		"ghcr.io/pallotron/pvmlab/pxeboot_stack:v0.0.1",
+		"Docker image for the pxeboot stack to pull from a registry.",
+	)
 	vmCreateCmd.Flags().StringVar(&dockerImagesPath, "docker-images-path", "", "Path to docker images to share with the provisioner VM. Defaults to ~/.pvmlab/docker_images")
 	vmCreateCmd.Flags().StringVar(&vmsPath, "vms-path", "", "Path to vms to share with the provisioner VM. Defaults to ~/.pvmlab/vms")
-	vmCreateCmd.Flags().StringVar(&ip, "ip", "", "The IP address for the provisioner VM in CIDR format (e.g. 192.168.254.1/24)")
+	vmCreateCmd.Flags().StringVar(&ip, "ip", "", "The IP address for the provisioner VM in CIDR format (e.g. 192.168.1.1/24)")
 	vmCreateCmd.Flags().StringVar(&ipv6, "ipv6", "", "The IPv6 address for the provisioner VM in CIDR format (e.g. fd00:cafe:babe::1/64)")
-	vmCreateCmd.Flags().StringVar(&diskSize, "disk-size", "10G", "The size of the VM disk")
+	vmCreateCmd.Flags().StringVar(&diskSize, "disk-size", "15G", "The size of the VM disk")
 	vmCreateCmd.Flags().BoolVar(&pxeboot, "pxeboot", false, "Create a VM that boots from the network (target role only)")
 	vmCreateCmd.Flags().StringVar(&arch, "arch", "aarch64", "The architecture of the VM ('aarch64' or 'x86_64')")
 }

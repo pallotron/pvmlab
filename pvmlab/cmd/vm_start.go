@@ -51,9 +51,10 @@ var vmStartCmd = &cobra.Command{
 		}
 
 		isPxeBoot := opts.meta.PxeBoot
-		if bootOverride == "pxe" {
+		switch bootOverride {
+		case "pxe":
 			isPxeBoot = true
-		} else if bootOverride == "disk" {
+		case "disk":
 			isPxeBoot = false
 		}
 
@@ -146,9 +147,10 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 
 	// Determine the effective boot mode
 	isPxeBoot := opts.meta.PxeBoot
-	if bootOverride == "pxe" {
+	switch bootOverride {
+	case "pxe":
 		isPxeBoot = true
-	} else if bootOverride == "disk" {
+	case "disk":
 		isPxeBoot = false
 	}
 
@@ -235,6 +237,7 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 			"-netdev", fmt.Sprintf("user,id=net0,hostfwd=tcp::%d-:22,ipv6=on,ipv4=on,ipv6-net=fd00::/64", opts.meta.SSHPort),
 			"-device", fmt.Sprintf("%s,netdev=net1,mac=%s", netDevice, opts.meta.MAC),
 			"-netdev", "socket,id=net1,fd=3",
+
 			"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_docker_images,security_model=passthrough", finalDockerImagesPath),
 			"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_vms,security_model=passthrough", finalVMsPath),
 		)

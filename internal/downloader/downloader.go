@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 )
 
 // DownloadFile downloads a file from a URL to a local path.
-func DownloadFile(filepath string, url string) error {
+func DownloadFile(path string, url string) error {
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
@@ -24,7 +25,13 @@ func DownloadFile(filepath string, url string) error {
 		return fmt.Errorf("failed to download file from %s: %s", url, resp.Status)
 	}
 
-	out, err := os.Create(filepath)
+	// Ensure the destination directory exists.
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
+	out, err := os.Create(path)
 	if err != nil {
 		return err
 	}

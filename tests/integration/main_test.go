@@ -53,18 +53,6 @@ func TestMain(m *testing.M) {
 	defer cleanupSocketVMNet()
 	// --- End of self-contained setup ---
 
-	// Copy the pxeboot_stack.tar to the temp home dir
-	destDir := filepath.Join(tempHomeDir, ".pvmlab", "docker_images")
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		log.Fatalf("failed to create destination dir for pxeboot_stack.tar: %v", err)
-	}
-	srcPath := filepath.Join(projectRoot, "pxeboot_stack", "pxeboot_stack.tar")
-	destPath := filepath.Join(destDir, "pxeboot_stack.tar")
-	if err := copyFile(srcPath, destPath); err != nil {
-		log.Fatalf("failed to copy pxeboot_stack.tar: %v", err)
-	}
-	log.Printf("Copied %s to %s", srcPath, destPath)
-
 	binDir := filepath.Join(projectRoot, "build")
 	_ = os.MkdirAll(binDir, 0755)
 	tempCLIPath := filepath.Join(binDir, "pvmlab_test")
@@ -131,11 +119,19 @@ func TestVMLifecycle(t *testing.T) {
 	}
 
 	// Step 1: Create Provisioner
+	projectRoot, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current working directory: %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(projectRoot, "go.mod")); os.IsNotExist(statErr) {
+		projectRoot = filepath.Join(projectRoot, "..", "..")
+	}
 	if !t.Run("1-VMCreateProvisioner", func(t *testing.T) {
 		runCmdOrFail(
 			t, pathToCLI,
 			"vm", "create", provisionerName, "--role", "provisioner",
 			"--ip", provisionerIP, "--ipv6", provisionerIPv6,
+			"--docker-pxeboot-stack-tar", filepath.Join(projectRoot, "pxeboot_stack", "pxeboot_stack.tar"),
 		)
 	}) {
 		t.FailNow()
