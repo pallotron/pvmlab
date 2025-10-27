@@ -130,7 +130,7 @@ var FindVM = func(cfg *config.Config, vmName string) (string, error) {
 	return "", nil
 }
 
-func Delete(cfg *config.Config, vmName string) error {
+var Delete = func(cfg *config.Config, vmName string) error {
 	vmsDir := getVMsDir(cfg)
 	metaPath := filepath.Join(vmsDir, vmName+".json")
 	if _, err := os.Stat(metaPath); err == nil {

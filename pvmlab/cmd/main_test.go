@@ -67,6 +67,7 @@ func TestMain(m *testing.M) {
 	originalMetadataFindProvisioner := metadata.FindProvisioner
 	originalMetadataFindVM := metadata.FindVM
 	originalMetadataGetAll := metadata.GetAll
+	originalMetadataDelete := metadata.Delete
 	originalRunnerRun := runner.Run
 	originalSSHGenerateKey := ssh.GenerateKey
 	originalSocketVmnetIsSocketVmnetRunning := socketvmnet.IsSocketVmnetRunning
@@ -83,6 +84,7 @@ func TestMain(m *testing.M) {
 		metadata.FindProvisioner = originalMetadataFindProvisioner
 		metadata.FindVM = originalMetadataFindVM
 		metadata.GetAll = originalMetadataGetAll
+		metadata.Delete = originalMetadataDelete
 		runner.Run = originalRunnerRun
 		ssh.GenerateKey = originalSSHGenerateKey
 		socketvmnet.IsSocketVmnetRunning = originalSocketVmnetIsSocketVmnetRunning
@@ -121,6 +123,9 @@ func setupMocks(_ *testing.T) {
 	}
 	metadata.GetAll = func(*config.Config) (map[string]*metadata.Metadata, error) {
 		return make(map[string]*metadata.Metadata), nil // No VMs exist by default
+	}
+	metadata.Delete = func(*config.Config, string) error {
+		return nil
 	}
 	runner.Run = func(*exec.Cmd) error {
 		return nil
