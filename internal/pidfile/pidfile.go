@@ -33,7 +33,7 @@ var IsRunning = func(cfg *config.Config, vmName string) (bool, error) {
 	return err == nil, nil
 }
 
-func Read(cfg *config.Config, vmName string) (int, error) {
+var Read = func(cfg *config.Config, vmName string) (int, error) {
 	pidPath := getPIDFilePath(cfg, vmName)
 
 	content, err := os.ReadFile(pidPath)

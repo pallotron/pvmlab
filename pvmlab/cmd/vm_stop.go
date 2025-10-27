@@ -15,6 +15,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var syscallKill = syscall.Kill
+
 // vmStopCmd represents the stop command
 var vmStopCmd = &cobra.Command{
 	Use:   "stop <vm-name>",
@@ -66,7 +68,7 @@ var vmStopCmd = &cobra.Command{
 		// 2. Forceful Shutdown (SIGTERM, then SIGKILL)
 		if isProcessRunning(pid) {
 			color.Cyan("i Sending SIGTERM to process %d", pid)
-			if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+			if err := syscallKill(pid, syscall.SIGTERM); err != nil {
 				color.Yellow("! Failed to send SIGTERM: %v", err)
 			}
 			// Wait up to 5 seconds
@@ -80,7 +82,7 @@ var vmStopCmd = &cobra.Command{
 			}
 
 			color.Yellow("! Process did not respond to SIGTERM, sending SIGKILL...")
-			if err := syscall.Kill(pid, syscall.SIGKILL); err != nil {
+			if err := syscallKill(pid, syscall.SIGKILL); err != nil {
 				return fmt.Errorf("failed to send SIGKILL: %w", err)
 			}
 			time.Sleep(1 * time.Second) // Give SIGKILL a moment
@@ -96,7 +98,7 @@ var vmStopCmd = &cobra.Command{
 	},
 }
 
-func isProcessRunning(pid int) bool {
+var isProcessRunning = func(pid int) bool {
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		return false // Cannot find process, assume not running

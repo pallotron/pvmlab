@@ -77,6 +77,7 @@ func TestMain(m *testing.M) {
 	originalSocketVmnetIsSocketVmnetRunning := socketvmnet.IsSocketVmnetRunning
 	originalPidfileIsRunning := pidfile.IsRunning
 	originalNetutilFindRandomPort := netutil.FindRandomPort
+	originalPidfileRead := pidfile.Read
 
 	// Defer restoration of original functions
 	defer func() {
@@ -95,6 +96,7 @@ func TestMain(m *testing.M) {
 		socketvmnet.IsSocketVmnetRunning = originalSocketVmnetIsSocketVmnetRunning
 		pidfile.IsRunning = originalPidfileIsRunning
 		netutil.FindRandomPort = originalNetutilFindRandomPort
+		pidfile.Read = originalPidfileRead
 	}()
 
 	// Run tests
@@ -147,5 +149,8 @@ func setupMocks(_ *testing.T) {
 	}
 	netutil.FindRandomPort = func() (int, error) {
 		return 12345, nil
+	}
+	pidfile.Read = func(c *config.Config, name string) (int, error) {
+		return 0, os.ErrNotExist
 	}
 }
