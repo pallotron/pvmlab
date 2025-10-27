@@ -103,10 +103,13 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// setupMocks resets all mocks to default successful behavior.
-func setupMocks(_ *testing.T) {
+// setupMocks resets all mocks to default successful behavior and configures a temporary app directory.
+func setupMocks(t *testing.T) {
+	tempDir := t.TempDir()
 	config.New = func() (*config.Config, error) {
-		return &config.Config{}, nil
+		cfg := &config.Config{}
+		cfg.SetHomeDir(tempDir)
+		return cfg, nil
 	}
 	downloader.DownloadImageIfNotExists = func(string, string) error {
 		return nil
