@@ -161,6 +161,16 @@ func TestBuildQEMUArgs(t *testing.T) {
 			if err := os.MkdirAll(filepath.Join(tempDir, "vms"), 0755); err != nil {
 				t.Fatalf("failed to create temp vms dir: %v", err)
 			}
+
+			// Create a dummy UEFI vars file to avoid dependency on host system
+			dummyUefiVarsPath := filepath.Join(tempDir, "dummy-uefi-vars.fd")
+			if err := os.WriteFile(dummyUefiVarsPath, []byte(""), 0644); err != nil {
+				t.Fatalf("failed to create dummy uefi vars file: %v", err)
+			}
+			originalUefiVarsPath := uefiVarsTemplatePath
+			uefiVarsTemplatePath = dummyUefiVarsPath
+			defer func() { uefiVarsTemplatePath = originalUefiVarsPath }()
+
 			// The buildQEMUArgs function relies on info gathered in gatherVMInfo.
 			// We can simulate that the necessary files exist by not returning an error
 			// and ensuring the directories for file creation exist.
