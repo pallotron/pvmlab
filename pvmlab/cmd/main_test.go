@@ -9,6 +9,7 @@ import (
 	"pvmlab/internal/config"
 	"pvmlab/internal/downloader"
 	"pvmlab/internal/metadata"
+	"pvmlab/internal/netutil"
 	"pvmlab/internal/pidfile"
 	"pvmlab/internal/runner"
 	"pvmlab/internal/socketvmnet"
@@ -75,6 +76,7 @@ func TestMain(m *testing.M) {
 	originalSSHGenerateKey := ssh.GenerateKey
 	originalSocketVmnetIsSocketVmnetRunning := socketvmnet.IsSocketVmnetRunning
 	originalPidfileIsRunning := pidfile.IsRunning
+	originalNetutilFindRandomPort := netutil.FindRandomPort
 
 	// Defer restoration of original functions
 	defer func() {
@@ -92,6 +94,7 @@ func TestMain(m *testing.M) {
 		ssh.GenerateKey = originalSSHGenerateKey
 		socketvmnet.IsSocketVmnetRunning = originalSocketVmnetIsSocketVmnetRunning
 		pidfile.IsRunning = originalPidfileIsRunning
+		netutil.FindRandomPort = originalNetutilFindRandomPort
 	}()
 
 	// Run tests
@@ -141,5 +144,8 @@ func setupMocks(_ *testing.T) {
 	}
 	pidfile.IsRunning = func(c *config.Config, name string) (bool, error) {
 		return false, nil
+	}
+	netutil.FindRandomPort = func() (int, error) {
+		return 12345, nil
 	}
 }
