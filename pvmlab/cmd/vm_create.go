@@ -34,8 +34,9 @@ const (
 )
 
 var (
-	ip, ipv6, role, mac, pxebootStackTar, dockerImagesPath, vmsPath, diskSize, arch, pxebootStackImage string
-	pxeboot                                                                                            bool
+	ip, ipv6, role, mac, pxebootStackTar, dockerImagesPath string
+	vmsPath, diskSize, arch, pxebootStackImage             string
+	pxeboot                                                bool
 )
 
 // vmCreateCmd represents the create command
@@ -121,6 +122,7 @@ The --role flag determines the type of VM to create.
 					// Some other error with os.Stat
 					return errors.E("vm-create", fmt.Errorf("error checking --docker-pxeboot-stack-tar path: %w", err))
 				}
+				pxebootStackImage = config.GetPxeBootStackImageName()
 			} else { // Pull image from registry
 				s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 				s.Suffix = fmt.Sprintf(" Pulling docker image %s...", pxebootStackImage)
@@ -150,6 +152,7 @@ The --role flag determines the type of VM to create.
 					return errors.E("vm-create", fmt.Errorf("failed to save docker image %s to %s: %w", pxebootStackImage, destTarPath, err))
 				}
 				pxebootStackTar = filepath.Base(destTarPath)
+				pxebootStackImage = config.GetPxeBootStackImageName()
 				s.FinalMSG = color.GreenString("✔ Docker image saved successfully in %s.\n", destTarPath)
 				s.Stop()
 			}
@@ -195,7 +198,10 @@ The --role flag determines the type of VM to create.
 				return errors.E("vm-create", err)
 			}
 			isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
-			if err := cloudinit.CreateISO(vmName, role, appDir, isoPath, ip, ipv6, macForMetadata, pxebootStackTar, pxebootStackImage); err != nil {
+			if err := cloudinit.CreateISO(
+				vmName, role, appDir, isoPath, ip, ipv6, macForMetadata,
+				pxebootStackTar, pxebootStackImage,
+			); err != nil {
 				return errors.E("vm-create", err)
 			}
 		}

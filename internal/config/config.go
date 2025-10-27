@@ -55,6 +55,15 @@ func GetPxeBootStackImageURL() string {
 	return fmt.Sprintf("ghcr.io/pallotron/pvmlab/pxeboot_stack:%s", version)
 }
 
+// GetPxeBootStackImageName returns the local name for the pxeboot stack image.
+func GetPxeBootStackImageName() string {
+	version := Version
+	if Version == "devel" {
+		version = "latest"
+	}
+	return fmt.Sprintf("pxeboot_stack:%s", version)
+}
+
 // Config holds the application's configuration.
 type Config struct {
 	homeDir string

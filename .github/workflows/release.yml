@@ -80,4 +80,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           context: ./pxeboot_stack
           push: true
-          tags: ghcr.io/${{ github.repository }}/pxeboot_stack:${{ github.ref_name }}
+          tags: |
+            ghcr.io/${{ github.repository }}/pxeboot_stack:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/pxeboot_stack:latest
