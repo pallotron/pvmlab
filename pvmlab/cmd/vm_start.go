@@ -124,6 +124,8 @@ func gatherVMInfo(vmName string) (*vmStartOptions, error) {
 	return opts, nil
 }
 
+var uefiVarsTemplatePath = "/opt/homebrew/share/qemu/edk2-arm-vars.fd"
+
 func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 	pidPath := filepath.Join(opts.appDir, "pids", opts.vmName+".pid")
 	monitorPath := filepath.Join(opts.appDir, "monitors", opts.vmName+".sock")
@@ -171,7 +173,7 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 
 	if opts.meta.Arch == "aarch64" {
 		// AARCH64 requires separate code and vars pflash drives.
-		varsTemplatePath := "/opt/homebrew/share/qemu/edk2-arm-vars.fd"
+		varsTemplatePath := uefiVarsTemplatePath
 		vmVarsPath := filepath.Join(opts.appDir, "vms", opts.vmName+"-vars.fd")
 		if _, err := os.Stat(vmVarsPath); os.IsNotExist(err) {
 			input, err := os.ReadFile(varsTemplatePath)

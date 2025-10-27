@@ -14,7 +14,7 @@ func getPIDFilePath(cfg *config.Config, vmName string) string {
 	return filepath.Join(cfg.GetAppDir(), "pids", vmName+".pid")
 }
 
-func IsRunning(cfg *config.Config, vmName string) (bool, error) {
+var IsRunning = func(cfg *config.Config, vmName string) (bool, error) {
 	pid, err := Read(cfg, vmName)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -33,7 +33,7 @@ func IsRunning(cfg *config.Config, vmName string) (bool, error) {
 	return err == nil, nil
 }
 
-func Read(cfg *config.Config, vmName string) (int, error) {
+var Read = func(cfg *config.Config, vmName string) (int, error) {
 	pidPath := getPIDFilePath(cfg, vmName)
 
 	content, err := os.ReadFile(pidPath)

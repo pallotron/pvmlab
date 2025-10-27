@@ -56,7 +56,7 @@ func GetSSHArgs(cfg *config.Config, meta *metadata.Metadata, forSCP bool) ([]str
 
 // GenerateKey generates a new SSH key pair and saves it to the specified path.
 // If the key already exists, it does nothing.
-func GenerateKey(privateKeyPath string) error {
+var GenerateKey = func(privateKeyPath string) error {
 	if _, err := os.Stat(privateKeyPath); err == nil {
 		// Key already exists
 		return nil

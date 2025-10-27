@@ -35,7 +35,7 @@ func GetSocketPath() (string, error) {
 var execCommand = exec.Command
 
 // IsSocketVmnetRunning checks if the socket_vmnet service is running.
-func IsSocketVmnetRunning() (bool, error) {
+var IsSocketVmnetRunning = func() (bool, error) {
 	cmd := execCommand("sudo", "launchctl", "list", ServiceName)
 	var out bytes.Buffer
 	cmd.Stdout = &out
@@ -53,7 +53,7 @@ func IsSocketVmnetRunning() (bool, error) {
 	return strings.Contains(out.String(), "PID"), nil
 }
 
-func StartSocketVmnet() error {
+var StartSocketVmnet = func() error {
 	// Ensure the log directory and files exist.
 	if err := execCommand("sudo", "mkdir", "-p", "/var/log/vmlab.socket_vmnet").Run(); err != nil {
 		return fmt.Errorf("failed to create log directory: %w", err)
@@ -68,7 +68,7 @@ func StartSocketVmnet() error {
 	return cmd.Run()
 }
 
-func StopSocketVmnet() error {
+var StopSocketVmnet = func() error {
 	plistPath := fmt.Sprintf("/Library/LaunchDaemons/%s.plist", ServiceName)
 	cmd := execCommand("sudo", "launchctl", "unload", "-w", plistPath)
 	return cmd.Run()

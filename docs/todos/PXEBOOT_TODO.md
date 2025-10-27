@@ -6,8 +6,8 @@ This document outlines the steps to enable target VMs to PXE boot from the provi
 
 The QEMU command for launching target VMs needs to be modified to instruct the VM's firmware to attempt a network boot first.
 
--   **File to Modify:** `pvmlab/cmd/vm_start.go`
--   **Action:** When the VM role is "target", add the `-boot n` flag to the `qemu-system-aarch64` command.
+- **File to Modify:** `pvmlab/cmd/vm_start.go`
+- **Action:** When the VM role is "target", add the `-boot n` flag to the `qemu-system-aarch64` command.
 
 ## 2. Provisioner VM Configuration (Server-Side)
 
@@ -15,14 +15,14 @@ The `pxeboot_stack` Docker container running on the provisioner VM must provide 
 
 ### 2.1. Services Overview
 
--   **DHCP Server:** Assigns an IP address to the target VM and provides the TFTP server address and bootloader filename.
--   **TFTP Server:** Serves the initial iPXE bootloader (`ipxe-arm64.efi`).
--   **HTTP Server:** Serves the larger OS files (kernel and initrd) for faster transfers.
+- **DHCP Server:** Assigns an IP address to the target VM and provides the TFTP server address and bootloader filename.
+- **TFTP Server:** Serves the initial iPXE bootloader (`ipxe-arm64.efi`).
+- **HTTP Server:** Serves the larger OS files (kernel and initrd) for faster transfers.
 
 ### 2.2. Implementation with `dnsmasq` and a Web Server
 
--   **DHCP & TFTP:** Both services can be provided by `dnsmasq`.
--   **HTTP:** A simple web server (e.g., Nginx, Python's `http.server`) can be added to the container, managed by `supervisord`.
+- **DHCP & TFTP:** Both services can be provided by `dnsmasq`.
+- **HTTP:** A simple web server (e.g., Nginx, Python's `http.server`) can be added to the container, managed by `supervisord`.
 
 ### 2.3. Configuration Files
 
@@ -62,52 +62,58 @@ boot
 
 The following files need to be acquired and placed in the `pxeboot_stack` Docker build context to be included in the final image.
 
--   `ipxe-arm64.efi`: Place in the TFTP root (e.g., `pxeboot_stack/tftpboot/`).
--   `vmlinuz`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
--   `initrd`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
--   `boot.ipxe`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
--   `user-data`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
--   `meta-data`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
+- `ipxe-arm64.efi`: Place in the TFTP root (e.g., `pxeboot_stack/tftpboot/`).
+- `vmlinuz`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
+- `initrd`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
+- `boot.ipxe`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
+- `user-data`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
+- `meta-data`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
 
 ## 3. Acquiring Kernel and Initrd
 
 You can obtain the required `vmlinuz` (kernel) and `initrd` (initial RAM disk) files by downloading the generic netboot files directly from the Ubuntu repositories.
 
-1.  **Create Directories:**
-    ```bash
-    mkdir -p ubuntu-24.04-amd64-netboot ubuntu-24.04-arm64-netboot
-    ```
+1. **Create Directories:**
 
-2.  **Download `amd64` (x86_64) Files:**
-    ```bash
-    # Download the kernel (renaming to vmlinuz)
-    wget http://releases.ubuntu.com/24.04/netboot/amd64/linux -O ubuntu-24.04-amd64-netboot/vmlinuz
+   ```bash
+   mkdir -p ubuntu-24.04-amd64-netboot ubuntu-24.04-arm64-netboot
+   ```
 
-    # Download the initrd
-    wget http://releases.ubuntu.com/24.04/netboot/amd64/initrd -O ubuntu-24.04-amd64-netboot/initrd
-    ```
+2. **Download `amd64` (x86_64) Files:**
 
-3.  **Download `arm64` (AArch64) Files:**
-    ```bash
-    # Download the kernel (renaming to vmlinuz)
-    wget http://cdimage.ubuntu.com/ubuntu/releases/24.04/release/netboot/arm64/linux -O ubuntu-24.04-arm64-netboot/vmlinuz
+   ```bash
+   # Download the kernel (renaming to vmlinuz)
+   wget http://releases.ubuntu.com/24.04/netboot/amd64/linux -O ubuntu-24.04-amd64-netboot/vmlinuz
 
-    # Download the initrd
-    wget http://cdimage.ubuntu.com/ubuntu/releases/24.04/release/netboot/arm64/initrd -O ubuntu-24.04-arm64-netboot/initrd
-    ```
+   # Download the initrd
+   wget http://releases.ubuntu.com/24.04/netboot/amd64/initrd -O ubuntu-24.04-amd64-netboot/initrd
+   ```
 
-4.  **Verify Downloads:**
-    ```bash
-    ls -R ubuntu-24.04-amd64-netboot ubuntu-24.04-arm64-netboot
-    ```
-    *Expected Output:*
-    ```
-    ubuntu-24.04-amd64-netboot:
-    initrd  vmlinuz
+3. **Download `arm64` (AArch64) Files:**
 
-    ubuntu-24.04-arm64-netboot:
-    initrd  vmlinuz
-    ```
+   ```bash
+   # Download the kernel (renaming to vmlinuz)
+   wget http://cdimage.ubuntu.com/ubuntu/releases/24.04/release/netboot/arm64/linux -O ubuntu-24.04-arm64-netboot/vmlinuz
+
+   # Download the initrd
+   wget http://cdimage.ubuntu.com/ubuntu/releases/24.04/release/netboot/arm64/initrd -O ubuntu-24.04-arm64-netboot/initrd
+   ```
+
+4. **Verify Downloads:**
+
+   ```bash
+   ls -R ubuntu-24.04-amd64-netboot ubuntu-24.04-arm64-netboot
+   ```
+
+   _Expected Output:_
+
+   ```text
+   ubuntu-24.04-amd64-netboot:
+   initrd  vmlinuz
+
+   ubuntu-24.04-arm64-netboot:
+   initrd  vmlinuz
+   ```
 
 ## 4. Automated OS Installation with `autoinstall`
 
@@ -115,9 +121,9 @@ When using the netboot kernel and initrd, you are loading the Debian Installer. 
 
 ### 4.1. How it Works
 
-1.  **Configuration Files:** You create `user-data` and `meta-data` files that contain the answers to all the installer's questions (e.g., disk partitioning, user creation).
-2.  **HTTP Server:** These files are hosted on the provisioner VM's web server.
-3.  **Kernel Parameters:** The iPXE script passes a special `autoinstall` parameter to the kernel, telling it where to fetch the configuration files. The installer then runs automatically without user interaction.
+1. **Configuration Files:** You create `user-data` and `meta-data` files that contain the answers to all the installer's questions (e.g., disk partitioning, user creation).
+2. **HTTP Server:** These files are hosted on the provisioner VM's web server.
+3. **Kernel Parameters:** The iPXE script passes a special `autoinstall` parameter to the kernel, telling it where to fetch the configuration files. The installer then runs automatically without user interaction.
 
 ### 4.2. Configuration Files
 
@@ -181,7 +187,7 @@ For more control, you can create configurations for specific VMs. The installer 
 
 You can structure your HTTP server's root directory like this:
 
-```
+```shell
 /pxeboot_stack/www/
 ├── user-data                  # Generic fallback user-data
 ├── meta-data                  # Generic fallback meta-data
@@ -197,11 +203,10 @@ You can structure your HTTP server's root directory like this:
 
 **Lookup Process:**
 
-1.  A VM with MAC address `00:16:3e:11:22:33` boots.
-2.  The installer queries the datasource URL.
-3.  It first attempts to fetch `http://192.168.105.1/00:16:3e:11:22:33/user-data`.
-4.  **On success**, it uses that specific configuration.
-5.  **On failure (404 Not Found)**, it falls back to the generic `http://192.168.105.1/user-data`.
+1. A VM with MAC address `00:16:3e:11:22:33` boots.
+2. The installer queries the datasource URL.
+3. It first attempts to fetch `http://192.168.105.1/00:16:3e:11:22:33/user-data`.
+4. **On success**, it uses that specific configuration.
+5. **On failure (404 Not Found)**, it falls back to the generic `http://192.168.105.1/user-data`.
 
 This powerful feature allows you to set unique hostnames, static IPs, or SSH keys for each target VM while maintaining a default configuration for all others.
-
