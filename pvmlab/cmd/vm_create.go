@@ -515,7 +515,7 @@ func init() {
 	vmCreateCmd.Flags().StringVar(
 		&pxebootStackImage,
 		"docker-pxeboot-stack-image",
-		"ghcr.io/pallotron/pvmlab/pxeboot_stack:v0.0.1",
+		config.GetPxeBootStackImageURL(),
 		"Docker image for the pxeboot stack to pull from a registry.",
 	)
 	vmCreateCmd.Flags().StringVar(&dockerImagesPath, "docker-images-path", "", "Path to docker images to share with the provisioner VM. Defaults to ~/.pvmlab/docker_images")

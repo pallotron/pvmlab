@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"os/exec"
 	"pvmlab/internal/cloudinit"
@@ -9,6 +10,8 @@ import (
 	"pvmlab/internal/downloader"
 	"pvmlab/internal/metadata"
 	"pvmlab/internal/runner"
+	"pvmlab/internal/socketvmnet"
+	"pvmlab/internal/ssh"
 	"testing"
 
 	"github.com/fatih/color"
@@ -22,19 +25,34 @@ func executeCommand(root *cobra.Command, args ...string) (string, string, error)
 }
 
 func executeCommandC(root *cobra.Command, args ...string) (*cobra.Command, string, error) {
-	buf := new(bytes.Buffer)
-	root.SetOut(buf)
-	root.SetErr(buf)
+	// Capture Cobra's output
+	cobraBuf := new(bytes.Buffer)
+	root.SetOut(cobraBuf)
+	root.SetErr(cobraBuf)
 	root.SetArgs(args)
 
-	// Redirect color library output to the buffer
+	// Redirect color library output to the same buffer
 	originalColorOutput := color.Output
-	color.Output = buf
+	color.Output = cobraBuf
 	defer func() { color.Output = originalColorOutput }()
+
+	// Capture direct stderr writes (for spinner)
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
 
 	c, err := root.ExecuteC()
 
-	return c, buf.String(), err
+	// Restore stderr and read from the pipe
+	w.Close()
+	os.Stderr = oldStderr
+	stderrBuf := new(bytes.Buffer)
+	io.Copy(stderrBuf, r)
+
+	// Combine outputs
+	combinedOutput := cobraBuf.String() + stderrBuf.String()
+
+	return c, combinedOutput, err
 }
 
 func TestMain(m *testing.M) {
@@ -48,6 +66,8 @@ func TestMain(m *testing.M) {
 	originalMetadataFindProvisioner := metadata.FindProvisioner
 	originalMetadataFindVM := metadata.FindVM
 	originalRunnerRun := runner.Run
+	originalSSHGenerateKey := ssh.GenerateKey
+	originalSocketVmnetIsSocketVmnetRunning := socketvmnet.IsSocketVmnetRunning
 
 	// Defer restoration of original functions
 	defer func() {
@@ -60,6 +80,8 @@ func TestMain(m *testing.M) {
 		metadata.FindProvisioner = originalMetadataFindProvisioner
 		metadata.FindVM = originalMetadataFindVM
 		runner.Run = originalRunnerRun
+		ssh.GenerateKey = originalSSHGenerateKey
+		socketvmnet.IsSocketVmnetRunning = originalSocketVmnetIsSocketVmnetRunning
 	}()
 
 	// Run tests
@@ -94,5 +116,11 @@ func setupMocks(_ *testing.T) {
 	}
 	runner.Run = func(*exec.Cmd) error {
 		return nil
+	}
+	ssh.GenerateKey = func(string) error {
+		return nil
+	}
+	socketvmnet.IsSocketVmnetRunning = func() (bool, error) {
+		return true, nil
 	}
 }
