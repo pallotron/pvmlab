@@ -166,11 +166,11 @@ func TestVMLifecycle(t *testing.T) {
 
 		output = runCmdOrFail(t, pathToCLI, "vm", "shell", provisionerName, "--", "sudo", "docker", "ps")
 		if !strings.Contains(output, "pxeboot_stack") {
-			systemd_output := runCmdOrFail(t,
+			pxeboot_output := runCmdOrFail(t,
 				pathToCLI, "vm", "shell", provisionerName, "--",
-				"sudo", "journalctl", "-xfeu", "pxeboot_stack.service", "--no-pager",
+				"sudo", "journalctl", "-xfeu", "pxeboot.service", "--no-pager",
 			)
-			t.Fatalf("pxeboot_stack container is not running on provisioner. Output:\n%s", systemd_output)
+			t.Fatalf("pxeboot stack container is not running on provisioner. \npxeboot.service logs:\n%s", pxeboot_output)
 		}
 	}) {
 		t.FailNow()
