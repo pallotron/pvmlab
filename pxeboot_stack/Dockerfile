@@ -19,7 +19,9 @@ RUN mkdir -p /var/log/nginx && touch /var/log/nginx/error.log && chmod -R 777 /v
 
 EXPOSE 67/udp
 EXPOSE 69/udp
-EXPOSE 80
+EXPOSE 80/tcp
+EXPOSE 53/udp
+EXPOSE 53/tcp
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
