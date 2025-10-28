@@ -48,6 +48,38 @@ func TestCheckForDuplicateIPs(t *testing.T) {
 			newIPv6: "fd00::1/64",
 			expectError: false,
 		},
+		{
+			name:        "invalid new IPv4",
+			vms:         map[string]*Metadata{},
+			newIP:       "invalid-ip",
+			newIPv6:     "fd00::1/64",
+			expectError: true,
+		},
+		{
+			name:        "invalid new IPv6",
+			vms:         map[string]*Metadata{},
+			newIP:       "192.168.1.1/24",
+			newIPv6:     "invalid-ipv6",
+			expectError: true,
+		},
+		{
+			name: "invalid existing IP",
+			vms: map[string]*Metadata{
+				"vm1": {IP: "invalid-ip"},
+			},
+			newIP:       "192.168.1.1/24",
+			newIPv6:     "fd00::1/64",
+			expectError: true,
+		},
+		{
+			name: "invalid existing IPv6",
+			vms: map[string]*Metadata{
+				"vm1": {IPv6: "invalid-ipv6"},
+			},
+			newIP:       "192.168.1.1/24",
+			newIPv6:     "fd00::1/64",
+			expectError: true,
+		},
 	}
 
 	for _, tt := range tests {
