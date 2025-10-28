@@ -183,7 +183,21 @@ uninstall-pxeboot-stack-container:
 	@echo "Uninstalling pxeboot stack container..."
 	@make -C pxeboot_stack clean || true
 
-test: 
+MD_FILES := $(shell find . -name "*.md" -not -path "./socket_vmnet/*")
+
+.PHONY: lint lint.md
+
+lint: lint.md
+
+lint.md:
+	@echo "Linting Markdown files..."
+	@if ! command -v markdownlint &> /dev/null; then \
+		echo "markdownlint not found. Please install with 'brew install markdownlint-cli'"; \
+		exit 1; \
+	fi
+	markdownlint --disable MD013 MD033 MD041 --fix $(MD_FILES)
+
+test: lint
 	RUN_INTEGRATION_TESTS=false go test ./...
 
 integration.test: 
