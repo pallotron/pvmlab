@@ -15,6 +15,7 @@ export NETWORK=$(echo "$PROVISIONER_IP" | cut -d. -f1-3)
 
 # Substitute variables in the template to create the final config file
 envsubst < /etc/dnsmasq.conf.template > /etc/dnsmasq.conf
+envsubst '$PROVISIONER_IP' < /www/boot.ipxe.template > /tftpboot/boot.ipxe
 
 # Ensure the hosts file exists so dnsmasq can start
 mkdir -p /var/lib/pvmlab

@@ -156,7 +156,6 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 		isPxeBoot = false
 	}
 
-	// TODO: https://github.com/pallotron/pvmlab/issues/3
 	// Use a more compatible NIC for PXE booting, as the EDK II firmware for aarch64
 	// does not have a built-in virtio-net driver, and the loadable ROM is x86-64.
 	// When x86-64 support is added, we can use the virtio-net device with its ROM.

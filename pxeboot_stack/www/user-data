@@ -1,0 +1,26 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US
+  keyboard:
+    layout: en
+    variant: us
+  network:
+    network:
+      version: 2
+      ethernets:
+        enp0s1: # This interface name may vary
+          dhcp4: true
+  storage:
+    layout:
+      name: direct
+  identity:
+    hostname: ubuntu-server
+    username: ubuntu
+    # IMPORTANT: Replace with a real password hash generated with `openssl passwd -6`
+    password: "$6$rounds=4096$saltsalt$0i.E2.1.i6E.i.E.i.E.i.E.i.E.i.E.i.E.i.E.i.E"
+  packages:
+    - openssh-server
+  ssh:
+    install-server: true
+    allow-pw: true

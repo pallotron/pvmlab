@@ -6,3 +6,5 @@ build/*
 .jj
 *.img
 *.qcow2
+pxeboot_stack/tftpboot/*
+pxeboot_stack/www/*
