@@ -80,6 +80,9 @@ func TestGetProvisionerImageURL(t *testing.T) {
 	if url != "https://github.com/pallotron/pvmlab/releases/download/v0.1.0/provisioner-custom.arm64.qcow2" {
 		t.Errorf("GetProvisionerImageURL() url = %v, want %v", url, "https://github.com/pallotron/pvmlab/releases/download/v0.1.0/provisioner-custom.arm64.qcow2")
 	}
+	if name != "provisioner-custom.arm64.qcow2" {
+		t.Errorf("GetProvisionerImageURL() name = %v, want %v", name, "provisioner-custom.arm64.qcow2")
+	}
 }
 
 func TestGetPxeBootStackImageURL(t *testing.T) {

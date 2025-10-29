@@ -1,0 +1,12 @@
+[Unit]
+Description=PXE Boot Stack Docker Container
+After=docker.service network-online.target
+Requires=docker.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/pxeboot_stack_reload.sh {{ ds.meta_data.pxe_boot_stack_tar }} {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged
+
+[Install]
+WantedBy=multi-user.target
