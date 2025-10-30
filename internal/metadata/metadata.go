@@ -22,6 +22,7 @@ type Metadata struct {
 	VMsPath          string `json:"vms_path,omitempty"`
 	SSHPort          int    `json:"ssh_port,omitempty"`
 	PxeBoot          bool   `json:"pxeboot,omitempty"`
+	Distro           string `json:"distro,omitempty"`
 }
 
 func getVMsDir(cfg *config.Config) string {
@@ -29,7 +30,7 @@ func getVMsDir(cfg *config.Config) string {
 }
 
 // Save saves the VM's metadata to a file.
-var Save = func(cfg *config.Config, vmName, role, arch, ip, subnet, ipv6, subnetv6, mac, pxeBootStackTar, dockerImagesPath, vmsPath string, sshPort int, pxeBoot bool) error {
+var Save = func(cfg *config.Config, vmName, role, arch, ip, subnet, ipv6, subnetv6, mac, pxeBootStackTar, dockerImagesPath, vmsPath string, sshPort int, pxeBoot bool, distro string) error {
 	meta := Metadata{
 		Name:             vmName,
 		Role:             role,
@@ -44,6 +45,7 @@ var Save = func(cfg *config.Config, vmName, role, arch, ip, subnet, ipv6, subnet
 		VMsPath:          vmsPath,
 		SSHPort:          sshPort,
 		PxeBoot:          pxeBoot,
+		Distro:           distro,
 	}
 
 	data, err := json.MarshalIndent(meta, "", "  ")

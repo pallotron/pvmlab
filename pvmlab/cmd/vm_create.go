@@ -34,7 +34,7 @@ const (
 )
 
 var (
-	ip, ipv6, role, mac, pxebootStackTar, dockerImagesPath string
+	ip, ipv6, role, mac, pxebootStackTar, dockerImagesPath, distro string
 	vmsPath, diskSize, arch, pxebootStackImage             string
 	pxeboot                                                bool
 )
@@ -62,6 +62,10 @@ The --role flag determines the type of VM to create.
 
 		if pxeboot && role != targetRole {
 			return errors.E("vm-create", fmt.Errorf("--pxeboot can only be used with --role=target"))
+		}
+
+		if pxeboot && distro != "ubuntu-24.04" {
+			return errors.E("vm-create", fmt.Errorf("only --distro=ubuntu-24.04 is supported for --pxeboot"))
 		}
 
 		if err := validateIP(ip); err != nil {
@@ -174,6 +178,9 @@ The --role flag determines the type of VM to create.
 
 		vmDiskPath := filepath.Join(appDir, "vms", vmName+".qcow2")
 		if pxeboot {
+			if err := handlePxeBootAssets(cfg, distro, arch); err != nil {
+				return errors.E("vm-create", err)
+			}
 			if err := createBlankDisk(vmDiskPath, diskSize); err != nil {
 				return errors.E("vm-create", err)
 			}
@@ -241,7 +248,7 @@ The --role flag determines the type of VM to create.
 			}
 		}
 
-		if err := metadata.Save(cfg, vmName, role, arch, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, sshPort, pxeboot); err != nil {
+		if err := metadata.Save(cfg, vmName, role, arch, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, sshPort, pxeboot, distro); err != nil {
 			color.Yellow("Warning: failed to save VM metadata: %v", err)
 		}
 		color.Green("✔ VM '%s' created successfully.", vmName)
@@ -249,6 +256,66 @@ The --role flag determines the type of VM to create.
 		return nil
 	},
 }
+
+func handlePxeBootAssets(cfg *config.Config, distro, arch string) error {
+	if _, err := exec.LookPath("7z"); err != nil {
+		return fmt.Errorf("7z is not installed. Please install it to extract PXE boot assets")
+	}
+
+	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+	s.Suffix = " Preparing PXE boot assets..."
+	s.Start()
+	defer s.Stop()
+
+	distroPath := filepath.Join(cfg.GetAppDir(), "images", distro, arch)
+	if err := os.MkdirAll(distroPath, 0755); err != nil {
+		return fmt.Errorf("failed to create distro directory: %w", err)
+	}
+
+	var isoURL, isoName string
+	if distro == "ubuntu-24.04" {
+		if arch == "aarch64" {
+			isoURL = config.Ubuntu2404ARMISOURL
+			isoName = config.Ubuntu2404ARMISOName
+		} else {
+			isoURL = config.Ubuntu2404AMD64ISOURL
+			isoName = config.Ubuntu2404AMD64ISOName
+		}
+	} else {
+		return fmt.Errorf("unsupported distro: %s", distro)
+	}
+
+	isoPath := filepath.Join(distroPath, isoName)
+	if err := downloader.DownloadImageIfNotExists(isoPath, isoURL); err != nil {
+		return err
+	}
+
+	s.Suffix = " Extracting kernel and initrd..."
+	extractPath := filepath.Join(distroPath, "extracted")
+	if err := os.MkdirAll(extractPath, 0755); err != nil {
+		return fmt.Errorf("failed to create extract directory: %w", err)
+	}
+
+	cmd := exec.Command("7z", "x", isoPath, "-o"+extractPath, "casper/vmlinuz", "casper/initrd")
+	if err := runner.Run(cmd); err != nil {
+		return fmt.Errorf("failed to extract kernel and initrd: %w", err)
+	}
+
+	if err := os.Rename(filepath.Join(extractPath, "casper/vmlinuz"), filepath.Join(distroPath, "vmlinuz")); err != nil {
+		return fmt.Errorf("failed to move vmlinuz: %w", err)
+	}
+	if err := os.Rename(filepath.Join(extractPath, "casper/initrd"), filepath.Join(distroPath, "initrd")); err != nil {
+		return fmt.Errorf("failed to move initrd: %w", err)
+	}
+
+	if err := os.RemoveAll(extractPath); err != nil {
+		color.Yellow("Warning: failed to remove temporary extract directory: %v", err)
+	}
+
+	s.FinalMSG = color.GreenString("✔ PXE boot assets prepared successfully.\n")
+	return nil
+}
+
 
 func validateRole(role string) error {
 	if role != provisionerRole && role != targetRole {
@@ -531,4 +598,5 @@ func init() {
 	vmCreateCmd.Flags().StringVar(&diskSize, "disk-size", "15G", "The size of the VM disk")
 	vmCreateCmd.Flags().BoolVar(&pxeboot, "pxeboot", false, "Create a VM that boots from the network (target role only)")
 	vmCreateCmd.Flags().StringVar(&arch, "arch", "aarch64", "The architecture of the VM ('aarch64' or 'x86_64')")
+	vmCreateCmd.Flags().StringVar(&distro, "distro", "", "The distribution for the VM (e.g. ubuntu-24.04)")
 }

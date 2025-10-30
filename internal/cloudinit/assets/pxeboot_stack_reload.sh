@@ -26,7 +26,8 @@ export DHCP_RANGE_V6_START={{ ds.meta_data.dhcp_range_v6_start }}
 export DHCP_RANGE_V6_END={{ ds.meta_data.dhcp_range_v6_end }}
 {% endif %}
 echo "Starting new container..."
-docker run --mount type=bind,source=/mnt/host/vms,target=/mnt/host/vms -d \
+docker run --mount type=bind,source=/mnt/host/vms,target=/mnt/host/vms \
+  --mount type=bind,source=/mnt/host/images,target=/www/images -d \
   -e PROVISIONER_IP=$PROVISIONER_IP \
   -e DHCP_RANGE_START=$DHCP_RANGE_START \
   -e DHCP_RANGE_END=$DHCP_RANGE_END \

@@ -1,3 +1,8 @@
+FROM golang:1.25-alpine AS builder
+WORKDIR /app
+COPY ipxe_endpoint/ .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /ipxe_endpoint .
+
 FROM alpine:3.18
 RUN apk update && apk add --no-cache dnsmasq supervisor jq inotify-tools gettext nginx
 
@@ -12,6 +17,8 @@ COPY nginx.conf /etc/nginx/nginx.conf
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY generate_dnsmasq_hosts.sh /usr/local/bin/generate_dnsmasq_hosts.sh
 COPY watch_vms.sh /usr/local/bin/watch_vms.sh
+COPY --from=builder /ipxe_endpoint /usr/local/bin/ipxe_endpoint
+COPY ipxe_endpoint/boot.ipxe.go.template /boot.ipxe.go.template
 
 RUN touch /var/log/dnsmasq.log && chmod 666 /var/log/dnsmasq.log
 RUN touch /var/log/vm-watcher.log && chmod 666 /var/log/vm-watcher.log

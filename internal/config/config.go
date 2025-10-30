@@ -19,6 +19,16 @@ const (
 	UbuntuAMD64ImageName = "ubuntu-24.04-server-cloudimg-amd64.img"
 	// UbuntuAMD64ImageURL is the full URL for the Ubuntu x86_64 cloud image
 	UbuntuAMD64ImageURL = UbuntuCloudImageBaseURL + UbuntuAMD64ImageName
+	// Ubuntu2404LiveServerBaseURL is the base URL for Ubuntu 24.04 Live Server ISOs
+	Ubuntu2404LiveServerBaseURL = "https://releases.ubuntu.com/24.04/"
+	// Ubuntu2404ARMISOName is the filename for the Ubuntu 24.04 aarch64 Live Server ISO
+	Ubuntu2404ARMISOName = "ubuntu-24.04.3-live-server-arm64.iso"
+	// Ubuntu2404ARMISOURL is the full URL for the Ubuntu 24.04 aarch64 Live Server ISO
+	Ubuntu2404ARMISOURL = Ubuntu2404LiveServerBaseURL + Ubuntu2404ARMISOName
+	// Ubuntu2404AMD64ISOName is the filename for the Ubuntu 24.04 x86_64 Live Server ISO
+	Ubuntu2404AMD64ISOName = "ubuntu-24.04.3-live-server-amd64.iso"
+	// Ubuntu2404AMD64ISOURL is the full URL for the Ubuntu 24.04 x86_64 Live Server ISO
+	Ubuntu2404AMD64ISOURL = Ubuntu2404LiveServerBaseURL + Ubuntu2404AMD64ISOName
 )
 
 // Version is the version of the application. It is set at build time.

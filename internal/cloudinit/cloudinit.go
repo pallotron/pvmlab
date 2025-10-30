@@ -223,6 +223,7 @@ func buildProvisionerUserData(hasIPv6 bool) *UserData {
 			`sysctl -p`,
 			`mkdir -p /mnt/host/docker_images`,
 			`mkdir -p /mnt/host/vms`,
+			`mkdir -p /mnt/host/images`,
 			`systemctl daemon-reload`,
 			`systemctl enable --now pxeboot.service`,
 			`echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections`,
@@ -239,6 +240,7 @@ func buildProvisionerUserData(hasIPv6 bool) *UserData {
 		}, Mounts: []Mount{
 			{"host_share_docker_images", "/mnt/host/docker_images", "9p", "trans=virtio,version=9p2000.L,rw", "0", "0"},
 			{"host_share_vms", "/mnt/host/vms", "9p", "trans=virtio,version=9p2000.L,rw", "0", "0"},
+			{"host_share_images", "/mnt/host/images", "9p", "trans=virtio,version=9p2000.L,rw", "0", "0"},
 		},
 	}
 	// Prepend the required jinja template directive

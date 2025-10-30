@@ -6,5 +6,5 @@ build/*
 .jj
 *.img
 *.qcow2
-pxeboot_stack/tftpboot/*
+pxeboot_stack/tftpboot/*.efi
 pxeboot_stack/www/*
