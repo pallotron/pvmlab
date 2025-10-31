@@ -79,7 +79,7 @@ func TestVMCreateCommand(t *testing.T) {
 			name: "metadata save failure (warning)",
 			args: []string{"vm", "create", "test-vm", "--role", "target"},
 			setupMocks: func() {
-				metadata.Save = func(c *config.Config, _, _, _, _, _, _, _, _, _, _, _ string, i int, _ bool, _ string) error {
+				metadata.Save = func(c *config.Config, _, _, _, _, _, _, _, _, _, _, _, sshKey string, i int, _ bool, _ string) error {
 					return errors.New("metadata save failed")
 				}
 			},

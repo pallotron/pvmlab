@@ -8,3 +8,5 @@ build/*
 *.qcow2
 pxeboot_stack/tftpboot/*.efi
 pxeboot_stack/www/*
+pxeboot_stack/initrd/go.work.sum
+pxeboot_stack/initrd/u-root/*

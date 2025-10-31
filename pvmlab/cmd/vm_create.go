@@ -172,24 +172,28 @@ The --role flag determines the type of VM to create.
 		}
 
 		sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa")
-		if err := ssh.GenerateKey(sshKeyPath); err != nil {
-			return errors.E("vm-create", fmt.Errorf("failed to ensure ssh key exists: %w", err))
-		}
-
-		vmDiskPath := filepath.Join(appDir, "vms", vmName+".qcow2")
-		if pxeboot {
-			if err := handlePxeBootAssets(cfg, distro, arch); err != nil {
-				return errors.E("vm-create", err)
-			}
-			if err := createBlankDisk(vmDiskPath, diskSize); err != nil {
-				return errors.E("vm-create", err)
-			}
-		} else {
-			var imageUrl, imageName string
-			if role == provisionerRole {
-				imageUrl, imageName = config.GetProvisionerImageURL(arch)
-			} else {
-				if arch == "aarch64" {
+		        if err := ssh.GenerateKey(sshKeyPath); err != nil {
+		            return errors.E("vm-create", fmt.Errorf("failed to ensure ssh key exists: %w", err))
+		        }
+		        sshPubKey, err := os.ReadFile(sshKeyPath + ".pub")
+		        if err != nil {
+		            return errors.E("vm-create", fmt.Errorf("failed to read ssh public key: %w", err))
+		        }
+		
+		        vmDiskPath := filepath.Join(appDir, "vms", vmName+".qcow2")
+		        if pxeboot {
+		            if err := handlePxeBootAssets(cfg, distro, arch); err != nil {
+		                return errors.E("vm-create", err)
+		            }
+		            if err := createBlankDisk(vmDiskPath, diskSize); err != nil {
+		                return errors.E("vm-create", err)
+		            }
+		        } else {
+		            var imageUrl, imageName string
+		            if role == provisionerRole {
+		                imageUrl, imageName = config.GetProvisionerImageURL(arch)
+		            } else {
+						if arch == "aarch64" {
 					imageUrl = config.UbuntuARMImageURL
 					imageName = config.UbuntuARMImageName
 				} else {
@@ -248,7 +252,7 @@ The --role flag determines the type of VM to create.
 			}
 		}
 
-		if err := metadata.Save(cfg, vmName, role, arch, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, sshPort, pxeboot, distro); err != nil {
+		if err := metadata.Save(cfg, vmName, role, arch, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, string(sshPubKey), sshPort, pxeboot, distro); err != nil {
 			color.Yellow("Warning: failed to save VM metadata: %v", err)
 		}
 		color.Green("✔ VM '%s' created successfully.", vmName)
@@ -268,6 +272,7 @@ func handlePxeBootAssets(cfg *config.Config, distro, arch string) error {
 	defer s.Stop()
 
 	distroPath := filepath.Join(cfg.GetAppDir(), "images", distro, arch)
+	color.Cyan("i Distro path: %s", distroPath)
 	if err := os.MkdirAll(distroPath, 0755); err != nil {
 		return fmt.Errorf("failed to create distro directory: %w", err)
 	}
@@ -286,34 +291,119 @@ func handlePxeBootAssets(cfg *config.Config, distro, arch string) error {
 	}
 
 	isoPath := filepath.Join(distroPath, isoName)
+	color.Cyan("i ISO path: %s", isoPath)
 	if err := downloader.DownloadImageIfNotExists(isoPath, isoURL); err != nil {
 		return err
 	}
 
-	s.Suffix = " Extracting kernel and initrd..."
-	extractPath := filepath.Join(distroPath, "extracted")
-	if err := os.MkdirAll(extractPath, 0755); err != nil {
-		return fmt.Errorf("failed to create extract directory: %w", err)
+	s.Suffix = " Extracting vmlinuz kernel..."
+	extractCmd := exec.Command("7z", "x", "-y", isoPath, "-o"+distroPath, "casper/vmlinuz")
+	color.Cyan("i Running command: %s", extractCmd.String())
+	if output, err := extractCmd.CombinedOutput(); err != nil {
+		color.Red("! 7z extraction failed. Output:\n%s", string(output))
+		return fmt.Errorf("failed to extract vmlinuz kernel: %w", err)
 	}
 
-	cmd := exec.Command("7z", "x", isoPath, "-o"+extractPath, "casper/vmlinuz", "casper/initrd")
-	if err := runner.Run(cmd); err != nil {
-		return fmt.Errorf("failed to extract kernel and initrd: %w", err)
+	extractedVmlinuzPath := filepath.Join(distroPath, "casper", "vmlinuz")
+	targetVmlinuzPath := filepath.Join(distroPath, "vmlinuz")
+	color.Cyan("i Moving %s to %s", extractedVmlinuzPath, targetVmlinuzPath)
+
+	if _, err := os.Stat(extractedVmlinuzPath); os.IsNotExist(err) {
+		return fmt.Errorf("vmlinuz not found at expected path after extraction: %s", extractedVmlinuzPath)
 	}
 
-	if err := os.Rename(filepath.Join(extractPath, "casper/vmlinuz"), filepath.Join(distroPath, "vmlinuz")); err != nil {
-		return fmt.Errorf("failed to move vmlinuz: %w", err)
-	}
-	if err := os.Rename(filepath.Join(extractPath, "casper/initrd"), filepath.Join(distroPath, "initrd")); err != nil {
-		return fmt.Errorf("failed to move initrd: %w", err)
+	if err := os.Rename(extractedVmlinuzPath, targetVmlinuzPath); err != nil {
+		return fmt.Errorf("failed to move vmlinuz to target path: %w", err)
 	}
 
-	if err := os.RemoveAll(extractPath); err != nil {
-		color.Yellow("Warning: failed to remove temporary extract directory: %v", err)
+	if err := os.RemoveAll(filepath.Join(distroPath, "casper")); err != nil {
+		color.Yellow("Warning: failed to clean up temporary casper directory: %v", err)
 	}
 
-	s.FinalMSG = color.GreenString("✔ PXE boot assets prepared successfully.\n")
+	if err := os.Chmod(targetVmlinuzPath, 0644); err != nil {
+		return fmt.Errorf("failed to set permissions on vmlinuz: %w", err)
+	}
+
+	s.Suffix = " Extracting kernel modules..."
+	extractPoolCmd := exec.Command("7z", "x", "-y", isoPath, "-o"+distroPath, "pool")
+	if output, err := extractPoolCmd.CombinedOutput(); err != nil {
+		color.Red("! 7z pool extraction failed. Output:\n%s", string(output))
+		return fmt.Errorf("failed to extract pool directory: %w", err)
+	}
+
+	s.Suffix = " Finding kernel modules package..."
+	modulesDebPath, err := findFileWithPrefix(filepath.Join(distroPath, "pool", "main", "l", "linux"), "linux-modules-")
+	if err != nil {
+		return fmt.Errorf("failed to find linux-modules package: %w", err)
+	}
+
+	s.Suffix = " Extracting modules from .deb package..."
+	modulesExtractDir := filepath.Join(distroPath, "modules_extract")
+	if err := os.MkdirAll(modulesExtractDir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory for module extraction: %w", err)
+	}
+	extractModulesCmd := exec.Command("7z", "x", "-y", modulesDebPath, "-o"+modulesExtractDir)
+	if output, err := extractModulesCmd.CombinedOutput(); err != nil {
+		color.Red("! 7z module extraction failed. Output:\n%s", string(output))
+		return fmt.Errorf("failed to extract modules from .deb: %w", err)
+	}
+
+	s.Suffix = " Extracting data.tar from .deb package..."
+	dataTarPath := filepath.Join(modulesExtractDir, "data.tar")
+	extractDataTarCmd := exec.Command("7z", "x", "-y", dataTarPath, "-o"+modulesExtractDir)
+	if output, err := extractDataTarCmd.CombinedOutput(); err != nil {
+		color.Red("! 7z data.tar extraction failed. Output:\n%s", string(output))
+		return fmt.Errorf("failed to extract data.tar from .deb: %w", err)
+	}
+
+	s.Suffix = " Creating modules.cpio..."
+	modulesCpioPath := filepath.Join(distroPath, "modules.cpio") // Uncompressed CPIO
+	// The working directory is set to modulesExtractDir, so find will pick up `lib/modules/...`
+	cpioCmd := exec.Command("sh", "-c", fmt.Sprintf("find lib -print | cpio -o -H newc > %s", modulesCpioPath))
+	cpioCmd.Dir = modulesExtractDir
+	if output, err := cpioCmd.CombinedOutput(); err != nil {
+		color.Red("! cpio creation failed. Output:\n%s", string(output))
+		return fmt.Errorf("failed to create modules cpio: %w", err)
+	}
+
+	// Gzip the CPIO archive
+	gzipCmd := exec.Command("gzip", "-f", modulesCpioPath)
+	if output, err := gzipCmd.CombinedOutput(); err != nil {
+		color.Red("! gzip compression failed. Output:\n%s", string(output))
+		return fmt.Errorf("failed to gzip modules cpio: %w", err)
+	}
+
+	s.Suffix = " Cleaning up temporary module directories..."
+	if err := os.RemoveAll(filepath.Join(distroPath, "pool")); err != nil {
+		color.Yellow("Warning: failed to clean up temporary pool directory: %v", err)
+	}
+	if err := os.RemoveAll(modulesExtractDir); err != nil {
+		color.Yellow("Warning: failed to clean up temporary module extraction directory: %v", err)
+	}
+
+	s.FinalMSG = color.GreenString("✔ PXE boot assets prepared successfully (vmlinuz and modules.cpio.gz extracted).\n")
 	return nil
+}
+
+func findFileWithPrefix(dir, prefix string) (string, error) {
+	var foundPath string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && strings.HasPrefix(info.Name(), prefix) {
+			foundPath = path
+			return filepath.SkipDir // Stop searching once found
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if foundPath == "" {
+		return "", fmt.Errorf("no file with prefix '%s' found in '%s'", prefix, dir)
+	}
+	return foundPath, nil
 }
 
 

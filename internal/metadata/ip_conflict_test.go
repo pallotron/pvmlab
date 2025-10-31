@@ -97,7 +97,7 @@ func TestCheckForDuplicateIPs(t *testing.T) {
 
 			// Create dummy VM metadata files
 			for vmName, meta := range tt.vms {
-				if err := Save(cfg, vmName, meta.Role, meta.Arch, meta.IP, meta.Subnet, meta.IPv6, meta.SubnetV6, meta.MAC, meta.PxeBootStackTar, meta.DockerImagesPath, meta.VMsPath, meta.SSHPort, meta.PxeBoot, ""); err != nil {
+				if err := Save(cfg, vmName, meta.Role, meta.Arch, meta.IP, meta.Subnet, meta.IPv6, meta.SubnetV6, meta.MAC, meta.PxeBootStackTar, meta.DockerImagesPath, meta.VMsPath, "", meta.SSHPort, meta.PxeBoot, ""); err != nil {
 					t.Fatalf("failed to save dummy metadata: %v", err)
 				}
 			}

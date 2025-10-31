@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func TestBootHandler(t *testing.T) {
+func TestIpxeHandler(t *testing.T) {
 	// 1. Setup: Create a temporary directory for VM definitions
 	tmpDir, err := os.MkdirTemp("", "pvmlab-test-vms")
 	if err != nil {
@@ -26,7 +26,8 @@ func TestBootHandler(t *testing.T) {
 		"name": "test-vm",
 		"arch": "aarch64",
 		"distro": "ubuntu-24.04",
-		"mac": "%s"
+		"mac": "%s",
+		"ssh_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC... test@example.com"
 	}`, vmMAC)
 	vmFile := filepath.Join(tmpDir, "test-vm.json")
 	if err := os.WriteFile(vmFile, []byte(vmJSON), 0644); err != nil {
@@ -94,9 +95,9 @@ boot
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// 3. Execution: Create a request and record the response
-			url := "/boot"
+			url := "/ipxe"
 			if tc.mac != "" {
-				url = fmt.Sprintf("/boot?mac=%s", tc.mac)
+				url = fmt.Sprintf("/ipxe?mac=%s", tc.mac)
 			}
 			req := httptest.NewRequest("GET", url, nil)
 			rr := httptest.NewRecorder()
@@ -109,7 +110,7 @@ boot
 			if tc.name == "Template Not Found" {
 				testServer.templatePath = "/path/to/non/existent/template.tmpl"
 			}
-			handler := http.HandlerFunc(testServer.bootHandler)
+			handler := http.HandlerFunc(testServer.ipxeHandler)
 			handler.ServeHTTP(rr, req)
 
 			// 4. Assertion: Check the status code and body
@@ -141,7 +142,7 @@ func TestFindVMByMAC(t *testing.T) {
 	// --- Setup ---
 	// Valid VM
 	vmMAC := "AA:BB:CC:DD:EE:FF"
-	vmJSON := fmt.Sprintf(`{"name": "good-vm", "mac": "%s"}`, vmMAC)
+	vmJSON := fmt.Sprintf(`{"name": "good-vm", "arch": "x86_64", "distro": "ubuntu-24.04", "mac": "%s", "ssh_key": "ssh-rsa test"}`, vmMAC)
 	if err := os.WriteFile(filepath.Join(tmpDir, "good-vm.json"), []byte(vmJSON), 0644); err != nil {
 		t.Fatal(err)
 	}

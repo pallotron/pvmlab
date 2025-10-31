@@ -43,6 +43,7 @@ type MetaData struct {
 // UserData structs
 type SSHKeys string
 
+
 func (s SSHKeys) MarshalYAML() (any, error) {
 	return &yaml.Node{
 		Kind:  yaml.ScalarNode,

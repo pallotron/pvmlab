@@ -1,2 +1,3 @@
 #!ipxe
-chain http://${next-server}/boot?mac=${net0/mac}
+
+chain http://${next-server}/ipxe?mac=${mac}

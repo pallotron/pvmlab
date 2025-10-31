@@ -1,0 +1,5 @@
+/binaries/x86_64/*
+/binaries/aarch64/*
+!/binaries/x86_64/.gitkeep
+!/binaries/aarch64/.gitkeep
+output/*
