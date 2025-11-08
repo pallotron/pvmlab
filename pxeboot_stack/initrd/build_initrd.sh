@@ -63,6 +63,7 @@ echo "==> [${TARGET_ARCH}] Building u-root..."
 cd "/work/${UROOT_SRC_DIR}" && go build .
 
 echo "==> [${TARGET_ARCH}] Building initrd..."
+mkdir -p "/work/${OUTPUT_DIR}/${TARGET_ARCH}"
 ./u-root \
     -o "/work/${OUTPUT_DIR}/${TARGET_ARCH}/initrd" \
     -build=bb \
