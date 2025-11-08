@@ -3,9 +3,6 @@
 	url = https://github.com/pallotron/socket_vmnet
 	branch = feature/no_dhcp_issue_139
 
-[submodule "u-root"]
-	path = pxeboot_stack/initrd/u-root
-	url = https://github.com/u-root/u-root.git
 [submodule "pxeboot_stack/initrd/u-root"]
 	path = pxeboot_stack/initrd/u-root
-	url = git@github.com:u-root/u-root.git
+	url = https://github.com/u-root/u-root.git
