@@ -1,212 +1,273 @@
-# PXE Boot Implementation Plan
+# PXE Boot Architecture and Implementation Plan v3: Simplified Boot Flow
 
-This document outlines the steps to enable target VMs to PXE boot from the provisioner VM over a private network.
+This document outlines the final, simplified architecture for a robust, flexible, and distro-agnostic OS installation for `pvmlab` VMs. This approach uses a custom Go-based installation engine and leverages the natural firmware boot order to eliminate complex state management.
 
-## 1. Target VM Configuration (Client-Side)
+## 1. High-Level Architecture
 
-The QEMU command for launching target VMs needs to be modified to instruct the VM's firmware to attempt a network boot first.
+The core of this architecture is a custom `initrd` (initial RAM disk) that contains a Go-based installer. The boot process relies on a "disk first, network second" strategy.
 
-- **File to Modify:** `pvmlab/cmd/vm_start.go`
-- **Action:** When the VM role is "target", add the `-boot n` flag to the `qemu-system-aarch64` command.
+- **Custom `initrd` (The Installer Environment):**
+  - Built using the `u-root` framework for a minimal, fast, and reliable boot environment.
+  - Contains a statically compiled **Go OS Installer** binary.
+  - Includes essential Linux utilities (e.g., `dhclient`, `wget`, `gpt`, `mount`, `tar`, `btrfs`) provided by `u-root`.
 
-## 2. Provisioner VM Configuration (Server-Side)
+- **Go OS Installer (The "Brains"):**
+  - A Go application that runs as the main process inside the `initrd`.
+  - It fetches a JSON "Installation Profile" from the provisioning server to determine the installation method and OS image.
+  - It supports multiple installation methods:
+        1. **`btrfs_stream`**: A high-speed method that streams a `btrfs` send stream file directly onto a `btrfs`-formatted partition.
+        2. **`tarball`**: A highly compatible method that streams a root filesystem tarball and extracts it onto a formatted partition (e.g., `ext4`, `xfs`).
 
-The `pxeboot_stack` Docker container running on the provisioner VM must provide DHCP, TFTP, and HTTP services.
+- **Provisioning Server (`pxEboot_stack`):**
+  - A Docker container that runs all the necessary services for PXE booting.
+  - **`dnsmasq`**: Provides DHCP and TFTP to serve the iPXE binaries.
+  - **`nginx`**: Serves the custom kernel (`vmlinuz`), `initrd`, OS images (tarballs or `btrfs` streams), and acts as a reverse proxy.
+  - **`boot_handler`**: A Go server that **statically** serves the iPXE script to load the installer and the JSON installation profile for the requesting VM. It is now stateless regarding the VM's installation status.
 
-### 2.1. Services Overview
+- **Offline Build Pipeline:**
+  - A `Makefile`-based process to prepare OS images.
+  - For `btrfs_stream`, it converts a root filesystem into a compressed `btrfs` send stream file.
+  - For `tarball`, it produces a standard compressed root filesystem tarball.
 
-- **DHCP Server:** Assigns an IP address to the target VM and provides the TFTP server address and bootloader filename.
-- **TFTP Server:** Serves the initial iPXE bootloader (`ipxe-arm64.efi`).
-- **HTTP Server:** Serves the larger OS files (kernel and initrd) for faster transfers.
+## 2. Boot and Installation Flow
 
-### 2.2. Implementation with `dnsmasq` and a Web Server
+This flow relies on the QEMU boot order being set to **disk first, then network (`-boot order=cn`)**.
 
-- **DHCP & TFTP:** Both services can be provided by `dnsmasq`.
-- **HTTP:** A simple web server (e.g., Nginx, Python's `http.server`) can be added to the container, managed by `supervisord`.
+1. **First Boot (Blank Disk)**:
+    - A new VM is started. The firmware tries to boot from the disk.
+    - The disk is blank and has no bootloader, so the boot attempt **fails**.
+    - The firmware automatically falls back to the next device: **network boot**.
+    - The standard PXE process kicks off: `dnsmasq` -> `iPXE` -> `boot_handler`.
+    - The `boot_handler` serves the iPXE script to load our custom installer.
+    - The Go installer runs, partitions the disk, installs the OS, and reboots.
 
-### 2.3. Configuration Files
+2. **Subsequent Boots (Installed OS)**:
+    - The VM starts. The firmware tries to boot from the disk.
+    - The disk now has a valid bootloader (GRUB). The boot attempt **succeeds**.
+    - The VM boots directly into the installed OS. The network boot process is never initiated.
 
-#### `dnsmasq.conf`
+This design elegantly handles re-provisioning: cleaning the VM's disk (`pvmlab vm clean`) naturally causes the next boot to fail over to the network, automatically triggering the installer again.
 
-This configuration enables the DHCP and TFTP servers and points the client to the iPXE bootloader and script.
+## 3. Go OS Installer: Detailed Steps
 
-```conf
-# Enable TFTP and set the root directory
-enable-tftp
-tftp-root=/tftpboot
+The installer's logic is now simpler as it no longer needs to report its status upon completion.
 
-# Point to the iPXE bootloader and chainload the iPXE script
-# The IP address should be the static IP of the provisioner VM's private interface
-dhcp-boot=ipxe-arm64.efi,,192.168.105.1
-pxe-service=ARM64_EFI, "Boot from iPXE", "boot.ipxe"
+### Phase 1: Initialization and Configuration
+
+1. **Bring Up Network**:
+    - Execute the `dhclient` command provided by `u-root` to get an IP address for the primary network interface (e.g., `eth0`).
+    - `exec.Command("dhclient", "-v", "eth0").Run()`
+
+2. **Discover Self**:
+    - Read the kernel command line from `/proc/cmdline`.
+    - Parse the `installer_mac` parameter from the command line to get the MAC address. This is the MAC address to use for identifying the VM to the provisioning server.
+
+3. **Fetch Installation Profile**:
+    - Perform an HTTP GET request to `http://<provisioner_ip>/install-config?mac=<mac_address>`. The provisioner IP is the default gateway provided by DHCP.
+    - Parse the JSON response into a Go struct containing all necessary parameters (install method, image URL, filesystem type, hostname, SSH key, etc.).
+
+### Phase 2: Disk Preparation
+
+1. **Find Target Disk**:
+    - Identify the primary block device to install to (e.g., `/dev/vda`, `/dev/sda`).
+    - A robust strategy is to iterate through `/sys/block` and select the first non-removable, non-loopback device.
+
+2. **Partition Disk**:
+    - Wipe any existing partition table.
+    - Create a new GPT partition table.
+    - Create the necessary partitions by shelling out to `sfdisk`. The partition scheme should support both BIOS and UEFI booting.
+    - **Example `sfdisk` script:**
+
+        ```bash
+        label: gpt
+        device: /dev/vda
+        unit: sectors
+
+        1 : size=2048, type=21686148-6449-6E6F-744E-656564454649, name="BIOS boot" # BIOS Boot
+        2 : size=1G, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="EFI System" # EFI System Partition
+        3 : type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Linux root" # Linux Root
+        ```
+
+    - This script would be passed to `sfdisk /dev/vda < script.txt`.
+
+3. **Format Partitions**:
+    - Format the EFI partition as FAT32: `exec.Command("mkfs.vfat", "-F32", "/dev/vda2").Run()`
+    - Format the root partition based on the `filesystem_type` from the JSON profile:
+        - `exec.Command("mkfs.btrfs", "/dev/vda3").Run()`
+        - or `exec.Command("mkfs.ext4", "/dev/vda3").Run()`
+
+### Phase 3: OS Installation
+
+1. **Mount Partitions**:
+    - Mount the newly formatted root partition to `/mnt`: `exec.Command("mount", "/dev/vda3", "/mnt").Run()`
+    - Create the EFI mount point: `os.MkdirAll("/mnt/boot/efi", 0755)`
+    - Mount the EFI partition: `exec.Command("mount", "/dev/vda2", "/mnt/boot/efi").Run()`
+
+2. **Stream and Apply OS Image**:
+    - Use a `switch` statement on the `installation_method` from the profile.
+    - **Case `btrfs_stream`**:
+        - Create the Go pipeline to execute `wget -O - <url> | gunzip | btrfs receive /mnt`.
+    - **Case `tarball`**:
+        - Create the Go pipeline to execute `wget -O - <url> | tar -xzf - -C /mnt`.
+
+### Phase 4: System Configuration (in `chroot`)
+
+1. **Prepare for `chroot`**:
+    - Bind-mount necessary kernel filesystems into the new root so that commands like `grub-install` can function correctly.
+    - `exec.Command("mount", "--bind", "/dev", "/mnt/dev").Run()`
+    - `exec.Command("mount", "--bind", "/proc", "/mnt/proc").Run()`
+    - `exec.Command("mount", "--bind", "/sys", "/mnt/sys").Run()`
+
+2. **Install Bootloader (GRUB)**:
+    - Run `grub-install` inside the chroot: `exec.Command("chroot", "/mnt", "grub-install", "--target=x86_64-efi", "--efi-directory=/boot/efi", "--bootloader-id=ubuntu", "--no-nvram").Run()` (adjust target for arch).
+    - Generate the GRUB config: `exec.Command("chroot", "/mnt", "grub-mkconfig", "-o", "/boot/grub/grub.cfg").Run()`
+
+3. **Generate `fstab`**:
+    - Get the UUIDs of the newly created partitions by parsing the output of `blkid`.
+    - Create a new `/mnt/etc/fstab` file and write the correct entries for the root and EFI partitions.
+
+4. **Configure Network**:
+    - Create a simple network configuration file in `/mnt/etc/netplan/` (for Ubuntu) or `/mnt/etc/systemd/network/` to enable DHCP on boot.
+
+5. **Configure Hostname and SSH**:
+    - Write the `hostname` from the profile to `/mnt/etc/hostname`.
+    - Create the user's home directory (e.g., `/mnt/home/ubuntu/.ssh`).
+    - Write the public SSH key from the profile to `/mnt/home/ubuntu/.ssh/authorized_keys`.
+
+### Phase 5: Finalization (Simplified)
+
+1. **Unmount Everything**:
+    - Unmount the bind-mounted kernel filesystems and the root/EFI partitions in the reverse order they were mounted.
+
+2. **Reboot**:
+    - Execute `exec.Command("reboot", "-f").Run()` to restart the machine into its new OS. **No status reporting is needed.**
+
+## 4. Implementation Details and Code
+
+### 4.1. `pvmlab` CLI (`pvmlab/cmd/vm_create.go`)
+
+The `vm create` command, specifically the `handlePxeBootAssets` function, is responsible for preparing all necessary host-side assets.
+
+- It downloads the official distro ISO (e.g., for Ubuntu 24.04).
+- It uses `7z` to extract the `vmlinuz` kernel from the ISO.
+- It places the extracted kernel in a structured path on the host: `~/.pvmlab/images/<distro>/<arch>/vmlinuz`.
+- This makes the correct kernel available to be mounted into the `pxeboot_stack` container at runtime.
+
+### 4.2. `pxeboot_stack` Container
+
+The `pxeboot_stack` container is now completely generic and distro-agnostic.
+
+#### `pxeboot_stack/Dockerfile`
+
+The `Dockerfile`'s sole responsibility for the installer is to build our custom `initrd.gz` and place it in a known static location. It does not handle the kernel.
+
+```dockerfile
+FROM golang:1.25-alpine AS builder
+RUN apk add --no-cache make
+WORKDIR /app
+
+# Build the boot_handler Go application
+COPY boot_handler/ ./boot_handler/
+RUN make -C boot_handler build
+
+# Build the os-installer and package it into a generic initrd
+COPY initrd/ ./initrd/
+RUN make -C initrd/ initrd
+
+FROM alpine:3.18
+RUN apk update && apk add --no-cache dnsmasq supervisor jq inotify-tools gettext nginx
+
+# Create directories for web content and TFTP
+RUN mkdir -p /www/images/installer
+RUN mkdir /tftpboot
+
+# Copy static assets
+COPY tftpboot/* /tftpboot/
+# Note: /www/images/ is populated at runtime by a Docker volume mount from the host
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+# ... other COPY commands
+
+# Copy the boot handler and the generic installer initrd from the builder stage
+COPY --from=builder /app/boot_handler/bin/boot_handler /usr/local/bin/boot_handler
+COPY --from=builder /app/initrd/output/initrd.gz /www/images/installer/initrd.gz
+
+# ... rest of Dockerfile
 ```
 
-#### `boot.ipxe`
+#### `pxeboot_stack/boot_handler/server.go`
 
-This iPXE script is served by the HTTP server. It instructs the client to download the kernel and initrd, and it passes the necessary kernel parameters to trigger an automated installation.
+The `boot_handler` is the dynamic component that ties everything together.
 
-```ipxe
-#!ipxe
+```go
+// ... VM struct definition ...
 
-# The IP of your provisioner VM's HTTP server
-set http_server 192.168.105.1
+func (s *httpServer) ipxeHandler(w http.ResponseWriter, r *http.Request) {
+    mac := r.URL.Query().Get("mac")
+    vm, err := s.findVMByMAC(mac)
+    if err != nil {
+        http.Error(w, "VM not found", http.StatusNotFound)
+        return
+    }
 
-# Kernel parameters for automated installation
-kernel http://${http_server}/vmlinuz console=ttyS0 autoinstall "ds=nocloud-net;s=http://${http_server}/"
+    // Dynamically construct the kernel path based on the VM's metadata
+    kernelPath := fmt.Sprintf("http://${next-server}/images/%s/%s/vmlinuz", vm.Distro, vm.Arch)
+    // The initrd path is always the same, as it's our generic installer
+    initrdPath := "http://${next-server}/images/installer/initrd.gz"
 
-initrd http://${http_server}/initrd
-boot
+    w.Header().Set("Content-Type", "text/plain")
+    fmt.Fprintln(w, "#!ipxe")
+    fmt.Fprintf(w, "kernel %s ip=dhcp installer_mac=${mac}\n", kernelPath)
+    fmt.Fprintf(w, "initrd %s\n", initrdPath)
+    fmt.Fprintln(w, "boot")
+}
+
+// ... rest of server.go ...
 ```
 
-### 2.4. Required Boot Assets
+#### `pxeboot_stack/nginx.conf`
 
-The following files need to be acquired and placed in the `pxeboot_stack` Docker build context to be included in the final image.
+Nginx configuration is simplified as it no longer needs to proxy the `/vm-status` endpoint.
 
-- `ipxe-arm64.efi`: Place in the TFTP root (e.g., `pxeboot_stack/tftpboot/`).
-- `vmlinuz`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
-- `initrd`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
-- `boot.ipxe`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
-- `user-data`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
-- `meta-data`: Place in the HTTP server root (e.g., `pxeboot_stack/www/`).
+```nginx
+http {
+    server {
+        listen 80;
 
-## 3. Acquiring Kernel and Initrd
+        location /ipxe {
+            proxy_pass http://localhost:8080;
+        }
 
-You can obtain the required `vmlinuz` (kernel) and `initrd` (initial RAM disk) files by downloading the generic netboot files directly from the Ubuntu repositories.
+        location /install-config {
+            proxy_pass http://localhost:8080;
+        }
 
-1. **Create Directories:**
-
-   ```bash
-   mkdir -p ubuntu-24.04-amd64-netboot ubuntu-24.04-arm64-netboot
-   ```
-
-2. **Download `amd64` (x86_64) Files:**
-
-   ```bash
-   # Download the kernel (renaming to vmlinuz)
-   wget http://releases.ubuntu.com/24.04/netboot/amd64/linux -O ubuntu-24.04-amd64-netboot/vmlinuz
-
-   # Download the initrd
-   wget http://releases.ubuntu.com/24.04/netboot/amd64/initrd -O ubuntu-24.04-amd64-netboot/initrd
-   ```
-
-3. **Download `arm64` (AArch64) Files:**
-
-   ```bash
-   # Download the kernel (renaming to vmlinuz)
-   wget http://cdimage.ubuntu.com/ubuntu/releases/24.04/release/netboot/arm64/linux -O ubuntu-24.04-arm64-netboot/vmlinuz
-
-   # Download the initrd
-   wget http://cdimage.ubuntu.com/ubuntu/releases/24.04/release/netboot/arm64/initrd -O ubuntu-24.04-arm64-netboot/initrd
-   ```
-
-4. **Verify Downloads:**
-
-   ```bash
-   ls -R ubuntu-24.04-amd64-netboot ubuntu-24.04-arm64-netboot
-   ```
-
-   _Expected Output:_
-
-   ```text
-   ubuntu-24.04-amd64-netboot:
-   initrd  vmlinuz
-
-   ubuntu-24.04-arm64-netboot:
-   initrd  vmlinuz
-   ```
-
-## 4. Automated OS Installation with `autoinstall`
-
-When using the netboot kernel and initrd, you are loading the Debian Installer. For a hands-off installation suitable for `pvmlab`, we use Ubuntu's `autoinstall` mechanism, which is powered by `cloud-init`.
-
-### 4.1. How it Works
-
-1. **Configuration Files:** You create `user-data` and `meta-data` files that contain the answers to all the installer's questions (e.g., disk partitioning, user creation).
-2. **HTTP Server:** These files are hosted on the provisioner VM's web server.
-3. **Kernel Parameters:** The iPXE script passes a special `autoinstall` parameter to the kernel, telling it where to fetch the configuration files. The installer then runs automatically without user interaction.
-
-### 4.2. Configuration Files
-
-#### `user-data`
-
-This file contains the core autoinstall configuration.
-
-```yaml
-#cloud-config
-autoinstall:
-  version: 1
-  locale: en_US
-  keyboard:
-    layout: en
-    variant: us
-  network:
-    network:
-      version: 2
-      ethernets:
-        enp0s1: # This interface name may vary
-          dhcp4: true
-  storage:
-    layout:
-      name: direct
-  identity:
-    hostname: ubuntu-server
-    username: ubuntu
-    password: "$6$rounds=4096$..." # A crypted password hash
-  packages:
-    - openssh-server
-  ssh:
-    install-server: true
-    allow-pw: true
+        location / {
+            root /www; # Serves kernels, initrds, OS images
+            autoindex on;
+        }
+    }
+}
 ```
 
-> **Note:** You must generate a properly crypted password hash for the `password` field. You can do this with `openssl passwd -6`.
+### 4.3. VM Start (`pvmlab/cmd/vm_start.go`)
 
-#### `meta-data`
+The `vm start` command is simplified to **always** use `-boot order=cn`. The user-facing `--boot` flag is removed as it's no longer necessary for this workflow.
 
-This file is typically minimal and can often be just an empty file, but it must exist.
+```go
+// In buildQEMUArgs function
 
-```yaml
-# Empty file
+// ...
+// Set the boot order to disk, then network.
+// This is the core of the simplified logic.
+qemuArgs = append(qemuArgs, "-boot", "order=cn")
+
+// The ISO drive is only attached if the VM was NOT created for PXE boot.
+if !opts.meta.PxeBoot {
+    qemuArgs = append(qemuArgs, "-drive", fmt.Sprintf("file=%s,format=raw,if=virtio", isoPath))
+}
+// ...
+
+// In init() for vmStartCmd
+// The --boot flag is removed.
+// vmCreateCmd.Flags().StringVar(&bootOverride, "boot", "", "Override boot device (disk or pxe)")
 ```
-
-### 4.3. Update Boot Assets
-
-Ensure the `user-data` and `meta-data` files are placed in the HTTP server's root directory within the `pxeboot_stack` container, alongside `vmlinuz` and `initrd`.
-
-### 4.4. Per-VM Specific Configuration
-
-The `nocloud-net` datasource allows for both a generic configuration for all booting VMs and specific configurations for individual VMs.
-
-#### Generic Fallback (Default)
-
-The current setup is the simplest case. When the installer is pointed to `s=http://192.168.105.1/`, it fetches `user-data` and `meta-data` from that root directory. Every VM gets the same configuration, which is ideal for creating a cluster of identical nodes.
-
-#### Per-Instance Configuration (Advanced)
-
-For more control, you can create configurations for specific VMs. The installer will first look for a subdirectory named after the VM's **MAC address**.
-
-You can structure your HTTP server's root directory like this:
-
-```shell
-/pxeboot_stack/www/
-├── user-data                  # Generic fallback user-data
-├── meta-data                  # Generic fallback meta-data
-│
-├── 00:16:3e:11:22:33/           # Directory for a VM with this MAC address
-│   ├── user-data              # Specific user-data for this VM
-│   └── meta-data              # Specific meta-data for this VM
-│
-└── 00:16:3e:44:55:66/           # Directory for another VM
-    ├── user-data              # Another specific user-data
-    └── meta-data
-```
-
-**Lookup Process:**
-
-1. A VM with MAC address `00:16:3e:11:22:33` boots.
-2. The installer queries the datasource URL.
-3. It first attempts to fetch `http://192.168.105.1/00:16:3e:11:22:33/user-data`.
-4. **On success**, it uses that specific configuration.
-5. **On failure (404 Not Found)**, it falls back to the generic `http://192.168.105.1/user-data`.
-
-This powerful feature allows you to set unique hostnames, static IPs, or SSH keys for each target VM while maintaining a default configuration for all others.

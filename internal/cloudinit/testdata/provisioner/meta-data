@@ -1,0 +1,14 @@
+instance-id: iid-cloudimg-provisioner
+local-hostname: provisioner
+public-keys:
+  - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDG4gGhU/FVSFUO3NBv3s957VeF6advo8V74k+SmH57JBNjmykhNbER1Sec+pJuWOc4iEyAF8TmwjUZJxUWOpPMwzyKlQ39xWpLwfH8tXZw+7BUP+fDX2gQRqAPNmZBi6yc+fQvnraS8ybV/vZj6JLT01k54qRS/RKqqgLGWbV7hwsicYlrptxuAtFugHrcQbb9fnlCAiPWYU7eCDMos6NEBIKnmc7NNmYxpuZkgm0K3hmCfzCnfSby+hgZWhFp3GKdM5f4Z2fSAs40oU5XVIpdi64kiEoOcA3UFV/W44odEwZx3neO2qzNT+r8x9vg30pQcx6iIWFa7F0j6r/X2cp1
+pxe_boot_stack_tar: pxeboot_stack.tar
+pxe_boot_stack_name: pxeboot_stack
+pxe_boot_stack_image: pxeboot_stack:latest
+provisioner_ip: 192.168.100.1
+provisioner_ipv6: fd00:cafe:babe::1
+dhcp_range_start: 192.168.100.100
+dhcp_range_end: 192.168.100.200
+dhcp_range_v6_start: ::64
+dhcp_range_v6_end: ::c8
+ipv6_subnet: fd00:cafe:babe::1/64

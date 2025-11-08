@@ -11,17 +11,21 @@ endif
 
 LDFLAGS = -ldflags="-X 'pvmlab/internal/config.Version=$(BUILD_VERSION)'"
 
-.PHONY: isntall socket_vmnet clean clean-iso install.socket_vmnet install.socket_vmnet.launchd install.completions test integration.test uninstall uninstall-pvmlab uninstall.socket_vmnet uninstall.launchd uninstall.completions uninstall-pxeboot-stack-container
+.PHONY: isntall socket_vmnet clean clean.iso install.socket_vmnet install.socket_vmnet.launchd install.completions test integration.test uninstall uninstall-pvmlab uninstall.socket_vmnet uninstall.launchd uninstall.completions uninstall-pxeboot-stack-container clean.initrd clean.socket_vmnet build.socket_vmnet build-pxeboot-stack-container release lint lint.md clean.iso clean.initrd
 
 install: install-pvmlab build.socket_vmnet install.completions install.socket_vmnet install.launchd build-pxeboot-stack-container
 	@echo "🚀"
 	
-clean: clean.socket_vmnet clean-iso
-	make -C socket_vmnet clean
+clean: clean.socket_vmnet clean.iso clean.initrd
+	@make -C pxeboot_stack clean
 
-clean-iso:
+clean.iso:
 	@echo "Cleaning generated ISOs..."
 	@rm -f ~/.pvmlab/configs/cloud-init/*.iso
+
+clean.initrd:
+	@echo "Cleaning generated initrds..."
+	make -C pxeboot_stack/initrd clean
 
 install-pvmlab:
 	go install $(LDFLAGS) ./pvmlab
@@ -183,12 +187,26 @@ uninstall-pxeboot-stack-container:
 	@echo "Uninstalling pxeboot stack container..."
 	@make -C pxeboot_stack clean || true
 
+MD_FILES := $(shell find . -name "*.md" -not -path "./socket_vmnet/*" -not -path "./pxeboot_stack/initrd/u-root/*")
+
+.PHONY: lint lint.md
+
+lint: lint.md
+
+lint.md:
+	@echo "Linting Markdown files..."
+	@if ! command -v markdownlint &> /dev/null; then \
+		echo "markdownlint not found. Please install with 'brew install markdownlint-cli'"; \
+		exit 1; \
+	fi
+	markdownlint --disable MD013 MD033 MD041 --fix $(MD_FILES)
+
 test: 
-	RUN_INTEGRATION_TESTS=false go test -v ./...
+	RUN_INTEGRATION_TESTS=false go test ./...
 
 integration.test: 
 	@make -C pxeboot_stack tar
-	@RUN_INTEGRATION_TESTS=true go test -v ./tests/integration/...
+	@RUN_INTEGRATION_TESTS=true go test ./tests/integration/...
 
 integration.test.ssh.provisioner:
 	@PVMLAB_HOME=$$(./tests/find-test-pvmlab-home.sh) ./build/pvmlab_test vm shell test-provisioner

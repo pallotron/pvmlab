@@ -11,6 +11,7 @@ Installs dependencies, creates the artifacts directory, and generates an SSH key
 
 **Details:**
 This command performs the following actions:
+
 - Checks for required dependencies (`brew`, `mkisofs`, `socat`, `qemu-system-aarch64`, `docker`, `socket_vmnet`).
 - Creates the `~/.pvmlab` directory and its subdirectories (`images`, `vms`, `pids`, `logs`, `monitors`, `ssh`, `configs`).
 - Generates an RSA key pair for SSH access to the VMs and stores it in `~/.pvmlab/ssh/`.
@@ -27,6 +28,7 @@ Stops all VMs and services, and removes generated files.
 `pvmlab clean [--purge]`
 
 **Flags:**
+
 - `--purge`: If set, removes the entire `~/.pvmlab` directory. Otherwise, only the contents of subdirectories are removed.
 
 ---
@@ -70,9 +72,11 @@ Creates a new VM.
 `pvmlab vm create <name> --role <role> [flags]`
 
 **Arguments:**
+
 - `<name>`: The name for the new VM.
 
 **Flags:**
+
 - `--role`: (Required) The role of the VM. Must be either `provisioner` or `target`.
 - `--ip`: The static IPv4 address for the VM's private network interface, in CIDR notation (e.g., `192.168.254.1/24`). **Required for `provisioner` role.**
 - `--ipv6`: The static IPv6 address for the VM's private network interface, in CIDR notation (e.g., `fd00:cafe:babe::1/64`).
@@ -85,6 +89,7 @@ Creates a new VM.
 - `--vms-path`: Path to a directory of VMs to share with the `provisioner` VM. Defaults to `~/.pvmlab/vms`.
 
 **Example:**
+
 ```bash
 # Create a provisioner VM
 pvmlab vm create my-provisioner --role provisioner --ip 192.168.254.1/24 --docker-pxeboot-stack-tar ./pxeboot_stack.tar
@@ -101,6 +106,7 @@ Starts the specified VM.
 `pvmlab vm start <name> [flags]`
 
 **Flags:**
+
 - `-i`, `--interactive`: Attach to the VM's serial console for interactive use.
 - `--wait`: Wait for the VM's cloud-init process to complete before exiting.
 - `--boot`: Override the default boot device. Can be `disk` or `pxe`.
@@ -154,9 +160,11 @@ Starts a Docker container inside a VM from a given tarball.
 `pvmlab vm docker start <vm> --docker-tar <tar> [flags]`
 
 **Arguments:**
+
 - `<vm>`: The name of the VM where the container will run.
 
 **Flags:**
+
 - `--docker-tar`: (Required) Path to the Docker container tarball.
 - `--privileged`: Run the container in privileged mode.
 - `--network-host`: Use the host's network stack inside the container.

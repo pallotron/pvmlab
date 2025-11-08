@@ -128,7 +128,7 @@ func TestBuildQEMUArgs(t *testing.T) {
 			},
 			expectedArgs: []string{
 				"-boot", "n",
-				"-device", "e1000,netdev=net0,mac=aa:bb:cc", // e1000 for PXE
+				"-device", "virtio-net-pci,netdev=net0,mac=aa:bb:cc", // virtio-net-pci for PXE
 			},
 			unexpectedArgs: []string{
 				"cloud-init", // No ISO for PXE boot

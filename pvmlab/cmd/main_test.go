@@ -123,7 +123,7 @@ func setupMocks(t *testing.T) {
 	cloudinit.CreateISO = func(string, string, string, string, string, string, string, string, string) error {
 		return nil
 	}
-	metadata.Save = func(*config.Config, string, string, string, string, string, string, string, string, string, string, string, int, bool) error {
+	metadata.Save = func(*config.Config, string, string, string, string, string, string, string, string, string, string, string, string, int, bool, string) error {
 		return nil
 	}
 	metadata.FindProvisioner = func(*config.Config) (string, error) {
@@ -141,7 +141,12 @@ func setupMocks(t *testing.T) {
 	runner.Run = func(*exec.Cmd) error {
 		return nil
 	}
-	ssh.GenerateKey = func(string) error {
+	ssh.GenerateKey = func(keyPath string) error {
+		// Create a dummy public key file in the temp directory
+		pubKeyPath := keyPath + ".pub"
+		if err := os.WriteFile(pubKeyPath, []byte("ssh-rsa AAAA... test@example.com"), 0644); err != nil {
+			return err
+		}
 		return nil
 	}
 	socketvmnet.IsSocketVmnetRunning = func() (bool, error) {

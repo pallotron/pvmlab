@@ -156,14 +156,14 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 		isPxeBoot = false
 	}
 
-	// TODO: https://github.com/pallotron/pvmlab/issues/3
 	// Use a more compatible NIC for PXE booting, as the EDK II firmware for aarch64
 	// does not have a built-in virtio-net driver, and the loadable ROM is x86-64.
 	// When x86-64 support is added, we can use the virtio-net device with its ROM.
 	netDevice := "virtio-net-pci"
-	if isPxeBoot {
-		netDevice = "e1000"
-	}
+	// Temporarily always use virtio-net-pci to test initrd networking
+	// if isPxeBoot {
+	// 	netDevice = "e1000"
+	// }
 
 	qemuArgs := []string{
 		qemuBinary,
@@ -220,7 +220,7 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 			return nil, fmt.Errorf("could not find an available SSH port: %w", err)
 		}
 		opts.meta.SSHPort = sshPort
-		if err := metadata.Save(opts.cfg, opts.vmName, opts.meta.Role, opts.meta.Arch, opts.meta.IP, opts.meta.Subnet, opts.meta.IPv6, opts.meta.SubnetV6, opts.meta.MAC, opts.meta.PxeBootStackTar, opts.meta.DockerImagesPath, opts.meta.VMsPath, opts.meta.SSHPort, opts.meta.PxeBoot); err != nil {
+		if err := metadata.Save(opts.cfg, opts.vmName, opts.meta.Role, opts.meta.Arch, opts.meta.IP, opts.meta.Subnet, opts.meta.IPv6, opts.meta.SubnetV6, opts.meta.MAC, opts.meta.PxeBootStackTar, opts.meta.DockerImagesPath, opts.meta.VMsPath, opts.meta.SSHKey, opts.meta.SSHPort, opts.meta.PxeBoot, opts.meta.Distro); err != nil {
 			return nil, fmt.Errorf("failed to save updated metadata with new SSH port: %w", err)
 		}
 
@@ -242,6 +242,7 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 
 			"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_docker_images,security_model=passthrough", finalDockerImagesPath),
 			"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_vms,security_model=passthrough", finalVMsPath),
+			"-virtfs", fmt.Sprintf("local,path=%s,mount_tag=host_share_images,security_model=passthrough", filepath.Join(opts.appDir, "images")),
 		)
 	} else { // target
 		qemuArgs = append(qemuArgs, "-m", "2048", "-device", fmt.Sprintf("%s,netdev=net0,mac=%s", netDevice, opts.meta.MAC), "-netdev", "socket,id=net0,fd=3")

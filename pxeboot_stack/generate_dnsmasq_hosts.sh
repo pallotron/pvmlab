@@ -1,17 +1,21 @@
 #!/bin/sh
 set -euo pipefail
 
-# This script generates a dnsmasq hosts file from VM JSON definitions.
+# This script generates dnsmasq configuration files from VM JSON definitions.
 
-HOSTS_FILE="/var/lib/pvmlab/dnsmasq.hosts"
+DHCP_HOSTS_FILE="/var/lib/pvmlab/dnsmasq.hosts"
+DNS_HOSTS_FILE="/var/lib/pvmlab/dns.hosts"
 VMS_DIR="/mnt/host/vms"
 
 # Ensure the target directory exists
-mkdir -p "$(dirname "$HOSTS_FILE")"
+mkdir -p "$(dirname "$DHCP_HOSTS_FILE")"
 
-# Create a temporary file to build the new hosts list
-TMP_HOSTS_FILE=$(mktemp)
-trap 'rm -f "$TMP_HOSTS_FILE"' EXIT
+# Create temporary files to build the new lists
+TMP_DHCP_HOSTS_FILE=$(mktemp)
+trap 'rm -f "$TMP_DHCP_HOSTS_FILE"' EXIT
+TMP_DNS_HOSTS_FILE=$(mktemp)
+trap 'rm -f "$TMP_DNS_HOSTS_FILE"' EXIT
+
 
 # Process each JSON file in the VMs directory
 for vm_file in "$VMS_DIR"/*.json; do
@@ -19,26 +23,42 @@ for vm_file in "$VMS_DIR"/*.json; do
     continue
   fi
 
-  # Skip the provisioner, as it does not get its IP from dnsmasq
-  if jq -e '.role == "provisioner"' "$vm_file" > /dev/null; then
-    continue
-  fi
-
-  # Extract MAC and IP for all other roles (e.g., "target")
+  # Extract MAC, IP, and name for all roles
   mac=$(jq -r '.mac' "$vm_file")
   ip=$(jq -r '.ip' "$vm_file")
   ipv6=$(jq -r '.ipv6' "$vm_file")
+  name=$(jq -r '.name' "$vm_file")
 
-  # Add the entry to our temporary hosts file
-  if [[ -n "$mac" && -n "$ip" ]]; then
-    echo "$mac,$ip" >> "$TMP_HOSTS_FILE"
+  # Add entries to the DHCP hosts file, combining IPv4 and IPv6 on a single line.
+  if [[ -n "$mac" && -n "$name" ]]; then
+    line="$mac"
+    has_any_ip=false
+    if [[ -n "$ip" ]]; then
+      line="$line,$ip"
+      has_any_ip=true
+    fi
+    if [[ -n "$ipv6" && "$ipv6" != "null" ]]; then
+      line="$line,[$ipv6]"
+      has_any_ip=true
+    fi
+    
+    if [[ "$has_any_ip" = true ]]; then
+      line="$line,$name"
+      echo "$line" >> "$TMP_DHCP_HOSTS_FILE"
+    fi
   fi
-  if [[ -n "$mac" && -n "$ipv6" && "$ipv6" != "null" ]]; then
-    echo "$mac,[$ipv6]" >> "$TMP_HOSTS_FILE"
+
+  # Add entries to the DNS hosts file in the format: ip hostname
+  if [[ -n "$ip" && -n "$name" ]]; then
+    echo "$ip $name" >> "$TMP_DNS_HOSTS_FILE"
+  fi
+  if [[ -n "$ipv6" && "$ipv6" != "null" && -n "$name" ]]; then
+    echo "$ipv6 $name" >> "$TMP_DNS_HOSTS_FILE"
   fi
 done
 
-# Atomically replace the old hosts file with the new one
-mv "$TMP_HOSTS_FILE" "$HOSTS_FILE"
+# Atomically replace the old hosts files with the new ones
+mv "$TMP_DHCP_HOSTS_FILE" "$DHCP_HOSTS_FILE"
+mv "$TMP_DNS_HOSTS_FILE" "$DNS_HOSTS_FILE"
 
-echo "dnsmasq hosts file generated at $HOSTS_FILE"
+echo "dnsmasq hosts files generated at $DHCP_HOSTS_FILE and $DNS_HOSTS_FILE"

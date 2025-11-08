@@ -41,7 +41,7 @@ func TestSaveLoad(t *testing.T) {
 	dockerImagesPath := "/path/to/docker/images"
 	vmsPath := "/path/to/vms"
 
-	err := Save(cfg, vmName, role, "aarch64", ip, subnet, "", "", mac, pxeBootStackTar, dockerImagesPath, vmsPath, 0, false)
+	err := Save(cfg, vmName, role, "aarch64", ip, subnet, "", "", mac, pxeBootStackTar, dockerImagesPath, vmsPath, "", 0, false, "")
 	if err != nil {
 		t.Fatalf("Save() failed: %v", err)
 	}
@@ -61,6 +61,7 @@ func TestSaveLoad(t *testing.T) {
 		PxeBootStackTar:  "pxe-stack.tar",
 		DockerImagesPath: "/path/to/docker/images",
 		VMsPath:          "/path/to/vms",
+		SSHKey:           "",
 	}
 
 	if !reflect.DeepEqual(meta, want) {
@@ -72,13 +73,13 @@ func TestFindProvisioner(t *testing.T) {
 	cfg, cleanup := setup(t)
 	defer cleanup()
 
-	if err := Save(cfg, "vm1", "target", "aarch64", "", "", "", "", "mac1", "", "", "", 0, false); err != nil {
+	if err := Save(cfg, "vm1", "target", "aarch64", "", "", "", "", "mac1", "", "", "", "", 0, false, ""); err != nil {
 		t.Fatalf("Save() failed for vm1: %v", err)
 	}
-	if err := Save(cfg, "vm2", "provisioner", "aarch64", "ip2", "subnet2", "", "", "mac2", "pxe2", "docker2", "", 45678, false); err != nil {
+	if err := Save(cfg, "vm2", "provisioner", "aarch64", "ip2", "subnet2", "", "", "mac2", "pxe2", "docker2", "", "", 45678, false, ""); err != nil {
 		t.Fatalf("Save() failed for vm2: %v", err)
 	}
-	if err := Save(cfg, "vm3", "target", "aarch64", "", "", "", "", "mac3", "", "", "", 0, false); err != nil {
+	if err := Save(cfg, "vm3", "target", "aarch64", "", "", "", "", "mac3", "", "", "", "", 0, false, ""); err != nil {
 		t.Fatalf("Save() failed for vm3: %v", err)
 	}
 
@@ -97,7 +98,7 @@ func TestDelete(t *testing.T) {
 	defer cleanup()
 
 	vmName := "vm-to-delete"
-	if err := Save(cfg, vmName, "target", "aarch64", "", "", "", "", "mac", "", "", "", 0, false); err != nil {
+	if err := Save(cfg, vmName, "target", "aarch64", "", "", "", "", "mac", "", "", "", "", 0, false, ""); err != nil {
 		t.Fatalf("Save() failed: %v", err)
 	}
 
@@ -118,10 +119,10 @@ func TestGetAll(t *testing.T) {
 	defer cleanup()
 
 	// Create some dummy metadata files
-	if err := Save(cfg, "vm1", "target", "aarch64", "", "", "", "", "mac1", "", "", "", 0, false); err != nil {
+	if err := Save(cfg, "vm1", "target", "aarch64", "", "", "", "", "mac1", "", "", "", "", 0, false, ""); err != nil {
 		t.Fatalf("Save() failed for vm1: %v", err)
 	}
-	if err := Save(cfg, "vm2", "provisioner", "aarch64", "ip2", "subnet2", "", "", "mac2", "pxe2", "docker2", "", 45678, false); err != nil {
+	if err := Save(cfg, "vm2", "provisioner", "aarch64", "ip2", "subnet2", "", "", "mac2", "pxe2", "docker2", "", "", 45678, false, ""); err != nil {
 		t.Fatalf("Save() failed for vm2: %v", err)
 	}
 
@@ -139,5 +140,66 @@ func TestGetAll(t *testing.T) {
 	}
 	if allMeta["vm2"].Role != "provisioner" {
 		t.Errorf("GetAll() metadata for vm2 is incorrect")
+	}
+}
+
+func TestGetProvisioner(t *testing.T) {
+	cfg, cleanup := setup(t)
+	defer cleanup()
+
+	// Scenario 1: Provisioner exists
+	if err := Save(cfg, "vm1", "target", "aarch64", "", "", "", "", "mac1", "", "", "", "", 0, false, ""); err != nil {
+		t.Fatalf("Save() failed for vm1: %v", err)
+	}
+	if err := Save(cfg, "vm2", "provisioner", "aarch64", "ip2", "subnet2", "", "", "mac2", "pxe2", "docker2", "", "", 45678, false, ""); err != nil {
+		t.Fatalf("Save() failed for vm2: %v", err)
+	}
+
+	provisioner, err := GetProvisioner(cfg)
+	if err != nil {
+		t.Fatalf("GetProvisioner() failed: %v", err)
+	}
+	if provisioner.Name != "vm2" {
+		t.Errorf("GetProvisioner() got = %s, want vm2", provisioner.Name)
+	}
+
+	// Scenario 2: No provisioner
+	cleanup()
+	cfg, cleanup = setup(t)
+	defer cleanup()
+	if err := Save(cfg, "vm1", "target", "aarch64", "", "", "", "", "mac1", "", "", "", "", 0, false, ""); err != nil {
+		t.Fatalf("Save() failed for vm1: %v", err)
+	}
+
+	_, err = GetProvisioner(cfg)
+	if err == nil {
+		t.Errorf("GetProvisioner() expected an error, but got none")
+	}
+}
+
+func TestFindVM(t *testing.T) {
+	cfg, cleanup := setup(t)
+	defer cleanup()
+
+	// Scenario 1: VM exists
+	if err := Save(cfg, "vm1", "target", "aarch64", "", "", "", "", "mac1", "", "", "", "", 0, false, ""); err != nil {
+		t.Fatalf("Save() failed for vm1: %v", err)
+	}
+
+	vmName, err := FindVM(cfg, "vm1")
+	if err != nil {
+		t.Fatalf("FindVM() failed: %v", err)
+	}
+	if vmName != "vm1" {
+		t.Errorf("FindVM() got = %s, want vm1", vmName)
+	}
+
+	// Scenario 2: VM does not exist
+	vmName, err = FindVM(cfg, "non-existent-vm")
+	if err != nil {
+		t.Fatalf("FindVM() for non-existent vm failed: %v", err)
+	}
+	if vmName != "" {
+		t.Errorf("FindVM() for non-existent vm got = %s, want empty string", vmName)
 	}
 }

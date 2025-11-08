@@ -1,0 +1,19 @@
+#!ipxe
+
+set kernel_args ip=dhcp installer_mac=${mac} cloud_init_url=http://${next-server}/cloud-init/{{.Name}} initrd.mode=install console=ttyS0,115200
+set initrd http://${next-server}/initrds/{{.Arch}}/initrd.gz
+set kmods_initrd http://${next-server}/images/{{.Distro}}/{{.Arch}}/modules.cpio.gz
+set kernel http://${next-server}/images/{{.Distro}}/{{.Arch}}/vmlinuz
+
+echo "==> VM Name: {{.Name}}"
+echo "==> MAC: ${mac}"
+echo "==> Distro: {{.Distro}}"
+echo "==> Arch: {{.Arch}}"
+echo "==> Kernel: ${kernel} ${kernel_args}"
+echo "==> Initrd: ${initrd}"
+echo "==> Kmods Initrd: ${kmods_initrd}
+
+kernel ${kernel} ${kernel_args} || shell
+initrd ${initrd} || shell
+initrd ${kmods_initrd} || shell
+boot || shell

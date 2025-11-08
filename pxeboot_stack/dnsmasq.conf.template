@@ -1,34 +1,51 @@
 interface=enp0s2
 bind-interfaces
 
-# No DNS
-port=0
-
 log-facility=/var/log/dnsmasq.log
-log-queries
-log-dhcp
 
-dhcp-authoritative
-dhcp-hostsfile=/var/lib/pvmlab/dnsmasq.hosts
+# DNS configuration
+log-queries
+domain=pvmlab.local
+local=/pvmlab.local/
+auth-zone=pvmlab.local
+addn-hosts=/var/lib/pvmlab/dns.hosts
+auth-server=provisioner.pvmlab.local
+expand-hosts
 
 # TFTP configuration
 enable-tftp
 tftp-root=/tftpboot
-# Set the boot file name based on the client architecture.
-# The following tags are based on RFC4578, section 2.1
-dhcp-match=set:efi-x86_64,option:client-arch,7
-dhcp-match=set:efi-x86_64,option:client-arch,9
-dhcp-boot=tag:efi-x86_64,ipxe.efi
-dhcp-match=set:efi-aarch64,option:client-arch,11
-dhcp-boot=tag:efi-aarch64,ipxe-arm64.efi
 
 # DHCPv4 configuration
+dhcp-authoritative
+log-dhcp
+# Read DHCP and DNS records from this file
+dhcp-hostsfile=/var/lib/pvmlab/dnsmasq.hosts
+
+# Set the boot file name based on the client architecture.
+# The following tags are based on RFC4578, section 2.1
+#
+# This first set of rules is for the UEFI PXE firmware, which does not
+# identify itself as "iPXE". We serve it the iPXE binary.
+dhcp-match=set:efi-x86_64,option:client-arch,7
+dhcp-match=set:efi-x86_64,option:client-arch,9
+dhcp-boot=tag:efi-x86_64,tag:!ipxe,ipxe-x86_64.efi
+
+dhcp-match=set:efi-aarch64,option:client-arch,11
+dhcp-boot=tag:efi-aarch64,tag:!ipxe,ipxe-arm64.efi
+
+# This rule is for iPXE itself. If the client identifies itself as "iPXE",
+# we serve it the boot script.
+dhcp-match=set:ipxe,option:user-class,"iPXE"
+dhcp-boot=tag:ipxe,boot.ipxe
+
 dhcp-range=${DHCP_RANGE_START},${DHCP_RANGE_END},12h
 dhcp-option=option:router,${PROVISIONER_IP}
-dhcp-option=option:dns-server,8.8.8.8
+dhcp-option=option:dns-server,${PROVISIONER_IP}
+dhcp-option=66,${PROVISIONER_IP}
+dhcp-option=option:tftp-server,${PROVISIONER_IP}
 
-# DHCPv6 configuration
+# DHCPv6 configuration (to be improved/fixed)
 # Use a ULA (Unique Local Address) range for the private network.
 dhcp-option=option6:dns-server,[2001:4860:4860::8888],[2001:4860:4860::8844]
-enable-ra
 dhcp-range=::2,::400,constructor:enp0s2,12h

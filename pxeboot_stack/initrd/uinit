@@ -1,0 +1,59 @@
+#!/bin/sh
+# This script is the first process (PID 1) inside the initrd.
+# It determines whether to run the automated installer or drop to a debug shell.
+
+echo -e '\033[40m'
+echo "==> initrd init script started"
+
+echo "==> Loading kernel modules"
+busybox depmod -a
+busybox modprobe nls_iso8859-1
+
+
+# Default to install mode if not specified
+mode="install"
+cloud_init_url=""
+
+# Read the kernel command line and look for our custom arguments
+for arg in $(cat /proc/cmdline); do
+    case $arg in
+        initrd.mode=*)
+            mode=${arg#*=}
+            ;;
+        cloud_init_url=*)
+            cloud_init_url=${arg#*=}
+            ;;
+    esac
+done
+
+echo "==> Boot mode: $mode"
+echo "==> Cloud-init URL: $cloud_init_url"
+
+# Export cloud_init_url for the installer to use
+export CLOUD_INIT_URL="$cloud_init_url"
+export PS1='initrd# '
+export TERM=xterm
+
+case $mode in
+    shell)
+        echo "==> Dropping to debug shell"
+        # Execute a shell. If you exit this shell, the kernel will panic.
+        exec /bin/bash
+        ;;
+    install|*)
+        echo "==> Starting automated installer"
+        /bbin/os-installer
+        INSTALLER_EXIT_CODE=$?
+
+        if [ "$INSTALLER_EXIT_CODE" -eq 0 ]; then
+            echo "==> Go OS Installer finished successfully!"
+            echo "==> Rebooting..."
+            echo b > /proc/sysrq-trigger
+        else
+            echo "==> Go OS Installer failed with exit code $INSTALLER_EXIT_CODE!"
+            echo "==> Dropping to debug shell..."
+            exec setsid /bin/bash
+            exec /bin/bash -i
+        fi
+        ;;
+esac

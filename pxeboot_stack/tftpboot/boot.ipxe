@@ -1,0 +1,3 @@
+#!ipxe
+
+chain http://${next-server}/ipxe?mac=${mac}
