@@ -113,14 +113,18 @@ var vmCreateCmd = &cobra.Command{
 			}
 		} else {
 			// For target, get image info from the configured distros
-			distroInfo, err := config.GetDistro("ubuntu-24.04", arch) // Assuming default to Ubuntu for non-pxeboot targets
+			distroInfo, err := config.GetDistro(distroName, arch)
 			if err != nil {
 				return errors.E("vm-create", fmt.Errorf("failed to get distro info for non-pxeboot target: %w", err))
 			}
-			imageUrl := distroInfo.ISOURL   // Using ISOURL for cloud images for now, will refine later if needed
-			imageName := distroInfo.ISOName // Using ISOName for cloud images for now, will refine later if needed
+			imageUrl := distroInfo.Qcow2URL
+			imageName := distroInfo.Qcow2Name
 
-			imagePath := filepath.Join(appDir, "images", imageName)
+			distroPath := filepath.Join(appDir, "images", distroName, arch)
+			if err := os.MkdirAll(distroPath, 0755); err != nil {
+				return errors.E("vm-create", fmt.Errorf("failed to create distro image directory: %w", err))
+			}
+			imagePath := filepath.Join(distroPath, imageName)
 			if err := downloader.DownloadImageIfNotExists(imagePath, imageUrl); err != nil {
 				return errors.E("vm-create", err)
 			}

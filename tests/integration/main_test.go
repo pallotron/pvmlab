@@ -191,7 +191,7 @@ func TestVMLifecycle(t *testing.T) {
 	}
 
 	if !t.Run("5-VMCreateClient", func(t *testing.T) {
-		runCmdOrFail(t, pathToCLI, "vm", "create", clientName, "--ip", clientIP, "--ipv6", clientIPv6)
+		runCmdOrFail(t, pathToCLI, "vm", "create", clientName, "--ip", clientIP, "--ipv6", clientIPv6, "--distro", "ubuntu-24.04")
 	}) {
 		t.FailNow()
 	}

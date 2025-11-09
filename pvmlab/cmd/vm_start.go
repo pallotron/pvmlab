@@ -131,7 +131,6 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 	monitorPath := filepath.Join(opts.appDir, "monitors", opts.vmName+".sock")
 	logPath := filepath.Join(opts.appDir, "logs", opts.vmName+".log")
 	vmDiskPath := filepath.Join(opts.appDir, "vms", opts.vmName+".qcow2")
-	isoPath := filepath.Join(opts.appDir, "configs", "cloud-init", opts.vmName+".iso")
 
 	var qemuBinary, codePath string
 	if opts.meta.Arch == "aarch64" {
@@ -201,9 +200,9 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 
 	// The ISO drive is only attached if the VM was created with one.
 	if !opts.meta.PxeBoot {
+		isoPath := filepath.Join(opts.appDir, "configs", "cloud-init", opts.vmName+".iso")
 		qemuArgs = append(qemuArgs, "-drive", fmt.Sprintf("file=%s,format=raw,if=virtio", isoPath))
 	}
-
 	if isPxeBoot {
 		qemuArgs = append(qemuArgs, "-boot", "n")
 	}

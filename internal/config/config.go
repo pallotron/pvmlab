@@ -38,6 +38,8 @@ type Distro struct {
 type ArchInfo struct {
 	ISOURL     string `yaml:"iso_url"`
 	ISOName    string `yaml:"iso_name"`
+	Qcow2URL   string `yaml:"qcow2_url"`
+	Qcow2Name  string `yaml:"qcow2_name"`
 	KernelFile string `yaml:"kernel_file"`
 	InitrdFile string `yaml:"initrd_file"`
 }
