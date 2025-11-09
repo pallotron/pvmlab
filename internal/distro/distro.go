@@ -16,6 +16,9 @@ func Pull(cfg *config.Config, distroName, arch string) error {
 	if _, err := exec.LookPath("7z"); err != nil {
 		return fmt.Errorf("7z is not installed. Please install it to extract PXE boot assets")
 	}
+	if _, err := exec.LookPath("docker"); err != nil {
+		return fmt.Errorf("docker is not installed. Please install it to create rootfs tarballs")
+	}
 
 	distroPath := filepath.Join(cfg.GetAppDir(), "images", distroName, arch)
 	if err := os.MkdirAll(distroPath, 0755); err != nil {
@@ -47,5 +50,10 @@ func Pull(cfg *config.Config, distroName, arch string) error {
 	}
 
 	color.Green("✔ PXE boot assets prepared successfully (vmlinuz and modules.cpio.gz extracted).\n")
+
+	if err := extractor.CreateRootfs(&distroInfo, distroPath); err != nil {
+		return err
+	}
+
 	return nil
 }

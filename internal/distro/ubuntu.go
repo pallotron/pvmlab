@@ -1,13 +1,17 @@
 package distro
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"pvmlab/internal/config"
+	"pvmlab/internal/downloader"
 
 	"github.com/fatih/color"
 )
@@ -96,6 +100,55 @@ func (e *UbuntuExtractor) ExtractKernelAndModules(cfg *config.Config, distroInfo
 		color.Yellow("Warning: failed to clean up temporary module extraction directory: %v", err)
 	}
 
+	return nil
+}
+
+func (e *UbuntuExtractor) CreateRootfs(distroInfo *config.ArchInfo, distroPath string) error {
+	// Step 1: Download the qcow2 image
+	qcow2Name := filepath.Base(distroInfo.Qcow2URL)
+	qcow2Path := filepath.Join(distroPath, qcow2Name)
+	if err := downloader.DownloadImageIfNotExists(qcow2Path, distroInfo.Qcow2URL); err != nil {
+		return err
+	}
+
+	// Step 2: Get project root to find the script
+	wd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current working directory: %w", err)
+	}
+	projectRoot := wd
+	createScriptPath := filepath.Join(projectRoot, "scripts", "create-rootfs.sh")
+
+	// Step 3: Set up a context that listens for SIGINT and SIGTERM
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// Step 4: Run the Docker container to create the rootfs tarball
+	color.Cyan("i Creating rootfs tarball via Docker (press Ctrl+C to cancel)...")
+
+	containerImagePath := filepath.Join("/images", qcow2Name)
+	cmd := exec.CommandContext(ctx, "docker", "run", "--rm",
+		"--privileged",
+		"-v", fmt.Sprintf("%s:/images", distroPath),
+		"-v", fmt.Sprintf("%s:/create-rootfs.sh", createScriptPath),
+		"debian:12",
+		"sh", "-c", "/create-rootfs.sh \"$1\"", "sh", containerImagePath,
+	)
+
+	// Stream the output directly to the console
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		// Check if the command was cancelled by the user
+		if ctx.Err() == context.Canceled {
+			color.Yellow("\nOperation cancelled by user.")
+			return nil // Return nil to avoid showing a scary error message
+		}
+		return fmt.Errorf("failed to create rootfs tarball via Docker: %w", err)
+	}
+
+	color.Green("✔ Rootfs tarball created successfully.")
 	return nil
 }
 

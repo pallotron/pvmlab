@@ -123,6 +123,10 @@ func (e *FedoraExtractor) ExtractKernelAndModules(cfg *config.Config, distroInfo
 	if err := os.Chmod(targetInitrdPath, 0644); err != nil {
 		return fmt.Errorf("failed to set permissions on modules.cpio.gz: %w", err)
 	}
+	return nil
+}
 
+func (e *FedoraExtractor) CreateRootfs(distroInfo *config.ArchInfo, distroPath string) error {
+	// Not implemented for Fedora
 	return nil
 }
