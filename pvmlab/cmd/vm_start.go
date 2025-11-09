@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"pvmlab/internal/config"
 	"pvmlab/internal/metadata"
@@ -13,6 +15,7 @@ import (
 	"pvmlab/internal/waiter"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/fatih/color"
@@ -67,7 +70,16 @@ var vmStartCmd = &cobra.Command{
 			return err
 		}
 
-		if err := runQEMU(opts, qemuArgs); err != nil {
+		// Create a context that is cancelled on a SIGINT or SIGTERM.
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+
+		if err := runQEMU(ctx, opts, qemuArgs); err != nil {
+			// Check if the error was due to context cancellation
+			if ctx.Err() == context.Canceled {
+				color.Yellow("\nVM start cancelled by user.")
+				return nil // Exit gracefully
+			}
 			return err
 		}
 
@@ -112,7 +124,7 @@ func gatherVMInfo(vmName string) (*vmStartOptions, error) {
 	// Check for necessary files
 	vmDiskPath := filepath.Join(opts.appDir, "vms", opts.vmName+".qcow2")
 	if _, err := os.Stat(vmDiskPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("VM disk not found for '%s'. Please run 'pvmlab vm create %s' first", opts.vmName, opts.vmName)
+		return nil, fmt.Errorf("VM disk not found for '%s'. Please run 'pvmlab vm create %s' or 'pvmlab provisioner create %s' first", opts.vmName, opts.vmName, opts.vmName)
 	}
 	if !opts.meta.PxeBoot {
 		isoPath := filepath.Join(opts.appDir, "configs", "cloud-init", opts.vmName+".iso")
@@ -131,7 +143,6 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 	monitorPath := filepath.Join(opts.appDir, "monitors", opts.vmName+".sock")
 	logPath := filepath.Join(opts.appDir, "logs", opts.vmName+".log")
 	vmDiskPath := filepath.Join(opts.appDir, "vms", opts.vmName+".qcow2")
-	isoPath := filepath.Join(opts.appDir, "configs", "cloud-init", opts.vmName+".iso")
 
 	var qemuBinary, codePath string
 	if opts.meta.Arch == "aarch64" {
@@ -201,9 +212,9 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 
 	// The ISO drive is only attached if the VM was created with one.
 	if !opts.meta.PxeBoot {
+		isoPath := filepath.Join(opts.appDir, "configs", "cloud-init", opts.vmName+".iso")
 		qemuArgs = append(qemuArgs, "-drive", fmt.Sprintf("file=%s,format=raw,if=virtio", isoPath))
 	}
-
 	if isPxeBoot {
 		qemuArgs = append(qemuArgs, "-boot", "n")
 	}
@@ -265,7 +276,7 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 	return qemuArgs, nil
 }
 
-func runQEMU(opts *vmStartOptions, qemuArgs []string) error {
+func runQEMU(ctx context.Context, opts *vmStartOptions, qemuArgs []string) error {
 	socketPath, err := socketvmnet.GetSocketPath()
 	if err != nil {
 		return fmt.Errorf("error getting socket_vmnet path: %w", err)
@@ -277,7 +288,7 @@ func runQEMU(opts *vmStartOptions, qemuArgs []string) error {
 
 	finalCmd := append([]string{clientPath, socketPath}, qemuArgs...)
 
-	cmdRun := exec.Command(finalCmd[0], finalCmd[1:]...)
+	cmdRun := exec.CommandContext(ctx, finalCmd[0], finalCmd[1:]...)
 	if interactive {
 		return runInteractiveSession(cmdRun)
 	}

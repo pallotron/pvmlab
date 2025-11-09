@@ -100,17 +100,21 @@ pvmlab socket_vmnet start
 
 This command downloads cloud images, creates VM disks, and generates cloud-init configurations.
 
-```bash
-# Create the provisioner
-pvmlab vm create provisioner --role provisioner --ip 192.168.100.1/24 --ipv6 fd00:cafe:babe::1/64
+First, create the `provisioner` VM, which will serve network resources (DHCP, PXE boot) and act as the default gateway for other VMs:
 
-# Create a target VM
-pvmlab vm create client1 --role target --ip 192.168.100.2/24 --ipv6 fd00:cafe:babe::2/64
+```bash
+pvmlab provisioner create provisioner --ip 192.168.100.1/24 --ipv6 fd00:cafe:babe::1/64
+```
+
+Then, create your `target` VMs:
+
+```bash
+pvmlab vm create client1
+pvmlab vm create client2 --arch x86_64 --pxeboot
 ```
 
 You can create `x86_64` or `aarch64` VMs by specifying the `--arch` flag. By default, `aarch64` is used.
-You can also use `--disk` or `--pxeboot` flags to customize how the VM should boot.
-This is still a work in progress.
+You can also use `--disk` (default) or `--pxeboot` flags to customize how the VM should boot.
 
 ### Step 3: Manage the VMs
 
@@ -191,7 +195,7 @@ The structure of this directory is as follows:
 ~/.pvmlab/
 ├── configs/        # Generated cloud-init ISO files (.iso) for each VM
 ├── docker_images/  # Docker images saved as .tar files to be shared with the provisioner VM
-├── images/         # Downloaded Ubuntu cloud image templates
+├── images/         # Downloaded cloud image templates, pxeboot assets, and rootfs images for pxeboot
 ├── logs/           # VM console logs
 ├── monitors/       # QEMU monitor sockets for interacting with the hypervisor
 ├── pids/           # Process ID files for running VMs

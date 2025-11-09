@@ -7,6 +7,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	distroName string
+	distroPullArch string
+)
+
 var rootCmd = &cobra.Command{
 	Use:   "pvmlab",
 	Short: "pvmlab is a CLI for managing provisioning VM labs",

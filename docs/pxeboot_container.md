@@ -1,83 +1,92 @@
 # Interacting with the pxeboot Container
 
-The provisioner VM has a Docker container running the pxeboot stack.
-The container is defined in `pxeboot_stack/Dockerfile` but you can also provide your own (in `.tar` format).
-Some commands are defined to manage the container, see `pvmlab vm docker --help`, but you can also use `docker` commands directly
-once you are inside the container.
+The provisioner VM runs a Docker container that includes the entire pxeboot stack (DHCP, TFTP, HTTP services). This container is built from the sources in the `pxeboot_stack/` directory.
 
-**Get a Shell Inside the Container:**
+While you can interact with Docker directly inside the provisioner VM, the `pvmlab` CLI provides convenient wrapper commands to manage the container's lifecycle.
 
-Get into the provisioner:
+## Managing the Container with `pvmlab`
 
-```bash
-pvmlab vm shell provisioner
-```
+These commands are the recommended way to manage the pxeboot stack.
 
-For debugging, you can get an interactive shell.
+### Starting and Updating the Container
+
+The `pvmlab provisioner docker start` command is used to both initially start the container and to update it with a new image.
 
 ```bash
-docker exec -it pxeboot_stack /bin/sh
+pvmlab provisioner docker start <path/to/pxeboot_stack.tar> --network-host --privileged
 ```
 
-**Manage Container Lifecycle:**
+This command performs the following steps:
 
-Standard `docker` commands apply here:
+1. Stops and removes any existing `pxeboot_stack` container.
+2. Loads the new Docker image from the specified `.tar` file.
+3. Starts a new container named `pxeboot_stack` with the specified options.
+
+The `--network-host` and `--privileged` flags are required for the container to correctly manage network services for the lab.
+
+### Stopping the Container
+
+To stop the pxeboot stack without removing the container:
 
 ```bash
-# Stop the container
-docker stop pxeboot_stack
-# Start the container
-docker start pxeboot_stack
-# Restart the container
-docker restart pxeboot_stack
-
-# Cleanup; first, remove any stopped containers that may reference old images
-docker container prune
-# Then, remove dangling images
-docker image prune
-
-# tail files inside the container
-docker exec pxeboot_stack tail -f /path/to/file.log
+pvmlab provisioner docker stop
 ```
 
-## Building and Reloading the pxeboot Docker Container
+### Checking the Container Status
 
-The `pxeboot_stack` Docker image is built on your macOS host and then loaded into the provisioner VM.
+To check if the container is running and see its status:
 
-**Initial Setup:**
+```bash
+pvmlab provisioner docker status
+```
 
-When you first create the provisioner VM (`pvmlab vm create provisioner`), the following happens automatically via `cloud-init`:
+## Development Workflow
 
-1. Docker is installed in the VM.
-2. The `~/.pvmlab/docker_images/` directory from your Mac is mounted into the VM at `/mnt/host/docker_images/`.
-3. The `pxeboot_stack.tar` image is loaded into Docker.
-4. The `pxeboot_stack` container is started.
+If you make changes to the `pxeboot_stack` source code (e.g., `Dockerfile`, `supervisord.conf`), you can update the running container without recreating the entire provisioner VM.
 
-**Development Workflow:**
+1. **On your Mac**, rebuild the Docker image and create the tarball:
 
-If you make changes to the `pxeboot_stack` source code (e.g., `Dockerfile`, `supervisord.conf`), you can update the running container without recreating the entire VM:
+    ```bash
+    make -C pxeboot_stack tar
+    ```
 
-1. **On your Mac**, rebuild and save the Docker image:
+    This command builds the image and creates `pxeboot_stack.tar` in the `pxeboot_stack/` directory.
 
-   ```bash
-   make -C pxeboot_stack tar
-   ```
+2. **In another terminal**, update the container in the provisioner VM using the `start` command. This will replace the old container with the new one.
 
-   This command builds the image and creates the `pxeboot_stack.tar` file in the `pxeboot_stack` directory inside the git repo.
+    ```bash
+    pvmlab provisioner docker start ./pxeboot_stack/pxeboot_stack.tar --network-host --privileged
+    ```
 
-2. **Update the container in the provisioner VM**:
+3. **Check the status** to ensure the new container is running correctly:
 
-   ```bash
-   pvmlab vm docker start provisioner ./pxeboot_stack/pxeboot_stack.tar --network-host --privileged
-   ```
+    ```bash
+    pvmlab provisioner docker status
+    ```
 
-   You can also provide a full path to your pxeboot stack tarball if you are developing your own outside of the project.
+This workflow allows for a rapid development cycle when working on the provisioning services.
 
-3. **Check the container status**:
-   This script stops and removes the old container, loads the updated image from the shared directory, and starts a new container.
+## Direct Interaction with Docker
 
-   ```bash
-   pvmlab vm docker status provisioner
-   ```
+For more advanced debugging, you can get a shell inside the provisioner VM and use standard `docker` commands.
 
-This allows for a rapid development cycle when working on the provisioning services.
+1. **Get a shell inside the provisioner VM:**
+
+    ```bash
+    pvmlab vm shell provisioner
+    ```
+
+2. **Interact with the container:**
+
+    Once inside the VM, you can use any `docker` command:
+
+    ```bash
+    # Get an interactive shell inside the running container
+    docker exec -it pxeboot_stack /bin/sh
+
+    # View the container's logs in real-time
+    docker logs -f pxeboot_stack
+
+    # Inspect the container's configuration
+    docker inspect pxeboot_stack
+    ```

@@ -15,19 +15,24 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var dockerStatusCmd = &cobra.Command{
-	Use:               "status <vm_name>",
-	Short:             "Show docker container status in a VM",
-	Args:              cobra.ExactArgs(1),
-	ValidArgsFunction: VmNameCompleter,
+var provisionerDockerStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show docker container status in the provisioner",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		vmName := args[0]
-		color.Cyan("i Getting docker status for %s", vmName)
-
 		cfg, err := config.New()
 		if err != nil {
 			return err
 		}
+
+		prov, err := metadata.FindProvisioner(cfg)
+		if err != nil {
+			return fmt.Errorf("error finding provisioner: %w", err)
+		}
+		if prov == "" {
+			return fmt.Errorf("no provisioner found. Please create one with 'pvmlab provisioner create'")
+		}
+		vmName := prov
+		color.Cyan("i Getting docker status for %s", vmName)
 
 		meta, err := metadata.Load(cfg, vmName)
 		if err != nil {
@@ -39,20 +44,16 @@ var dockerStatusCmd = &cobra.Command{
 		sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa")
 		var sshCmd *exec.Cmd
 
-		if meta.Role == "provisioner" {
-			if meta.SSHPort == 0 {
-				return fmt.Errorf("SSH port not found in metadata, is the VM running?")
-			}
-			sshPort := fmt.Sprintf("%d", meta.SSHPort)
-			remoteCmd := "sudo docker ps -a --format json"
-			sshCmd = exec.Command(
-				"ssh", "-i", sshKeyPath,
-				"-p", sshPort, "-o", "StrictHostKeyChecking=no",
-				"-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost", remoteCmd,
-			)
-		} else {
-			return fmt.Errorf("target VM not supported for now. Please ssh from the provisioner VM")
+		if meta.SSHPort == 0 {
+			return fmt.Errorf("SSH port not found in metadata, is the VM running?")
 		}
+		sshPort := fmt.Sprintf("%d", meta.SSHPort)
+		remoteCmd := "sudo docker ps -a --format json"
+		sshCmd = exec.Command(
+			"ssh", "-i", sshKeyPath,
+			"-p", sshPort, "-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null", "ubuntu@localhost", remoteCmd,
+		)
 
 		output, err := sshCmd.CombinedOutput()
 		if err != nil {
@@ -93,17 +94,13 @@ var dockerStatusCmd = &cobra.Command{
 				container.Ports = "N/A"
 			}
 			row := []string{container.ID, container.Image, container.Command, container.Status, container.Ports, container.Names}
-						if err := table.Append(row); err != nil {
-							return err
-						}
-					}
-					if err := table.Render(); err != nil {
-						return err
-					}
-					return nil
+			table.Append(row)
+		}
+		table.Render()
+		return nil
 	},
 }
 
 func init() {
-	dockerCmd.AddCommand(dockerStatusCmd)
+	provisionerDockerCmd.AddCommand(provisionerDockerStatusCmd)
 }

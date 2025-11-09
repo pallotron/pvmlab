@@ -1,14 +1,26 @@
 package cmd
 
 import (
-	"errors"
+	"fmt"
+	"io"
 	"os/exec"
-	"pvmlab/internal/runner"
 	"pvmlab/internal/socketvmnet"
 	"pvmlab/internal/ssh"
 	"strings"
 	"testing"
 )
+
+
+
+// mockCmd is a mock implementation of exec.Cmd for testing purposes.
+type mockCmd struct {
+	RunFunc func() error
+	Stderr  io.Writer
+}
+
+func (m *mockCmd) Run() error {
+	return m.RunFunc()
+}
 
 func TestSetupCommand(t *testing.T) {
 	tests := []struct {
@@ -23,8 +35,7 @@ func TestSetupCommand(t *testing.T) {
 			args: []string{"setup"},
 			setupMocks: func() {
 				ssh.GenerateKey = func(string) error { return nil }
-				runner.Run = func(*exec.Cmd) error { return nil }
-				socketvmnet.IsSocketVmnetRunning = func() (bool, error) { return true, nil }
+
 			},
 			expectedError: "",
 			expectedOut:   "Setup completed successfully",
@@ -33,7 +44,9 @@ func TestSetupCommand(t *testing.T) {
 			name: "ssh key generation fails",
 			args: []string{"setup"},
 			setupMocks: func() {
-				ssh.GenerateKey = func(string) error { return errors.New("ssh key failed") }
+				ssh.GenerateKey = func(string) error {
+					return fmt.Errorf("ssh key failed")
+				}
 			},
 			expectedError: "ssh key failed",
 		},
@@ -43,12 +56,10 @@ func TestSetupCommand(t *testing.T) {
 			setupMocks: func() {
 				// Mock successful key generation
 				ssh.GenerateKey = func(string) error { return nil }
-				// Mock runner to fail on the first dependency check
-				runner.Run = func(cmd *exec.Cmd) error {
-					if strings.Contains(cmd.Path, "which") && cmd.Args[1] == "brew" {
-						return errors.New("brew not found")
-					}
-					return nil
+				// Mock execCommand to fail on the first dependency check
+				execCommand = func(name string, arg ...string) *exec.Cmd {
+					cmd := exec.Command("false")
+					return cmd
 				}
 			},
 			expectedError: "brew not found",
@@ -58,7 +69,6 @@ func TestSetupCommand(t *testing.T) {
 			args: []string{"setup"},
 			setupMocks: func() {
 				ssh.GenerateKey = func(string) error { return nil }
-				runner.Run = func(*exec.Cmd) error { return nil }
 				socketvmnet.IsSocketVmnetRunning = func() (bool, error) { return false, nil }
 			},
 			expectedError: "",
@@ -69,7 +79,12 @@ func TestSetupCommand(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset mocks to default success behavior
-			setupMocks(t)
+			ssh.GenerateKey = func(string) error { return nil }
+			socketvmnet.IsSocketVmnetRunning = func() (bool, error) { return true, nil }
+			execCommand = func(name string, arg ...string) *exec.Cmd {
+				cmd := exec.Command("true")
+				return cmd
+			}
 			// Apply test-specific mock setup
 			tt.setupMocks()
 

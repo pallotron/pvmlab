@@ -26,9 +26,8 @@ func TestDownloadFile_Success(t *testing.T) {
 	defer tmpfile.Close()
 
 	// Call the function under test
-	err = DownloadFile(tmpfile.Name(), server.URL)
-	if err != nil {
-		t.Fatalf("DownloadFile() returned an error: %v", err)
+	    err = DownloadFile(tmpfile.Name(), server.URL, "", 0, 0)
+	    if err != nil {		t.Fatalf("DownloadFile() returned an error: %v", err)
 	}
 
 	// Verify the content of the downloaded file
@@ -58,7 +57,7 @@ func TestDownloadFile_ServerError(t *testing.T) {
 	defer tmpfile.Close()
 
 	// Call the function under test
-	err = DownloadFile(tmpfile.Name(), server.URL)
+	err = DownloadFile(tmpfile.Name(), server.URL, "", 0, 0)
 	if err == nil {
 		t.Fatal("DownloadFile() did not return an error for a server error")
 	}

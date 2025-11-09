@@ -66,10 +66,10 @@ Manages virtual machines.
 
 ### `pvmlab vm create <name>`
 
-Creates a new VM.
+Creates a new target VM.
 
 **Usage:**
-`pvmlab vm create <name> --role <role> [flags]`
+`pvmlab vm create <name> [flags]`
 
 **Arguments:**
 
@@ -77,25 +77,50 @@ Creates a new VM.
 
 **Flags:**
 
-- `--role`: (Required) The role of the VM. Must be either `provisioner` or `target`.
-- `--ip`: The static IPv4 address for the VM's private network interface, in CIDR notation (e.g., `192.168.254.1/24`). **Required for `provisioner` role.**
+- `--mac`: The MAC address for the VM's private network interface. If not provided, a random one is generated.
+- `--disk-size`: The size of the VM's disk (e.g., `10G`, `20G`). Defaults to `15G`.
+- `--arch`: The architecture of the VM. Can be `aarch64` or `x86_64`. Defaults to `aarch64`.
+- `--pxeboot`: If set, creates a VM that boots from the network for installation.
+- `--distro`: The distribution for the VM (e.g. `ubuntu-24.04`). Required for `--pxeboot`.
+
+**Example:**
+
+```bash
+# Create a target VM that boots from a local disk image
+pvmlab vm create my-target
+
+# Create a target VM that will be installed via PXE boot
+pvmlab vm create my-pxe-target --pxeboot --distro ubuntu-24.04
+```
+
+### `pvmlab provisioner create <name>`
+
+Creates the provisioner VM.
+
+**Usage:**
+`pvmlab provisioner create <name> [flags]`
+
+**Arguments:**
+
+- `<name>`: The name for the new provisioner VM.
+
+**Flags:**
+
+- `--ip`: (Required) The static IPv4 address for the VM's private network interface, in CIDR notation (e.g., `192.168.254.1/24`).
 - `--ipv6`: The static IPv6 address for the VM's private network interface, in CIDR notation (e.g., `fd00:cafe:babe::1/64`).
 - `--mac`: The MAC address for the VM's private network interface. If not provided, a random one is generated.
-- `--disk-size`: The size of the VM's disk (e.g., `10G`, `20G`). Defaults to `10G`.
+- `--disk-size`: The size of the VM's disk (e.g., `10G`, `20G`). Defaults to `15G`.
 - `--arch`: The architecture of the VM. Can be `aarch64` or `x86_64`. Defaults to `aarch64`.
-- `--pxeboot`: If set, creates a VM that boots from the network instead of a local disk. Only valid for the `target` role.
-- `--docker-pxeboot-stack-tar`: Path to the `pxeboot_stack.tar` file. Required for the `provisioner` role.
-- `--docker-images-path`: Path to a directory of Docker images to share with the `provisioner` VM. Defaults to `~/.pvmlab/docker_images`.
-- `--vms-path`: Path to a directory of VMs to share with the `provisioner` VM. Defaults to `~/.pvmlab/vms`.
+- `--docker-pxeboot-stack-tar`: Path to a custom `pxeboot_stack.tar` file.
+- `--docker-pxeboot-stack-image`: Docker image for the pxeboot stack to pull from a registry.
+- `--docker-images-path`: Path to a directory of Docker images to share with the provisioner VM.
+- `--vms-path`: Path to a directory of VMs to share with the provisioner VM.
 
 **Example:**
 
 ```bash
 # Create a provisioner VM
-pvmlab vm create my-provisioner --role provisioner --ip 192.168.254.1/24 --docker-pxeboot-stack-tar ./pxeboot_stack.tar
-
-# Create a target VM
-pvmlab vm create my-target --role target
+pvmlab provisioner create my-provisioner --ip 192.168.254.1/24
 ```
 
 ### `pvmlab vm start <name>`
@@ -148,16 +173,16 @@ Stops the VM and deletes its generated files (disk, ISO, logs, etc.).
 
 ---
 
-## `pvmlab vm docker`
+## `pvmlab provisioner docker`
 
 Manages Docker containers inside a VM.
 
-### `pvmlab vm docker start <vm> <tar>`
+### `pvmlab provisioner docker start <tar>`
 
 Starts a Docker container inside a VM from a given tarball.
 
 **Usage:**
-`pvmlab vm docker start <vm> --docker-tar <tar> [flags]`
+`pvmlab provisioner docker start --docker-tar <tar> [flags]`
 
 **Arguments:**
 
@@ -169,16 +194,16 @@ Starts a Docker container inside a VM from a given tarball.
 - `--privileged`: Run the container in privileged mode.
 - `--network-host`: Use the host's network stack inside the container.
 
-### `pvmlab vm docker stop <vm> <container>`
+### `pvmlab provisioner docker stop <container>`
 
 Stops a Docker container inside a VM.
 
 **Usage:**
-`pvmlab vm docker stop <vm> <container>`
+`pvmlab provisioner docker stop <container>`
 
-### `pvmlab vm docker status <vm>`
+### `pvmlab provisioner docker status`
 
 Checks the status of Docker containers inside a VM.
 
 **Usage:**
-`pvmlab vm docker status <vm>`
+`pvmlab provisioner docker status`
