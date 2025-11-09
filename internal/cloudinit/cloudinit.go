@@ -317,6 +317,8 @@ func buildTargetNetworkConfig(mac string) *NetplanConfig {
 	return cfg
 }
 
+var execCommand = exec.Command
+
 var CreateISO = func(ctx context.Context, vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image string) error {
 	sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa.pub")
 	sshKeyBytes, err := os.ReadFile(sshKeyPath)
@@ -433,7 +435,7 @@ var CreateISO = func(ctx context.Context, vmName, role, appDir, isoPath, ip, ipv
 		return err
 	}
 
-	cmd := exec.Command("mkisofs", "-o", isoPath, "-V", "cidata", "-r", "-J", configDir)
+	cmd := execCommand("mkisofs", "-o", isoPath, "-V", "cidata", "-r", "-J", configDir)
 	return cmd.Run()
 }
 

@@ -1,7 +1,0 @@
-refactor(config): Remove unneeded initrd_file from distro config
-
-This commit refactors the distribution configuration by removing the `InitrdFile` field from the `ArchInfo` struct in `internal/config/config.go` and its corresponding entries in `distros.yaml`.
-
-For Fedora, the path to the initrd file (`images/pxeboot/initrd.img`) is now hardcoded directly within the `FedoraExtractor` in `internal/distro/fedora.go`.
-
-This change simplifies the `distros.yaml` configuration by removing a field that was only relevant to a specific distribution's extraction logic and was not universally applicable.

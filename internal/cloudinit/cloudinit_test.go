@@ -3,6 +3,7 @@ package cloudinit
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -64,6 +65,12 @@ func TestCreateISO(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			// Mock execCommand to avoid actual execution of mkisofs
+			execCommand = func(command string, args ...string) *exec.Cmd {
+				assert.Equal(t, "mkisofs", command)
+				cmd := exec.Command("true") // Use a command that exists and does nothing
+				return cmd
+			}
 			isoPath := filepath.Join(appDir, tc.vmName+".iso")
 			err := CreateISO(context.Background(), tc.vmName, tc.role, appDir, isoPath, tc.ip, tc.ipv6, tc.mac, tc.tar, tc.image)
 			assert.NoError(t, err)
@@ -118,6 +125,12 @@ func TestCreateISOWithGoldenFiles(t *testing.T) {
 	}
 
 	t.Run(tc.name, func(t *testing.T) {
+		// Mock execCommand to avoid actual execution of mkisofs
+		execCommand = func(command string, args ...string) *exec.Cmd {
+			assert.Equal(t, "mkisofs", command)
+			cmd := exec.Command("true") // Use a command that exists and does nothing
+			return cmd
+		}
 		isoPath := filepath.Join(appDir, tc.vmName+".iso")
 		err := CreateISO(context.Background(), tc.vmName, tc.role, appDir, isoPath, tc.ip, tc.ipv6, tc.mac, tc.tar, tc.image)
 		assert.NoError(t, err)
