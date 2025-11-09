@@ -100,13 +100,8 @@ pvmlab socket_vmnet start
 
 This command downloads cloud images, creates VM disks, and generates cloud-init configurations.
 
-```bash
-# Create the provisioner
-pvmlab vm create provisioner --role provisioner --ip 192.168.100.1/24 --ipv6 fd00:cafe:babe::1/64
-
-# Create a target VM
-pvmlab vm create client1 --role target --ip 192.168.100.2/24 --ipv6 fd00:cafe:babe::2/64
-```
+pvmlab provisioner create provisioner --ip 192.168.100.1/24 --ipv6 fd00:cafe:babe::1/64
+pvmlab vm create client1
 
 You can create `x86_64` or `aarch64` VMs by specifying the `--arch` flag. By default, `aarch64` is used.
 You can also use `--disk` or `--pxeboot` flags to customize how the VM should boot.

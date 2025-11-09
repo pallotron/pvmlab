@@ -112,7 +112,7 @@ func gatherVMInfo(vmName string) (*vmStartOptions, error) {
 	// Check for necessary files
 	vmDiskPath := filepath.Join(opts.appDir, "vms", opts.vmName+".qcow2")
 	if _, err := os.Stat(vmDiskPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("VM disk not found for '%s'. Please run 'pvmlab vm create %s' first", opts.vmName, opts.vmName)
+		return nil, fmt.Errorf("VM disk not found for '%s'. Please run 'pvmlab vm create %s' or 'pvmlab provisioner create %s' first", opts.vmName, opts.vmName, opts.vmName)
 	}
 	if !opts.meta.PxeBoot {
 		isoPath := filepath.Join(opts.appDir, "configs", "cloud-init", opts.vmName+".iso")

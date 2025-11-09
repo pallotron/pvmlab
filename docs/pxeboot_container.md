@@ -2,7 +2,7 @@
 
 The provisioner VM has a Docker container running the pxeboot stack.
 The container is defined in `pxeboot_stack/Dockerfile` but you can also provide your own (in `.tar` format).
-Some commands are defined to manage the container, see `pvmlab vm docker --help`, but you can also use `docker` commands directly
+Some commands are defined to manage the container, see `pvmlab provisioner docker --help`, but you can also use `docker` commands directly
 once you are inside the container.
 
 **Get a Shell Inside the Container:**
@@ -46,7 +46,7 @@ The `pxeboot_stack` Docker image is built on your macOS host and then loaded int
 
 **Initial Setup:**
 
-When you first create the provisioner VM (`pvmlab vm create provisioner`), the following happens automatically via `cloud-init`:
+When you first create the provisioner VM (`pvmlab provisioner create provisioner`), the following happens automatically via `cloud-init`:
 
 1. Docker is installed in the VM.
 2. The `~/.pvmlab/docker_images/` directory from your Mac is mounted into the VM at `/mnt/host/docker_images/`.
@@ -68,7 +68,7 @@ If you make changes to the `pxeboot_stack` source code (e.g., `Dockerfile`, `sup
 2. **Update the container in the provisioner VM**:
 
    ```bash
-   pvmlab vm docker start provisioner ./pxeboot_stack/pxeboot_stack.tar --network-host --privileged
+   pvmlab provisioner docker start ./pxeboot_stack/pxeboot_stack.tar --network-host --privileged
    ```
 
    You can also provide a full path to your pxeboot stack tarball if you are developing your own outside of the project.
@@ -77,7 +77,7 @@ If you make changes to the `pxeboot_stack` source code (e.g., `Dockerfile`, `sup
    This script stops and removes the old container, loads the updated image from the shared directory, and starts a new container.
 
    ```bash
-   pvmlab vm docker status provisioner
+   pvmlab provisioner docker status
    ```
 
 This allows for a rapid development cycle when working on the provisioning services.

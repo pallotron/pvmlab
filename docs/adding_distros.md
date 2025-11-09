@@ -139,7 +139,7 @@ After implementing the extractor, you can build `pvmlab` and test your new distr
 3. **Create a VM:**
 
     ```bash
-    pvmlab vm create my-test-vm --role target --pxeboot --distro my-distro-1.0 --arch <arch>
+    pvmlab vm create my-test-vm --pxeboot --distro my-distro-1.0 --arch <arch>
     ```
 
 If everything is configured correctly, the `distro pull` command should successfully download and extract the boot files, and you will be able to create PXE-booted VMs with your new distribution.
