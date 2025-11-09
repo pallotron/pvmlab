@@ -39,6 +39,7 @@ type ArchInfo struct {
 	ISOURL     string `yaml:"iso_url"`
 	ISOName    string `yaml:"iso_name"`
 	KernelFile string `yaml:"kernel_file"`
+	InitrdFile string `yaml:"initrd_file"`
 }
 
 // LoadOrCreateDistros loads the distro configurations from the user's app directory.

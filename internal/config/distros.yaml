@@ -22,8 +22,10 @@
     aarch64:
       iso_url: "https://download.fedoraproject.org/pub/fedora/linux/releases/40/Server/aarch64/iso/Fedora-Server-dvd-aarch64-40-1.14.iso"
       iso_name: "Fedora-Server-dvd-aarch64-40-1.14.iso"
-      kernel_file: "images/pxeboot/vmlinuz" # This is a guess, Fedora's structure might differ
+      kernel_file: "images/pxeboot/vmlinuz"
+      initrd_file: "images/pxeboot/initrd.img"
     x86_64:
       iso_url: "https://download.fedoraproject.org/pub/fedora/linux/releases/40/Server/x86_64/iso/Fedora-Server-dvd-x86_64-40-1.14.iso"
       iso_name: "Fedora-Server-dvd-x86_64-40-1.14.iso"
-      kernel_file: "images/pxeboot/vmlinuz" # This is a guess, Fedora's structure might differ
+      kernel_file: "images/pxeboot/vmlinuz"
+      initrd_file: "images/pxeboot/initrd.img"
