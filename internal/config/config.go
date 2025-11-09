@@ -1,38 +1,91 @@
 package config
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"gopkg.in/yaml.v3"
 )
 
 const (
 	// AppName is the name of the application
 	AppName = "pvmlab"
-	// UbuntuCloudImageBaseURL is the base URL for Ubuntu cloud images
-	UbuntuCloudImageBaseURL = "https://cloud-images.ubuntu.com/releases/24.04/release/"
-	// UbuntuARMImageName is the filename for the Ubuntu aarch64 cloud image
-	UbuntuARMImageName = "ubuntu-24.04-server-cloudimg-arm64.img"
-	// UbuntuARMImageURL is the full URL for the Ubuntu aarch64 cloud image
-	UbuntuARMImageURL = UbuntuCloudImageBaseURL + UbuntuARMImageName
-	// UbuntuAMD64ImageName is the filename for the Ubuntu x86_64 cloud image
-	UbuntuAMD64ImageName = "ubuntu-24.04-server-cloudimg-amd64.img"
-	// UbuntuAMD64ImageURL is the full URL for the Ubuntu x86_64 cloud image
-	UbuntuAMD64ImageURL = UbuntuCloudImageBaseURL + UbuntuAMD64ImageName
-	// Ubuntu2404LiveServerBaseURL is the base URL for Ubuntu 24.04 Live Server ISOs
-	Ubuntu2404LiveServerBaseURL = "https://releases.ubuntu.com/24.04/"
-	// Ubuntu2404ARMISOName is the filename for the Ubuntu 24.04 aarch64 Live Server ISO
-	Ubuntu2404ARMISOName = "ubuntu-24.04.3-live-server-arm64.iso"
-	// Ubuntu2404ARMISOURL is the full URL for the Ubuntu 24.04 aarch64 Live Server ISO
-	Ubuntu2404ARMISOURL = Ubuntu2404LiveServerBaseURL + Ubuntu2404ARMISOName
-	// Ubuntu2404AMD64ISOName is the filename for the Ubuntu 24.04 x86_64 Live Server ISO
-	Ubuntu2404AMD64ISOName = "ubuntu-24.04.3-live-server-amd64.iso"
-	// Ubuntu2404AMD64ISOURL is the full URL for the Ubuntu 24.04 x86_64 Live Server ISO
-	Ubuntu2404AMD64ISOURL = Ubuntu2404LiveServerBaseURL + Ubuntu2404AMD64ISOName
 )
 
-// Version is the version of the application. It is set at build time.
-var Version = "devel"
+//go:embed distros.yaml
+var defaultDistrosYAML []byte
+
+var (
+	// Version is the version of the application. It is set at build time.
+	Version = "devel"
+	// Distros holds the configuration for all supported distributions.
+	Distros = make(map[string]Distro)
+)
+
+// Distro represents a distribution that can be used for PXE booting.
+type Distro struct {
+	Name       string              `yaml:"name"`
+	// DistroName is the "family" name of the distribution (e.g., "ubuntu", "fedora").
+	// This is used by the extractor factory to determine which extraction logic to use.
+	DistroName string              `yaml:"distro_name"`
+	Version    string              `yaml:"version"`
+	Arch       map[string]ArchInfo `yaml:"arch"`
+}
+
+// ArchInfo contains architecture-specific information for a distribution.
+type ArchInfo struct {
+	ISOURL     string `yaml:"iso_url"`
+	ISOName    string `yaml:"iso_name"`
+	KernelFile string `yaml:"kernel_file"`
+}
+
+// LoadOrCreateDistros loads the distro configurations from the user's app directory.
+// If the config file doesn't exist, it's created from the embedded default.
+func (c *Config) LoadOrCreateDistros() error {
+	distrosPath := filepath.Join(c.GetAppDir(), "distros.yaml")
+
+	if _, err := os.Stat(distrosPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(c.GetAppDir(), 0755); err != nil {
+			return fmt.Errorf("failed to create app directory: %w", err)
+		}
+		if err := os.WriteFile(distrosPath, defaultDistrosYAML, 0644); err != nil {
+			return fmt.Errorf("failed to write default distros config: %w", err)
+		}
+	}
+
+	data, err := os.ReadFile(distrosPath)
+	if err != nil {
+		return fmt.Errorf("failed to read distros config: %w", err)
+	}
+
+	var distroList []Distro
+	if err := yaml.Unmarshal(data, &distroList); err != nil {
+		return fmt.Errorf("failed to parse distros config: %w", err)
+	}
+
+	// Clear the map before loading to ensure no stale data
+	Distros = make(map[string]Distro)
+	for _, d := range distroList {
+		Distros[d.Name] = d
+	}
+
+	return nil
+}
+
+// GetDistro returns the configuration for a specific distro and architecture.
+func GetDistro(distroName, arch string) (*ArchInfo, error) {
+	distro, ok := Distros[distroName]
+	if !ok {
+		return nil, fmt.Errorf("unsupported distro: %s", distroName)
+	}
+	archInfo, ok := distro.Arch[arch]
+	if !ok {
+		return nil, fmt.Errorf("unsupported architecture '%s' for distro '%s'", arch, distroName)
+	}
+	return &archInfo, nil
+}
 
 // GetProvisionerImageURL returns the URL for the provisioner image based on the
 // application version and architecture.
@@ -96,7 +149,12 @@ var New = func() (*Config, error) {
 		}
 	}
 
-	return &Config{homeDir: home}, nil
+	cfg := &Config{homeDir: home}
+	if err := cfg.LoadOrCreateDistros(); err != nil {
+		return nil, fmt.Errorf("failed to load distro configurations: %w", err)
+	}
+
+	return cfg, nil
 }
 
 // GetAppDir returns the path to the application's hidden directory.

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"pvmlab/internal/cloudinit"
 	"pvmlab/internal/config"
+	"pvmlab/internal/distro"
 	"pvmlab/internal/downloader"
 	"pvmlab/internal/errors"
 	"pvmlab/internal/metadata"
@@ -34,7 +35,7 @@ const (
 )
 
 var (
-	ip, ipv6, role, mac, pxebootStackTar, dockerImagesPath, distro string
+	ip, ipv6, role, mac, pxebootStackTar, dockerImagesPath string
 	vmsPath, diskSize, arch, pxebootStackImage             string
 	pxeboot                                                bool
 )
@@ -64,8 +65,8 @@ The --role flag determines the type of VM to create.
 			return errors.E("vm-create", fmt.Errorf("--pxeboot can only be used with --role=target"))
 		}
 
-		if pxeboot && distro != "ubuntu-24.04" {
-			return errors.E("vm-create", fmt.Errorf("only --distro=ubuntu-24.04 is supported for --pxeboot"))
+		if pxeboot && distroName == "" {
+			return errors.E("vm-create", fmt.Errorf("--distro is required for --pxeboot. Run 'pvmlab distro ls' to see a list of available distributions"))
 		}
 
 		if err := validateIP(ip); err != nil {
@@ -182,41 +183,43 @@ The --role flag determines the type of VM to create.
 		
 		        vmDiskPath := filepath.Join(appDir, "vms", vmName+".qcow2")
 		        if pxeboot {
-		            if err := handlePxeBootAssets(cfg, distro, arch); err != nil {
+		            if err := distro.Pull(cfg, distroName, arch); err != nil {
 		                return errors.E("vm-create", err)
 		            }
 		            if err := createBlankDisk(vmDiskPath, diskSize); err != nil {
 		                return errors.E("vm-create", err)
 		            }
 		        } else {
-		            var imageUrl, imageName string
-		            if role == provisionerRole {
-		                imageUrl, imageName = config.GetProvisionerImageURL(arch)
-		            } else {
-						if arch == "aarch64" {
-					imageUrl = config.UbuntuARMImageURL
-					imageName = config.UbuntuARMImageName
-				} else {
-					imageUrl = config.UbuntuAMD64ImageURL
-					imageName = config.UbuntuAMD64ImageName
-				}
-			}
-			imagePath := filepath.Join(appDir, "images", imageName)
-			if err := downloader.DownloadImageIfNotExists(imagePath, imageUrl); err != nil {
-				return errors.E("vm-create", err)
-			}
-			if err := createDisk(imagePath, vmDiskPath, diskSize); err != nil {
-				return errors.E("vm-create", err)
-			}
-			isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
-			if err := cloudinit.CreateISO(
-				vmName, role, appDir, isoPath, ip, ipv6, macForMetadata,
-				pxebootStackTar, pxebootStackImage,
-			); err != nil {
-				return errors.E("vm-create", err)
-			}
-		}
-
+		                        var imageUrl, imageName string
+		                        var distroInfo *config.ArchInfo
+		                        if role == provisionerRole {
+		                            // For provisioner, we still use the hardcoded provisioner image logic
+		                            imageUrl, imageName = config.GetProvisionerImageURL(arch)
+		                        } else {
+		            				// For target, get image info from the configured distros
+		            				var err error
+		            				distroInfo, err = config.GetDistro("ubuntu-24.04", arch) // Assuming default to Ubuntu for non-pxeboot targets
+		            				if err != nil {
+		            					return errors.E("vm-create", fmt.Errorf("failed to get distro info for non-pxeboot target: %w", err))
+		            				}
+		            				imageUrl = distroInfo.ISOURL // Using ISOURL for cloud images for now, will refine later if needed
+		            				imageName = distroInfo.ISOName // Using ISOName for cloud images for now, will refine later if needed
+		            			}
+		            			imagePath := filepath.Join(appDir, "images", imageName)
+		            			if err := downloader.DownloadImageIfNotExists(imagePath, imageUrl); err != nil {
+		            				return errors.E("vm-create", err)
+		            			}
+		            			if err := createDisk(imagePath, vmDiskPath, diskSize); err != nil {
+		            				return errors.E("vm-create", err)
+		            			}
+		            			isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
+		            			if err := cloudinit.CreateISO(
+		            				vmName, role, appDir, isoPath, ip, ipv6, macForMetadata,
+		            				pxebootStackTar, pxebootStackImage,
+		            			); err != nil {
+		            				return errors.E("vm-create", err)
+		            			}
+		            		}
 		if role != provisionerRole {
 			pxebootStackTar = ""
 		}
@@ -252,7 +255,7 @@ The --role flag determines the type of VM to create.
 			}
 		}
 
-		if err := metadata.Save(cfg, vmName, role, arch, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, string(sshPubKey), sshPort, pxeboot, distro); err != nil {
+		if err := metadata.Save(cfg, vmName, role, arch, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, pxebootStackTar, finalDockerImagesPath, finalVMsPath, string(sshPubKey), sshPort, pxeboot, distroName); err != nil {
 			color.Yellow("Warning: failed to save VM metadata: %v", err)
 		}
 		color.Green("✔ VM '%s' created successfully.", vmName)
@@ -261,150 +264,6 @@ The --role flag determines the type of VM to create.
 	},
 }
 
-func handlePxeBootAssets(cfg *config.Config, distro, arch string) error {
-	if _, err := exec.LookPath("7z"); err != nil {
-		return fmt.Errorf("7z is not installed. Please install it to extract PXE boot assets")
-	}
-
-	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
-	s.Suffix = " Preparing PXE boot assets..."
-	s.Start()
-	defer s.Stop()
-
-	distroPath := filepath.Join(cfg.GetAppDir(), "images", distro, arch)
-	color.Cyan("i Distro path: %s", distroPath)
-	if err := os.MkdirAll(distroPath, 0755); err != nil {
-		return fmt.Errorf("failed to create distro directory: %w", err)
-	}
-
-	var isoURL, isoName string
-	if distro == "ubuntu-24.04" {
-		if arch == "aarch64" {
-			isoURL = config.Ubuntu2404ARMISOURL
-			isoName = config.Ubuntu2404ARMISOName
-		} else {
-			isoURL = config.Ubuntu2404AMD64ISOURL
-			isoName = config.Ubuntu2404AMD64ISOName
-		}
-	} else {
-		return fmt.Errorf("unsupported distro: %s", distro)
-	}
-
-	isoPath := filepath.Join(distroPath, isoName)
-	color.Cyan("i ISO path: %s", isoPath)
-	if err := downloader.DownloadImageIfNotExists(isoPath, isoURL); err != nil {
-		return err
-	}
-
-	s.Suffix = " Extracting vmlinuz kernel..."
-	extractCmd := exec.Command("7z", "x", "-y", isoPath, "-o"+distroPath, "casper/vmlinuz")
-	color.Cyan("i Running command: %s", extractCmd.String())
-	if output, err := extractCmd.CombinedOutput(); err != nil {
-		color.Red("! 7z extraction failed. Output:\n%s", string(output))
-		return fmt.Errorf("failed to extract vmlinuz kernel: %w", err)
-	}
-
-	extractedVmlinuzPath := filepath.Join(distroPath, "casper", "vmlinuz")
-	targetVmlinuzPath := filepath.Join(distroPath, "vmlinuz")
-	color.Cyan("i Moving %s to %s", extractedVmlinuzPath, targetVmlinuzPath)
-
-	if _, err := os.Stat(extractedVmlinuzPath); os.IsNotExist(err) {
-		return fmt.Errorf("vmlinuz not found at expected path after extraction: %s", extractedVmlinuzPath)
-	}
-
-	if err := os.Rename(extractedVmlinuzPath, targetVmlinuzPath); err != nil {
-		return fmt.Errorf("failed to move vmlinuz to target path: %w", err)
-	}
-
-	if err := os.RemoveAll(filepath.Join(distroPath, "casper")); err != nil {
-		color.Yellow("Warning: failed to clean up temporary casper directory: %v", err)
-	}
-
-	if err := os.Chmod(targetVmlinuzPath, 0644); err != nil {
-		return fmt.Errorf("failed to set permissions on vmlinuz: %w", err)
-	}
-
-	s.Suffix = " Extracting kernel modules..."
-	extractPoolCmd := exec.Command("7z", "x", "-y", isoPath, "-o"+distroPath, "pool")
-	if output, err := extractPoolCmd.CombinedOutput(); err != nil {
-		color.Red("! 7z pool extraction failed. Output:\n%s", string(output))
-		return fmt.Errorf("failed to extract pool directory: %w", err)
-	}
-
-	s.Suffix = " Finding kernel modules package..."
-	modulesDebPath, err := findFileWithPrefix(filepath.Join(distroPath, "pool", "main", "l", "linux"), "linux-modules-")
-	if err != nil {
-		return fmt.Errorf("failed to find linux-modules package: %w", err)
-	}
-
-	s.Suffix = " Extracting modules from .deb package..."
-	modulesExtractDir := filepath.Join(distroPath, "modules_extract")
-	if err := os.MkdirAll(modulesExtractDir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory for module extraction: %w", err)
-	}
-	extractModulesCmd := exec.Command("7z", "x", "-y", modulesDebPath, "-o"+modulesExtractDir)
-	if output, err := extractModulesCmd.CombinedOutput(); err != nil {
-		color.Red("! 7z module extraction failed. Output:\n%s", string(output))
-		return fmt.Errorf("failed to extract modules from .deb: %w", err)
-	}
-
-	s.Suffix = " Extracting data.tar from .deb package..."
-	dataTarPath := filepath.Join(modulesExtractDir, "data.tar")
-	extractDataTarCmd := exec.Command("7z", "x", "-y", dataTarPath, "-o"+modulesExtractDir)
-	if output, err := extractDataTarCmd.CombinedOutput(); err != nil {
-		color.Red("! 7z data.tar extraction failed. Output:\n%s", string(output))
-		return fmt.Errorf("failed to extract data.tar from .deb: %w", err)
-	}
-
-	s.Suffix = " Creating modules.cpio..."
-	modulesCpioPath := filepath.Join(distroPath, "modules.cpio") // Uncompressed CPIO
-	// The working directory is set to modulesExtractDir, so find will pick up `lib/modules/...`
-	cpioCmd := exec.Command("sh", "-c", fmt.Sprintf("find lib -print | cpio -o -H newc > %s", modulesCpioPath))
-	cpioCmd.Dir = modulesExtractDir
-	if output, err := cpioCmd.CombinedOutput(); err != nil {
-		color.Red("! cpio creation failed. Output:\n%s", string(output))
-		return fmt.Errorf("failed to create modules cpio: %w", err)
-	}
-
-	// Gzip the CPIO archive
-	gzipCmd := exec.Command("gzip", "-f", modulesCpioPath)
-	if output, err := gzipCmd.CombinedOutput(); err != nil {
-		color.Red("! gzip compression failed. Output:\n%s", string(output))
-		return fmt.Errorf("failed to gzip modules cpio: %w", err)
-	}
-
-	s.Suffix = " Cleaning up temporary module directories..."
-	if err := os.RemoveAll(filepath.Join(distroPath, "pool")); err != nil {
-		color.Yellow("Warning: failed to clean up temporary pool directory: %v", err)
-	}
-	if err := os.RemoveAll(modulesExtractDir); err != nil {
-		color.Yellow("Warning: failed to clean up temporary module extraction directory: %v", err)
-	}
-
-	s.FinalMSG = color.GreenString("✔ PXE boot assets prepared successfully (vmlinuz and modules.cpio.gz extracted).\n")
-	return nil
-}
-
-func findFileWithPrefix(dir, prefix string) (string, error) {
-	var foundPath string
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() && strings.HasPrefix(info.Name(), prefix) {
-			foundPath = path
-			return filepath.SkipDir // Stop searching once found
-		}
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	if foundPath == "" {
-		return "", fmt.Errorf("no file with prefix '%s' found in '%s'", prefix, dir)
-	}
-	return foundPath, nil
-}
 
 
 func validateRole(role string) error {
@@ -688,5 +547,5 @@ func init() {
 	vmCreateCmd.Flags().StringVar(&diskSize, "disk-size", "15G", "The size of the VM disk")
 	vmCreateCmd.Flags().BoolVar(&pxeboot, "pxeboot", false, "Create a VM that boots from the network (target role only)")
 	vmCreateCmd.Flags().StringVar(&arch, "arch", "aarch64", "The architecture of the VM ('aarch64' or 'x86_64')")
-	vmCreateCmd.Flags().StringVar(&distro, "distro", "", "The distribution for the VM (e.g. ubuntu-24.04)")
+	vmCreateCmd.Flags().StringVar(&distroName, "distro", "", "The distribution for the VM (e.g. ubuntu-24.04)")
 }

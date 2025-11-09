@@ -109,6 +109,25 @@ func setupMocks(t *testing.T) {
 	config.New = func() (*config.Config, error) {
 		cfg := &config.Config{}
 		cfg.SetHomeDir(tempDir)
+		// Manually populate Distros for testing
+		config.Distros = map[string]config.Distro{
+			"ubuntu-24.04": {
+				Name:    "ubuntu",
+				Version: "24.04",
+				Arch: map[string]config.ArchInfo{
+					"aarch64": {
+						ISOURL:     "https://example.com/ubuntu-arm.iso",
+						ISOName:    "ubuntu-arm.iso",
+						KernelFile: "casper/vmlinuz",
+					},
+					"x86_64": {
+						ISOURL:     "https://example.com/ubuntu-amd64.iso",
+						ISOName:    "ubuntu-amd64.iso",
+						KernelFile: "casper/vmlinuz",
+					},
+				},
+			},
+		}
 		return cfg, nil
 	}
 	downloader.DownloadImageIfNotExists = func(string, string) error {

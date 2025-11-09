@@ -35,7 +35,7 @@ var vmListCmd = &cobra.Command{
 		}
 
 		table := tablewriter.NewWriter(os.Stdout)
-		header := []string{"NAME", "ARCH", "BOOT TYPE", "PRIVATE IP", "PRIVATE IPV6", "MAC", "STATUS"}
+		header := []string{"NAME", "ARCH", "BOOT TYPE", "PRIVATE IP", "PRIVATE IPV6", "MAC", "DISTRO", "STATUS"}
 		table.Header(header)
 		// Sort VM names for consistent output
 		vmNames := make([]string, 0, len(allMeta))
@@ -69,6 +69,14 @@ var vmListCmd = &cobra.Command{
 			if meta.Arch == "x86_64" {
 				arch = "x86_64"
 			}
+
+			var distroToDisplay string
+			if meta.Role == "provisioner" {
+				distroToDisplay = "N/A (Provisioner)"
+			} else {
+				distroToDisplay = meta.Distro
+			}
+
 			row := []string{
 				displayName,
 				arch,
@@ -76,6 +84,7 @@ var vmListCmd = &cobra.Command{
 				meta.IP,
 				ipv6,
 				meta.MAC,
+				distroToDisplay,
 				status,
 			}
 			table.Append(row)
