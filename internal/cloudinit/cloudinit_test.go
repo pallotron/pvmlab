@@ -1,10 +1,9 @@
 package cloudinit
 
 import (
+	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"pvmlab/internal/runner"
 	"strings"
 	"testing"
 
@@ -30,16 +29,6 @@ func TestCreateISO(t *testing.T) {
 	if err := os.WriteFile(sshKeyPath, []byte(dummyKey), 0644); err != nil {
 		t.Fatalf("Failed to write dummy ssh key: %v", err)
 	}
-
-	// Setup mock runner
-	originalRun := runner.Run
-	runner.Run = func(cmd *exec.Cmd) error {
-		// We are mocking the runner to avoid actually calling mkisofs
-		return nil
-	}
-	t.Cleanup(func() {
-		runner.Run = originalRun
-	})
 
 	testCases := []struct {
 		name   string
@@ -76,7 +65,7 @@ func TestCreateISO(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			isoPath := filepath.Join(appDir, tc.vmName+".iso")
-			err := CreateISO(tc.vmName, tc.role, appDir, isoPath, tc.ip, tc.ipv6, tc.mac, tc.tar, tc.image)
+			err := CreateISO(context.Background(), tc.vmName, tc.role, appDir, isoPath, tc.ip, tc.ipv6, tc.mac, tc.tar, tc.image)
 			assert.NoError(t, err)
 
 			configDir := filepath.Join(appDir, "configs", "cloud-init", tc.vmName)
@@ -108,16 +97,6 @@ func TestCreateISOWithGoldenFiles(t *testing.T) {
 		t.Fatalf("Failed to write dummy ssh key: %v", err)
 	}
 
-	// Setup mock runner
-	originalRun := runner.Run
-	runner.Run = func(cmd *exec.Cmd) error {
-		// We are mocking the runner to avoid actually calling mkisofs
-		return nil
-	}
-	t.Cleanup(func() {
-		runner.Run = originalRun
-	})
-
 	tc := struct {
 		name   string
 		role   string
@@ -140,7 +119,7 @@ func TestCreateISOWithGoldenFiles(t *testing.T) {
 
 	t.Run(tc.name, func(t *testing.T) {
 		isoPath := filepath.Join(appDir, tc.vmName+".iso")
-		err := CreateISO(tc.vmName, tc.role, appDir, isoPath, tc.ip, tc.ipv6, tc.mac, tc.tar, tc.image)
+		err := CreateISO(context.Background(), tc.vmName, tc.role, appDir, isoPath, tc.ip, tc.ipv6, tc.mac, tc.tar, tc.image)
 		assert.NoError(t, err)
 
 		configDir := filepath.Join(appDir, "configs", "cloud-init", tc.vmName)

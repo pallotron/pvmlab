@@ -1,11 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"os/signal"
 	"pvmlab/internal/config"
 	"pvmlab/internal/distro"
 	"pvmlab/internal/errors"
+	"syscall"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +31,15 @@ var distroPullCmd = &cobra.Command{
 			return errors.E("distro-pull", err)
 		}
 
-		if err := distro.Pull(cfg, distroName, distroPullArch); err != nil {
+		// Create a context that is cancelled on a SIGINT or SIGTERM.
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+
+		if err := distro.Pull(ctx, cfg, distroName, distroPullArch); err != nil {
+			if ctx.Err() == context.Canceled {
+				color.Yellow("\nOperation cancelled by user.")
+				return nil
+			}
 			return errors.E("distro-pull", err)
 		}
 

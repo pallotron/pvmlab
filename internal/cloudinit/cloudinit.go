@@ -1,16 +1,15 @@
 package cloudinit
 
 import (
+	"bytes"
+	"context"
 	_ "embed"
 	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"pvmlab/internal/runner"
 	"strings"
-
-	"bytes"
 
 	"gopkg.in/yaml.v3"
 )
@@ -42,7 +41,6 @@ type MetaData struct {
 
 // UserData structs
 type SSHKeys string
-
 
 func (s SSHKeys) MarshalYAML() (any, error) {
 	return &yaml.Node{
@@ -319,7 +317,7 @@ func buildTargetNetworkConfig(mac string) *NetplanConfig {
 	return cfg
 }
 
-var CreateISO = func(vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image string) error {
+var CreateISO = func(ctx context.Context, vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image string) error {
 	sshKeyPath := filepath.Join(appDir, "ssh", "vm_rsa.pub")
 	sshKeyBytes, err := os.ReadFile(sshKeyPath)
 	if err != nil {
@@ -436,5 +434,6 @@ var CreateISO = func(vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image st
 	}
 
 	cmd := exec.Command("mkisofs", "-o", isoPath, "-V", "cidata", "-r", "-J", configDir)
-	return runner.Run(cmd)
+	return cmd.Run()
 }
+

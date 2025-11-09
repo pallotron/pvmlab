@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"pvmlab/internal/config"
 	"pvmlab/internal/metadata"
@@ -13,6 +15,7 @@ import (
 	"pvmlab/internal/waiter"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/fatih/color"
@@ -67,7 +70,16 @@ var vmStartCmd = &cobra.Command{
 			return err
 		}
 
-		if err := runQEMU(opts, qemuArgs); err != nil {
+		// Create a context that is cancelled on a SIGINT or SIGTERM.
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+
+		if err := runQEMU(ctx, opts, qemuArgs); err != nil {
+			// Check if the error was due to context cancellation
+			if ctx.Err() == context.Canceled {
+				color.Yellow("\nVM start cancelled by user.")
+				return nil // Exit gracefully
+			}
 			return err
 		}
 
@@ -264,7 +276,7 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 	return qemuArgs, nil
 }
 
-func runQEMU(opts *vmStartOptions, qemuArgs []string) error {
+func runQEMU(ctx context.Context, opts *vmStartOptions, qemuArgs []string) error {
 	socketPath, err := socketvmnet.GetSocketPath()
 	if err != nil {
 		return fmt.Errorf("error getting socket_vmnet path: %w", err)
@@ -276,7 +288,7 @@ func runQEMU(opts *vmStartOptions, qemuArgs []string) error {
 
 	finalCmd := append([]string{clientPath, socketPath}, qemuArgs...)
 
-	cmdRun := exec.Command(finalCmd[0], finalCmd[1:]...)
+	cmdRun := exec.CommandContext(ctx, finalCmd[0], finalCmd[1:]...)
 	if interactive {
 		return runInteractiveSession(cmdRun)
 	}

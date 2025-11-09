@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"pvmlab/internal/config"
-	"pvmlab/internal/runner"
 	"pvmlab/internal/socketvmnet"
 	"pvmlab/internal/ssh"
 	"time"
@@ -15,6 +14,9 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+
+// execCommand is a variable that can be overridden for testing purposes.
+var execCommand = exec.Command
 
 // used in integration tests to skip dependency checks as they are installed by the Github Actions runner
 var assetsOnly bool
@@ -122,8 +124,8 @@ func checkDependencies() error {
 	dependencies := []string{"brew", "mkisofs", "socat", "qemu-system-aarch64", "docker"}
 
 	for _, dep := range dependencies {
-		cmd := exec.Command("which", dep)
-		if err := runner.Run(cmd); err != nil {
+		cmd := execCommand("which", dep)
+		if err := cmd.Run(); err != nil {
 			s.FinalMSG = color.RedString("✖ Dependency check failed.\n")
 			return fmt.Errorf("%s not found. Please install it", dep)
 		}
@@ -143,8 +145,8 @@ func checkDependencies() error {
 	}
 
 	if !foundSocketVmnet {
-		cmd := exec.Command("which", "socket_vmnet")
-		if err := runner.Run(cmd); err != nil {
+		cmd := execCommand("which", "socket_vmnet")
+		if err := cmd.Run(); err != nil {
 			s.FinalMSG = color.RedString("✖ Dependency check failed.\n")
 			return fmt.Errorf("socket_vmnet not found in standard paths or /opt. Please install it")
 		}

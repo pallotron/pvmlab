@@ -2,16 +2,15 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
-	"os/exec"
 	"pvmlab/internal/cloudinit"
 	"pvmlab/internal/config"
 	"pvmlab/internal/downloader"
 	"pvmlab/internal/metadata"
 	"pvmlab/internal/netutil"
 	"pvmlab/internal/pidfile"
-	"pvmlab/internal/runner"
 	"pvmlab/internal/socketvmnet"
 	"pvmlab/internal/ssh"
 	"testing"
@@ -72,7 +71,6 @@ func TestMain(m *testing.M) {
 	originalMetadataFindVM := metadata.FindVM
 	originalMetadataGetAll := metadata.GetAll
 	originalMetadataDelete := metadata.Delete
-	originalRunnerRun := runner.Run
 	originalSSHGenerateKey := ssh.GenerateKey
 	originalSocketVmnetIsSocketVmnetRunning := socketvmnet.IsSocketVmnetRunning
 	originalPidfileIsRunning := pidfile.IsRunning
@@ -91,7 +89,6 @@ func TestMain(m *testing.M) {
 		metadata.FindVM = originalMetadataFindVM
 		metadata.GetAll = originalMetadataGetAll
 		metadata.Delete = originalMetadataDelete
-		runner.Run = originalRunnerRun
 		ssh.GenerateKey = originalSSHGenerateKey
 		socketvmnet.IsSocketVmnetRunning = originalSocketVmnetIsSocketVmnetRunning
 		pidfile.IsRunning = originalPidfileIsRunning
@@ -133,13 +130,13 @@ func setupMocks(t *testing.T) {
 	downloader.DownloadImageIfNotExists = func(string, string) error {
 		return nil
 	}
-	createDisk = func(string, string, string) error {
+	createDisk = func(ctx context.Context, imagePath, vmDiskPath, diskSize string) error {
 		return nil
 	}
-	createISO = func(string, string, string, string, string, string, string, string, string) error {
+	createISO = func(vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image string) error {
 		return nil
 	}
-	cloudinit.CreateISO = func(string, string, string, string, string, string, string, string, string) error {
+	cloudinit.CreateISO = func(ctx context.Context, vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image string) error {
 		return nil
 	}
 	metadata.Save = func(*config.Config, string, string, string, string, string, string, string, string, string, string, string, string, int, bool, string) error {
@@ -155,9 +152,6 @@ func setupMocks(t *testing.T) {
 		return make(map[string]*metadata.Metadata), nil // No VMs exist by default
 	}
 	metadata.Delete = func(*config.Config, string) error {
-		return nil
-	}
-	runner.Run = func(*exec.Cmd) error {
 		return nil
 	}
 	ssh.GenerateKey = func(keyPath string) error {

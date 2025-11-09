@@ -1,6 +1,7 @@
 package distro
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,11 +15,15 @@ import (
 // FedoraExtractor implements the Extractor interface for Fedora.
 type FedoraExtractor struct{}
 
-func (e *FedoraExtractor) ExtractKernelAndModules(cfg *config.Config, distroInfo *config.ArchInfo, isoPath, distroPath string) error {
+func (e *FedoraExtractor) ExtractKernelAndModules(ctx context.Context, cfg *config.Config, distroInfo *config.ArchInfo, isoPath, distroPath string) error {
 	// Step 1: Extract the kernel
 	color.Cyan("i Extracting vmlinuz kernel...")
-	extractKernelCmd := exec.Command("7z", "x", "-y", isoPath, "-o"+distroPath, distroInfo.KernelFile)
+	extractKernelCmd := exec.CommandContext(ctx, "7z", "x", "-y", isoPath, "-o"+distroPath, distroInfo.KernelFile)
 	if output, err := extractKernelCmd.CombinedOutput(); err != nil {
+		if ctx.Err() == context.Canceled {
+			color.Yellow("\nOperation cancelled by user.")
+			return nil
+		}
 		color.Red("! 7z kernel extraction failed. Output:\n%s", string(output))
 		return fmt.Errorf("failed to extract kernel: %w", err)
 	}
@@ -57,8 +62,12 @@ func (e *FedoraExtractor) ExtractKernelAndModules(cfg *config.Config, distroInfo
 	defer os.RemoveAll(tempInitrdDir) // Clean up temp directory
 
 	// Extract the full initrd.img to the temporary directory
-	extractInitrdCmd := exec.Command("7z", "x", "-y", isoPath, "-o"+tempInitrdDir, initrdFile)
+	extractInitrdCmd := exec.CommandContext(ctx, "7z", "x", "-y", isoPath, "-o"+tempInitrdDir, initrdFile)
 	if output, err := extractInitrdCmd.CombinedOutput(); err != nil {
+		if ctx.Err() == context.Canceled {
+			color.Yellow("\nOperation cancelled by user.")
+			return nil
+		}
 		color.Red("! 7z initrd extraction failed. Output:\n%s", string(output))
 		return fmt.Errorf("failed to extract initrd to temp dir: %w", err)
 	}
@@ -70,7 +79,7 @@ func (e *FedoraExtractor) ExtractKernelAndModules(cfg *config.Config, distroInfo
 
 	// Decompress the initrd.img (which is a gzipped cpio archive)
 	decompressedCpioPath := filepath.Join(tempInitrdDir, "initrd.cpio")
-	gunzipCmd := exec.Command("gunzip", "-c", extractedInitrdPath)
+	gunzipCmd := exec.CommandContext(ctx, "gunzip", "-c", extractedInitrdPath)
 	cpioFile, err := os.Create(decompressedCpioPath)
 	if err != nil {
 		return fmt.Errorf("failed to create decompressed cpio file: %w", err)
@@ -90,7 +99,7 @@ func (e *FedoraExtractor) ExtractKernelAndModules(cfg *config.Config, distroInfo
 	}
 
 	// Extract only usr/lib/modules from the decompressed cpio
-	extractModulesCmd := exec.Command("sh", "-c", "cpio -idmv 'usr/lib/modules/*'")
+	extractModulesCmd := exec.CommandContext(ctx, "sh", "-c", "cpio -idmv 'usr/lib/modules/*' ")
 	extractModulesCmd.Dir = modulesExtractDir
 	inputFile, err := os.Open(decompressedCpioPath)
 	if err != nil {
@@ -99,23 +108,35 @@ func (e *FedoraExtractor) ExtractKernelAndModules(cfg *config.Config, distroInfo
 	defer inputFile.Close()
 	extractModulesCmd.Stdin = inputFile
 	if output, err := extractModulesCmd.CombinedOutput(); err != nil {
+		if ctx.Err() == context.Canceled {
+			color.Yellow("\nOperation cancelled by user.")
+			return nil
+		}
 		color.Red("! cpio module extraction failed. Output:\n%s", string(output))
 		return fmt.Errorf("failed to extract usr/lib/modules from cpio: %w", err)
 	}
 
 	// Create a new cpio archive from the extracted modules
 	finalCpioPath := filepath.Join(distroPath, "modules.cpio")
-	cpioCmd := exec.Command("sh", "-c", fmt.Sprintf("find . -print | cpio -o -H newc > %s", finalCpioPath))
+	cpioCmd := exec.CommandContext(ctx, "sh", "-c", fmt.Sprintf("find . -print | cpio -o -H newc > %s", finalCpioPath))
 	cpioCmd.Dir = filepath.Join(modulesExtractDir, "usr", "lib", "modules") // Change directory to where modules are
 	if output, err := cpioCmd.CombinedOutput(); err != nil {
+		if ctx.Err() == context.Canceled {
+			color.Yellow("\nOperation cancelled by user.")
+			return nil
+		}
 		color.Red("! cpio creation failed. Output:\n%s", string(output))
 		return fmt.Errorf("failed to create modules cpio: %w", err)
 	}
 
 	// Gzip the new cpio archive
 	targetInitrdPath := filepath.Join(distroPath, "modules.cpio.gz")
-	gzipCmd := exec.Command("gzip", "-f", finalCpioPath)
+	gzipCmd := exec.CommandContext(ctx, "gzip", "-f", finalCpioPath)
 	if output, err := gzipCmd.CombinedOutput(); err != nil {
+		if ctx.Err() == context.Canceled {
+			color.Yellow("\nOperation cancelled by user.")
+			return nil
+		}
 		color.Red("! gzip compression failed. Output:\n%s", string(output))
 		return fmt.Errorf("failed to gzip modules cpio: %w", err)
 	}
@@ -126,7 +147,7 @@ func (e *FedoraExtractor) ExtractKernelAndModules(cfg *config.Config, distroInfo
 	return nil
 }
 
-func (e *FedoraExtractor) CreateRootfs(distroInfo *config.ArchInfo, distroPath string) error {
+func (e *FedoraExtractor) CreateRootfs(ctx context.Context, distroInfo *config.ArchInfo, distroPath string) error {
 	// Not implemented for Fedora
 	return nil
 }

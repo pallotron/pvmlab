@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"pvmlab/internal/cloudinit"
 	"pvmlab/internal/config"
@@ -25,7 +26,9 @@ func TestVMCreateCommand(t *testing.T) {
 		},
 
 		{
-			            args: []string{"vm", "create", "test-vm"},			setupMocks: func() {
+			name: "existing vm",
+			args: []string{"vm", "create", "test-vm"},
+			setupMocks: func() {
 				metadata.FindVM = func(c *config.Config, name string) (string, error) {
 					return "test-vm", nil
 				}
@@ -33,9 +36,10 @@ func TestVMCreateCommand(t *testing.T) {
 			expectedError: "a VM named 'test-vm' already exists",
 		},
 		{
+			name: "disk creation fails",
 			args: []string{"vm", "create", "test-vm", "--distro", "ubuntu-24.04"},
 			setupMocks: func() {
-				createDisk = func(string, string, string) error {
+				createDisk = func(ctx context.Context, imagePath, vmDiskPath, diskSize string) error {
 					return errors.New("qemu-img failed")
 				}
 			},
@@ -45,7 +49,7 @@ func TestVMCreateCommand(t *testing.T) {
 			name: "iso create failure",
 			args: []string{"vm", "create", "test-vm", "--distro", "ubuntu-24.04"},
 			setupMocks: func() {
-				cloudinit.CreateISO = func(string, string, string, string, string, string, string, string, string) error {
+				cloudinit.CreateISO = func(ctx context.Context, vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image string) error {
 					return errors.New("iso creation failed")
 				}
 			},

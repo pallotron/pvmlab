@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"pvmlab/internal/cloudinit"
@@ -16,11 +18,10 @@ import (
 	"pvmlab/internal/downloader"
 	"pvmlab/internal/errors"
 	"pvmlab/internal/metadata"
-	"pvmlab/internal/runner"
 	"pvmlab/internal/ssh"
 	"regexp"
-	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -35,7 +36,7 @@ const (
 
 var (
 	ip, ipv6, mac, diskSize, arch string
-	pxeboot                      bool
+	pxeboot                       bool
 )
 
 // vmCreateCmd represents the create command
@@ -45,6 +46,10 @@ var vmCreateCmd = &cobra.Command{
 	Long:  `Creates a new target VM that can be provisioned by the provisioner VM.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Create a context that is cancelled on a SIGINT or SIGTERM.
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+
 		vmName := args[0]
 		color.Cyan("i Creating Target VM: %s", vmName)
 
@@ -79,7 +84,7 @@ var vmCreateCmd = &cobra.Command{
 		}
 
 		if err := checkExistingVMs(cfg, vmName, targetRole); err != nil {
-			return err
+			return errors.E("vm-create", err)
 		}
 
 		macForMetadata, err := getMac(mac)
@@ -109,7 +114,7 @@ var vmCreateCmd = &cobra.Command{
 				return errors.E("vm-create", fmt.Errorf("kernel modules not found at %s. Please run 'pvmlab distro pull %s --arch %s' first", modulesPath, distroName, arch))
 			}
 
-			if err := createBlankDisk(vmDiskPath, diskSize); err != nil {
+			if err := createBlankDisk(ctx, vmDiskPath, diskSize); err != nil {
 				return errors.E("vm-create", err)
 			}
 		} else {
@@ -129,12 +134,12 @@ var vmCreateCmd = &cobra.Command{
 			if err := downloader.DownloadImageIfNotExists(imagePath, imageUrl); err != nil {
 				return errors.E("vm-create", err)
 			}
-			if err := createDisk(imagePath, vmDiskPath, diskSize); err != nil {
+			if err := createDisk(ctx, imagePath, vmDiskPath, diskSize); err != nil {
 				return errors.E("vm-create", err)
 			}
 			isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
 			if err := cloudinit.CreateISO(
-				vmName, targetRole, appDir, isoPath, ip, ipv6, macForMetadata,
+				ctx, vmName, targetRole, appDir, isoPath, ip, ipv6, macForMetadata,
 				"", "",
 			); err != nil {
 				return errors.E("vm-create", err)
@@ -249,9 +254,9 @@ func getMac(mac string) (string, error) {
 	return mac, nil
 }
 
-var createDisk = func(imagePath, vmDiskPath, diskSize string) error {
+var createDisk = func(ctx context.Context, imagePath, vmDiskPath, diskSize string) error {
 	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
-	s.Suffix = " Creating VM disk..."
+	s.Suffix = " Creating VM disk (press Ctrl+C to cancel)..."
 	s.Start()
 	defer s.Stop()
 
@@ -262,8 +267,12 @@ var createDisk = func(imagePath, vmDiskPath, diskSize string) error {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	cmdRun := exec.Command("qemu-img", "create", "-f", "qcow2", "-F", "qcow2", "-b", imagePath, vmDiskPath)
-	if err := runner.Run(cmdRun); err != nil {
+	cmdRun := exec.CommandContext(ctx, "qemu-img", "create", "-f", "qcow2", "-F", "qcow2", "-b", imagePath, vmDiskPath)
+	if err := cmdRun.Run(); err != nil {
+		if ctx.Err() == context.Canceled {
+			color.Yellow("\nOperation cancelled by user.")
+			return nil
+		}
 		s.FinalMSG = color.RedString("✖ Failed to create VM disk.\n")
 		return err
 	}
@@ -291,9 +300,13 @@ var createDisk = func(imagePath, vmDiskPath, diskSize string) error {
 		}
 	}
 
-	s.Suffix = " Resizing VM disk..."
-	cmdRun = exec.Command("qemu-img", "resize", vmDiskPath, diskSize)
-	if err := runner.Run(cmdRun); err != nil {
+	s.Suffix = " Resizing VM disk (press Ctrl+C to cancel)..."
+	cmdRun = exec.CommandContext(ctx, "qemu-img", "resize", vmDiskPath, diskSize)
+	if err := cmdRun.Run(); err != nil {
+		if ctx.Err() == context.Canceled {
+			color.Yellow("\nOperation cancelled by user.")
+			return nil
+		}
 		s.FinalMSG = color.RedString("✖ Failed to resize VM disk.\n")
 		return err
 	}
@@ -307,7 +320,7 @@ var createISO = func(vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image st
 	s.Start()
 	defer s.Stop()
 
-	if err := cloudinit.CreateISO(vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image); err != nil {
+	if err := cloudinit.CreateISO(context.Background(), vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image); err != nil {
 		s.FinalMSG = color.RedString("✖ Failed to generate cloud-config ISO.\n")
 		return err
 	}
@@ -315,9 +328,9 @@ var createISO = func(vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image st
 	return nil
 }
 
-var createBlankDisk = func(vmDiskPath, diskSize string) error {
+var createBlankDisk = func(ctx context.Context, vmDiskPath, diskSize string) error {
 	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
-	s.Suffix = " Creating blank VM disk..."
+	s.Suffix = " Creating blank VM disk (press Ctrl+C to cancel)..."
 	s.Start()
 	defer s.Stop()
 
@@ -328,8 +341,12 @@ var createBlankDisk = func(vmDiskPath, diskSize string) error {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	cmdRun := exec.Command("qemu-img", "create", "-f", "qcow2", vmDiskPath, diskSize)
-	if err := runner.Run(cmdRun); err != nil {
+	cmdRun := exec.CommandContext(ctx, "qemu-img", "create", "-f", "qcow2", vmDiskPath, diskSize)
+	if err := cmdRun.Run(); err != nil {
+		if ctx.Err() == context.Canceled {
+			color.Yellow("\nOperation cancelled by user.")
+			return nil
+		}
 		s.FinalMSG = color.RedString("✖ Failed to create blank VM disk.\n")
 		return err
 	}
@@ -378,30 +395,21 @@ func getImageVirtualSize(imagePath string) (int64, error) {
 
 // parseSize converts a size string like "10G", "512M", "2048K" into bytes.
 func parseSize(sizeStr string) (int64, error) {
-	// Trim whitespace
-	sizeStr = strings.TrimSpace(sizeStr)
-	if sizeStr == "" {
-		return 0, fmt.Errorf("size string is empty")
-	}
+	var value int64
+	var unit string
 
-	// Find the first non-digit character
-	var valueStr string
-	var unitStr string
-	for i, r := range sizeStr {
-		if r >= '0' && r <= '9' {
-			valueStr += string(r)
-		} else {
-			unitStr = strings.TrimSpace(sizeStr[i:])
-			break
+	// Try to parse with unit (e.g., "10G", "512M")
+	n, err := fmt.Sscanf(sizeStr, "%d%s", &value, &unit)
+	if err != nil || n != 2 {
+		// If parsing with unit fails, try to parse as just a number (bytes)
+		n, err = fmt.Sscanf(sizeStr, "%d", &value)
+		if err != nil || n != 1 {
+			return 0, fmt.Errorf("invalid size format '%s'. Expected format like '10G', '512M', or '2048'", sizeStr)
 		}
+		unit = "B" // Default to bytes if no unit is specified
 	}
 
-	value, err := strconv.ParseInt(valueStr, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid size value in '%s': %w", sizeStr, err)
-	}
-
-	unit := strings.ToUpper(unitStr)
+	unit = strings.ToUpper(unit)
 	switch unit {
 	case "K", "KB":
 		value *= 1024

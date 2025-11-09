@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"pvmlab/internal/cloudinit"
 	"pvmlab/internal/config"
@@ -12,8 +14,8 @@ import (
 	"pvmlab/internal/errors"
 	"pvmlab/internal/metadata"
 	"pvmlab/internal/netutil"
-	"pvmlab/internal/runner"
 	"pvmlab/internal/ssh"
+	"syscall"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -23,7 +25,7 @@ import (
 
 var (
 	provIP, provIPv6, provMAC, provPxebootStackTar, provDockerImagesPath string
-	provVMsPath, provDiskSize, provArch, provPxebootStackImage      string
+	provVMsPath, provDiskSize, provArch, provPxebootStackImage           string
 )
 
 // provisionerCreateCmd represents the create command
@@ -33,6 +35,10 @@ var provisionerCreateCmd = &cobra.Command{
 	Long:  `Creates the provisioner VM, which runs the pxeboot stack container to provision target VMs.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Create a context that is cancelled on a SIGINT or SIGTERM.
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+
 		vmName := args[0]
 		color.Cyan("i Creating Provisioner VM: %s", vmName)
 
@@ -98,18 +104,22 @@ var provisionerCreateCmd = &cobra.Command{
 			provPxebootStackImage = config.GetPxeBootStackImageName()
 		} else { // Pull image from registry
 			s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
-			s.Suffix = fmt.Sprintf(" Pulling docker image %s...", provPxebootStackImage)
+			s.Suffix = fmt.Sprintf(" Pulling docker image %s (press Ctrl+C to cancel)...", provPxebootStackImage)
 			s.Start()
 
-			pullCmd := exec.Command("docker", "pull", provPxebootStackImage)
-			if err := runner.Run(pullCmd); err != nil {
+			pullCmd := exec.CommandContext(ctx, "docker", "pull", provPxebootStackImage)
+			if err := pullCmd.Run(); err != nil {
+				if ctx.Err() == context.Canceled {
+					color.Yellow("\nOperation cancelled by user.")
+					return nil
+				}
 				s.FinalMSG = color.RedString("✖ Failed to pull docker image.\n")
 				return errors.E("provisioner-create", fmt.Errorf("failed to pull docker image %s: %w", provPxebootStackImage, err))
 			}
 			s.FinalMSG = color.GreenString("✔ Docker image pulled successfully.\n")
 			s.Stop()
 
-			s.Suffix = " Saving docker image to tar..."
+			s.Suffix = " Saving docker image to tar (press Ctrl+C to cancel)..."
 			s.Start()
 
 			if err := os.MkdirAll(finalDockerImagesPath, 0755); err != nil {
@@ -117,8 +127,14 @@ var provisionerCreateCmd = &cobra.Command{
 				return errors.E("provisioner-create", fmt.Errorf("failed to create docker images directory: %w", err))
 			}
 			destTarPath := filepath.Join(finalDockerImagesPath, provPxebootStackTar)
-			saveCmd := exec.Command("docker", "save", provPxebootStackImage, "-o", destTarPath)
-			if err := runner.Run(saveCmd); err != nil {
+			saveCmd := exec.CommandContext(ctx, "docker", "save", provPxebootStackImage, "-o", destTarPath)
+			if err := saveCmd.Run(); err != nil {
+				if ctx.Err() == context.Canceled {
+					color.Yellow("\nOperation cancelled by user.")
+					// Clean up the partial tar file
+					os.Remove(destTarPath)
+					return nil
+				}
 				s.FinalMSG = color.RedString("✖ Failed to save docker image.\n")
 				return errors.E("provisioner-create", fmt.Errorf("failed to save docker image %s to %s: %w", provPxebootStackImage, destTarPath, err))
 			}
@@ -152,12 +168,12 @@ var provisionerCreateCmd = &cobra.Command{
 		if err := downloader.DownloadImageIfNotExists(imagePath, imageUrl); err != nil {
 			return errors.E("provisioner-create", err)
 		}
-		if err := createDisk(imagePath, vmDiskPath, provDiskSize); err != nil {
+		if err := createDisk(ctx, imagePath, vmDiskPath, provDiskSize); err != nil {
 			return errors.E("provisioner-create", err)
 		}
 		isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
 		if err := cloudinit.CreateISO(
-			vmName, provisionerRole, appDir, isoPath, provIP, provIPv6,
+			ctx, vmName, provisionerRole, appDir, isoPath, provIP, provIPv6,
 			macForMetadata,
 			provPxebootStackTar, provPxebootStackImage,
 		); err != nil {

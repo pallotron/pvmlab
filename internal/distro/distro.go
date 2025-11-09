@@ -1,6 +1,7 @@
 package distro
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,7 +13,7 @@ import (
 	"github.com/fatih/color"
 )
 
-func Pull(cfg *config.Config, distroName, arch string) error {
+func Pull(ctx context.Context, cfg *config.Config, distroName, arch string) error {
 	if _, err := exec.LookPath("7z"); err != nil {
 		return fmt.Errorf("7z is not installed. Please install it to extract PXE boot assets")
 	}
@@ -45,13 +46,13 @@ func Pull(cfg *config.Config, distroName, arch string) error {
 		return err
 	}
 
-	if err := extractor.ExtractKernelAndModules(cfg, &distroInfo, isoPath, distroPath); err != nil {
+	if err := extractor.ExtractKernelAndModules(ctx, cfg, &distroInfo, isoPath, distroPath); err != nil {
 		return err
 	}
 
 	color.Green("✔ PXE boot assets prepared successfully (vmlinuz and modules.cpio.gz extracted).\n")
 
-	if err := extractor.CreateRootfs(&distroInfo, distroPath); err != nil {
+	if err := extractor.CreateRootfs(ctx, &distroInfo, distroPath); err != nil {
 		return err
 	}
 
