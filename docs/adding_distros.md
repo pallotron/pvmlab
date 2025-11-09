@@ -8,7 +8,6 @@ Before making any code changes, you need to find the following information for t
 
 1. **ISO URLs:** Find the official download URLs for the **server** or **netinstall** ISO images for both `aarch64` (ARM64) and `x86_64` (AMD64) architectures.
 2. **Kernel Path:** Determine the exact path to the kernel file (usually named `vmlinuz`) *inside* the ISO.
-3. **Initrd Path:** Determine the exact path to the initial ramdisk file (usually named `initrd.img`, `initrd.gz`, or similar) *inside* the ISO.
 
 ### How to Find the Kernel and Initrd Paths
 
@@ -49,12 +48,10 @@ Once you have the necessary information, you can add the new distribution to the
           iso_url: "https://example.com/my-distro-1.0-aarch64.iso"
           iso_name: "my-distro-1.0-aarch64.iso"
           kernel_file: "path/inside/iso/to/vmlinuz"
-          initrd_file: "path/inside/iso/to/initrd.img"
         x86_64:
           iso_url: "https://example.com/my-distro-1.0-x86_64.iso"
           iso_name: "my-distro-1.0-x86_64.iso"
           kernel_file: "path/inside/iso/to/vmlinuz"
-          initrd_file: "path/inside/iso/to/initrd.img"
     ```
 
     **Understanding `name` vs. `distro_name`:**

@@ -47,9 +47,7 @@ func (e *FedoraExtractor) ExtractKernelAndModules(cfg *config.Config, distroInfo
 	// Step 2: Extract and create the modules cpio
 	color.Cyan("i Extracting kernel modules from initrd...")
 
-	if distroInfo.InitrdFile == "" {
-		return fmt.Errorf("'initrd_file' is not defined for this Fedora distribution in your configuration. Your ~/.pvmlab/distros.yaml might be outdated. Please remove it and run the command again to regenerate it")
-	}
+	initrdFile := "images/pxeboot/initrd.img"
 
 	// Create a temporary directory for initrd extraction
 	tempInitrdDir, err := os.MkdirTemp(distroPath, "initrd-extract-")
@@ -59,13 +57,13 @@ func (e *FedoraExtractor) ExtractKernelAndModules(cfg *config.Config, distroInfo
 	defer os.RemoveAll(tempInitrdDir) // Clean up temp directory
 
 	// Extract the full initrd.img to the temporary directory
-	extractInitrdCmd := exec.Command("7z", "x", "-y", isoPath, "-o"+tempInitrdDir, distroInfo.InitrdFile)
+	extractInitrdCmd := exec.Command("7z", "x", "-y", isoPath, "-o"+tempInitrdDir, initrdFile)
 	if output, err := extractInitrdCmd.CombinedOutput(); err != nil {
 		color.Red("! 7z initrd extraction failed. Output:\n%s", string(output))
 		return fmt.Errorf("failed to extract initrd to temp dir: %w", err)
 	}
 
-	extractedInitrdPath := filepath.Join(tempInitrdDir, distroInfo.InitrdFile)
+	extractedInitrdPath := filepath.Join(tempInitrdDir, initrdFile)
 	if _, err := os.Stat(extractedInitrdPath); os.IsNotExist(err) {
 		return fmt.Errorf("initrd not found at expected path after extraction to temp dir: %s", extractedInitrdPath)
 	}

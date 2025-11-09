@@ -26,10 +26,8 @@
       iso_name: "Fedora-Server-dvd-aarch64-40-1.14.iso"
       qcow2_url: "https://download.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/aarch64/images/Fedora-Cloud-Base-Generic.aarch64-40-1.14.qcow2"
       kernel_file: "images/pxeboot/vmlinuz"
-      initrd_file: "images/pxeboot/initrd.img"
     x86_64:
       iso_url: "https://download.fedoraproject.org/pub/fedora/linux/releases/40/Server/x86_64/iso/Fedora-Server-dvd-x86_64-40-1.14.iso"
       iso_name: "Fedora-Server-dvd-x86_64-40-1.14.iso"
       qcow2_url: "https://download.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/x86_64/images/Fedora-Cloud-Base-Generic.x86_64-40-1.14.qcow2"
       kernel_file: "images/pxeboot/vmlinuz"
-      initrd_file: "images/pxeboot/initrd.img"
