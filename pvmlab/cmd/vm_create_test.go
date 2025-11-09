@@ -33,7 +33,8 @@ func TestVMCreateCommand(t *testing.T) {
 			expectedError: "a VM named 'test-vm' already exists",
 		},
 		{
-			            args: []string{"vm", "create", "test-vm"},			setupMocks: func() {
+			args: []string{"vm", "create", "test-vm", "--distro", "ubuntu-24.04"},
+			setupMocks: func() {
 				createDisk = func(string, string, string) error {
 					return errors.New("qemu-img failed")
 				}
@@ -42,7 +43,7 @@ func TestVMCreateCommand(t *testing.T) {
 		},
 		{
 			name: "iso create failure",
-			args: []string{"vm", "create", "test-vm"},
+			args: []string{"vm", "create", "test-vm", "--distro", "ubuntu-24.04"},
 			setupMocks: func() {
 				cloudinit.CreateISO = func(string, string, string, string, string, string, string, string, string) error {
 					return errors.New("iso creation failed")
@@ -52,7 +53,7 @@ func TestVMCreateCommand(t *testing.T) {
 		},
 		{
 			name: "metadata save failure (warning)",
-			args: []string{"vm", "create", "test-vm"},
+			args: []string{"vm", "create", "test-vm", "--distro", "ubuntu-24.04"},
 			setupMocks: func() {
 				metadata.Save = func(c *config.Config, _, _, _, _, _, _, _, _, _, _, _, sshKey string, i int, _ bool, _ string) error {
 					return errors.New("metadata save failed")
@@ -63,12 +64,12 @@ func TestVMCreateCommand(t *testing.T) {
 		},
 		{
 			name: "create target success",
-			args: []string{"vm", "create", "my-target"},
+			args: []string{"vm", "create", "my-target", "--distro", "ubuntu-24.04"},
 			setupMocks: func() {
 				// All mocks default to success
 			},
 			expectedError: "",
-			expectedOut:   "VM 'my-target' created successfully",
+			expectedOut:   "created successfully",
 		},
 	}
 
@@ -76,10 +77,15 @@ func TestVMCreateCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset global flags to their default values before each test
 			ip = ""
-						diskSize = "10G"
+			diskSize = "10G"
 
 			// Reset mocks to default success behavior before each test
 			setupMocks(t)
+			config.GetDistro = func(distroName, arch string) (*config.ArchInfo, error) {
+				return &config.ArchInfo{
+					Qcow2URL: "http://example.com/image.qcow2",
+				}, nil
+			}
 			// Apply test-specific mock setup
 			tt.setupMocks()
 

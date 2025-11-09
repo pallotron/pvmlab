@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"pvmlab/internal/cloudinit"
 	"pvmlab/internal/config"
@@ -118,7 +119,7 @@ var vmCreateCmd = &cobra.Command{
 				return errors.E("vm-create", fmt.Errorf("failed to get distro info for non-pxeboot target: %w", err))
 			}
 			imageUrl := distroInfo.Qcow2URL
-			imageName := distroInfo.Qcow2Name
+			imageName := path.Base(distroInfo.Qcow2URL)
 
 			distroPath := filepath.Join(appDir, "images", distroName, arch)
 			if err := os.MkdirAll(distroPath, 0755); err != nil {

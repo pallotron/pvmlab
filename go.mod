@@ -4,6 +4,7 @@ go 1.25.1
 
 require (
 	github.com/briandowns/spinner v1.23.2
+	github.com/cheggaaa/pb/v3 v3.1.7
 	github.com/fatih/color v1.18.0
 	github.com/google/uuid v1.6.0
 	github.com/hpcloud/tail v1.0.0
@@ -17,7 +18,6 @@ require (
 
 require (
 	github.com/VividCortex/ewma v1.2.0 // indirect
-	github.com/cheggaaa/pb/v3 v3.1.7 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

@@ -39,7 +39,6 @@ type ArchInfo struct {
 	ISOURL     string `yaml:"iso_url"`
 	ISOName    string `yaml:"iso_name"`
 	Qcow2URL   string `yaml:"qcow2_url"`
-	Qcow2Name  string `yaml:"qcow2_name"`
 	KernelFile string `yaml:"kernel_file"`
 	InitrdFile string `yaml:"initrd_file"`
 }
@@ -78,7 +77,7 @@ func (c *Config) LoadOrCreateDistros() error {
 }
 
 // GetDistro returns the configuration for a specific distro and architecture.
-func GetDistro(distroName, arch string) (*ArchInfo, error) {
+var GetDistro = func(distroName, arch string) (*ArchInfo, error) {
 	distro, ok := Distros[distroName]
 	if !ok {
 		return nil, fmt.Errorf("unsupported distro: %s", distroName)
