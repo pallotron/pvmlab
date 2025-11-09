@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"pvmlab/internal/cloudinit"
 	"pvmlab/internal/config"
-	"pvmlab/internal/distro"
 	"pvmlab/internal/downloader"
 	"pvmlab/internal/errors"
 	"pvmlab/internal/metadata"
@@ -98,9 +97,17 @@ var vmCreateCmd = &cobra.Command{
 
 		vmDiskPath := filepath.Join(appDir, "vms", vmName+".qcow2")
 		if pxeboot {
-			if err := distro.Pull(cfg, distroName, arch); err != nil {
-				return errors.E("vm-create", err)
+			distroPath := filepath.Join(appDir, "images", distroName, arch)
+			kernelPath := filepath.Join(distroPath, "vmlinuz")
+			modulesPath := filepath.Join(distroPath, "modules.cpio.gz")
+
+			if _, err := os.Stat(kernelPath); os.IsNotExist(err) {
+				return errors.E("vm-create", fmt.Errorf("kernel image not found at %s. Please run 'pvmlab distro pull %s --arch %s' first", kernelPath, distroName, arch))
 			}
+			if _, err := os.Stat(modulesPath); os.IsNotExist(err) {
+				return errors.E("vm-create", fmt.Errorf("kernel modules not found at %s. Please run 'pvmlab distro pull %s --arch %s' first", modulesPath, distroName, arch))
+			}
+
 			if err := createBlankDisk(vmDiskPath, diskSize); err != nil {
 				return errors.E("vm-create", err)
 			}
