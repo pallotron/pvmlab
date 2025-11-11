@@ -1,0 +1,67 @@
+#!/bin/sh
+# This script is the first process (PID 1) inside the initrd.
+# It determines whether to run the automated installer or drop to a debug shell.
+
+echo "==> initrd init script started"
+
+# Mount essential filesystems
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t devtmpfs none /dev
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts
+mount -t efivarfs none /sys/firmware/efi/efivars 2>/dev/null || true
+
+echo "==> Loading kernel modules"
+busybox depmod -a
+busybox modprobe nls_iso8859-1 &> /dev/null || true
+
+
+# Default to install mode if not specified
+mode="install"
+cloud_init_url=""
+
+# Read the kernel command line and look for our custom arguments
+for arg in $(cat /proc/cmdline); do
+    case $arg in
+        initrd.mode=*)
+            mode=${arg#*=}
+            ;;
+        cloud_init_url=*)
+            cloud_init_url=${arg#*=}
+            ;;
+    esac
+done
+
+echo "==> Boot mode: $mode"
+echo "==> Cloud-init URL: $cloud_init_url"
+
+# Export cloud_init_url for the installer to use
+export CLOUD_INIT_URL="$cloud_init_url"
+export PS1='initrd# '
+export TERM=xterm
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+
+case $mode in
+    shell)
+        echo "==> Dropping to debug shell"
+        # Execute a shell. If you exit this shell, the kernel will panic.
+        exec /bin/sh
+        ;;
+    install|*)
+        echo "==> Starting automated installer"
+        /bin/os-installer
+        INSTALLER_EXIT_CODE=$?
+
+        if [ "$INSTALLER_EXIT_CODE" -eq 0 ]; then
+            echo "==> Go OS Installer finished successfully!"
+        else
+            echo "==> Go OS Installer failed with exit code $INSTALLER_EXIT_CODE!"
+        fi
+        
+        echo "==> Dropping to debug shell..."
+        # Make the 'reboot' command work reliably in the debug shell
+        alias reboot='sync && echo b > /proc/sysrq-trigger'
+        exec /bin/sh
+        ;;
+esac

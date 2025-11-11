@@ -7,27 +7,19 @@
   version: "24.04"
   arch:
     aarch64:
-      iso_url: "https://cdimage.ubuntu.com/ubuntu/releases/24.04.1/release/ubuntu-24.04.3-live-server-arm64.iso"
-      iso_name: "ubuntu-24.04.3-live-server-arm64.iso"
       qcow2_url: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-arm64.img"
-      kernel_file: "casper/vmlinuz"
+      kernel_path: "./boot/vmlinuz-6.8.0-87-generic"
+      initrd_path: "./boot/initrd.img-6.8.0-87-generic"
     x86_64:
-      iso_url: "https://releases.ubuntu.com/24.04/ubuntu-24.04.3-live-server-amd64.iso"
-      iso_name: "ubuntu-24.04.3-live-server-amd64.iso"
       qcow2_url: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
-      kernel_file: "casper/vmlinuz"
+      kernel_path: "./boot/vmlinuz-6.8.0-87-generic"
+      initrd_path: "./boot/initrd.img-6.8.0-87-generic"
 
 - name: fedora-40
   distro_name: fedora
   version: "40"
   arch:
     aarch64:
-      iso_url: "https://download.fedoraproject.org/pub/fedora/linux/releases/40/Server/aarch64/iso/Fedora-Server-dvd-aarch64-40-1.14.iso"
-      iso_name: "Fedora-Server-dvd-aarch64-40-1.14.iso"
       qcow2_url: "https://download.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/aarch64/images/Fedora-Cloud-Base-Generic.aarch64-40-1.14.qcow2"
-      kernel_file: "images/pxeboot/vmlinuz"
     x86_64:
-      iso_url: "https://download.fedoraproject.org/pub/fedora/linux/releases/40/Server/x86_64/iso/Fedora-Server-dvd-x86_64-40-1.14.iso"
-      iso_name: "Fedora-Server-dvd-x86_64-40-1.14.iso"
       qcow2_url: "https://download.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/x86_64/images/Fedora-Cloud-Base-Generic.x86_64-40-1.14.qcow2"
-      kernel_file: "images/pxeboot/vmlinuz"

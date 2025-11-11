@@ -1,9 +1,17 @@
 #!ipxe
 
-set kernel_args ip=dhcp installer_mac=${mac} cloud_init_url=http://${next-server}/cloud-init/{{.Name}} initrd.mode=install console=ttyS0,115200
+set kernel_args ip=dhcp console=ttyS0,115200 config_url=http://${next-server}/config/${mac}
+
+{{- if .PxeBoot }}
+# Use custom installer initrd for PXE boot installations
 set initrd http://${next-server}/initrds/{{.Arch}}/initrd.gz
 set kmods_initrd http://${next-server}/images/{{.Distro}}/{{.Arch}}/modules.cpio.gz
-set kernel http://${next-server}/images/{{.Distro}}/{{.Arch}}/vmlinuz
+set kernel http://${next-server}/images/{{.Distro}}/{{.Arch}}/{{.Kernel}}
+{{- else }}
+# Use cloud image's kernel and initrd for direct boot
+set initrd http://${next-server}/images/{{.Distro}}/{{.Arch}}/{{.Initrd}}
+set kernel http://${next-server}/images/{{.Distro}}/{{.Arch}}/{{.Kernel}}
+{{- end }}
 
 echo "==> VM Name: {{.Name}}"
 echo "==> MAC: ${mac}"
@@ -11,9 +19,13 @@ echo "==> Distro: {{.Distro}}"
 echo "==> Arch: {{.Arch}}"
 echo "==> Kernel: ${kernel} ${kernel_args}"
 echo "==> Initrd: ${initrd}"
-echo "==> Kmods Initrd: ${kmods_initrd}
+{{- if .PxeBoot }}
+echo "==> Kmods Initrd: ${kmods_initrd}"
+{{- end }}
 
 kernel ${kernel} ${kernel_args} || shell
 initrd ${initrd} || shell
+{{- if .PxeBoot }}
 initrd ${kmods_initrd} || shell
+{{- end }}
 boot || shell

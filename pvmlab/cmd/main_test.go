@@ -113,14 +113,14 @@ func setupMocks(t *testing.T) {
 				Version: "24.04",
 				Arch: map[string]config.ArchInfo{
 					"aarch64": {
-						ISOURL:     "https://example.com/ubuntu-arm.iso",
-						ISOName:    "ubuntu-arm.iso",
-						KernelFile: "casper/vmlinuz",
+						Qcow2URL:   "https://example.com/ubuntu-arm.qcow2",
+						KernelPath: "casper/vmlinuz",
+						InitrdPath: "casper/initrd",
 					},
 					"x86_64": {
-						ISOURL:     "https://example.com/ubuntu-amd64.iso",
-						ISOName:    "ubuntu-amd64.iso",
-						KernelFile: "casper/vmlinuz",
+						Qcow2URL:   "https://example.com/ubuntu-amd64.qcow2",
+						KernelPath: "casper/vmlinuz",
+						InitrdPath: "casper/initrd",
 					},
 				},
 			},
@@ -139,7 +139,7 @@ func setupMocks(t *testing.T) {
 	cloudinit.CreateISO = func(ctx context.Context, vmName, role, appDir, isoPath, ip, ipv6, mac, tar, image string) error {
 		return nil
 	}
-	metadata.Save = func(*config.Config, string, string, string, string, string, string, string, string, string, string, string, string, int, bool, string) error {
+	metadata.Save = func(*config.Config, string, string, string, string, string, string, string, string, string, string, string, string, string, string, int, bool, string) error {
 		return nil
 	}
 	metadata.FindProvisioner = func(*config.Config) (string, error) {

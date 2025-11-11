@@ -138,13 +138,13 @@ func TestCreateISOWithGoldenFiles(t *testing.T) {
 		configDir := filepath.Join(appDir, "configs", "cloud-init", tc.vmName)
 		goldenDir := filepath.Join("testdata", tc.vmName)
 
-		compareFiles(t, filepath.Join(configDir, "meta-data"), filepath.Join(goldenDir, "meta-data"), true)
-		compareFiles(t, filepath.Join(configDir, "user-data"), filepath.Join(goldenDir, "user-data"), false)
-		compareFiles(t, filepath.Join(configDir, "network-config"), filepath.Join(goldenDir, "network-config"), false)
+		compareFiles(t, filepath.Join(configDir, "meta-data"), filepath.Join(goldenDir, "meta-data"), "meta-data")
+		compareFiles(t, filepath.Join(configDir, "user-data"), filepath.Join(goldenDir, "user-data"), "user-data")
+		compareFiles(t, filepath.Join(configDir, "network-config"), filepath.Join(goldenDir, "network-config"), "network-config")
 	})
 }
 
-func compareFiles(t *testing.T, generatedPath, goldenPath string, isMetaData bool) {
+func compareFiles(t *testing.T, generatedPath, goldenPath string, dataType string) {
 	t.Helper()
 	generatedBytes, err := os.ReadFile(generatedPath)
 	assert.NoError(t, err)
@@ -152,7 +152,8 @@ func compareFiles(t *testing.T, generatedPath, goldenPath string, isMetaData boo
 	goldenBytes, err := os.ReadFile(goldenPath)
 	assert.NoError(t, err)
 
-	if isMetaData {
+	switch dataType {
+	case "meta-data":
 		var generated, golden MetaData
 		err = yaml.Unmarshal(generatedBytes, &generated)
 		assert.NoError(t, err)
@@ -170,7 +171,36 @@ func compareFiles(t *testing.T, generatedPath, goldenPath string, isMetaData boo
 		)
 
 		assert.Equal(t, golden, generated)
-	} else {
+	case "user-data":
+		var generated, golden UserData
+		// We only validate the YAML part, skipping the first two lines (## template: jinja, #cloud-config)
+		parts := strings.SplitN(string(generatedBytes), "\n", 3)
+		assert.GreaterOrEqual(t, len(parts), 3, "%s should have cloud-config header", generatedPath)
+		assert.Contains(t, parts[0], "## template: jinja")
+		assert.Contains(t, parts[1], "#cloud-config")
+		generatedBytes = []byte(parts[2])
+
+		parts = strings.SplitN(string(goldenBytes), "\n", 3)
+		assert.GreaterOrEqual(t, len(parts), 3, "%s should have cloud-config header", goldenPath)
+		assert.Contains(t, parts[0], "## template: jinja")
+		assert.Contains(t, parts[1], "#cloud-config")
+		goldenBytes = []byte(parts[2])
+
+		err = yaml.Unmarshal(generatedBytes, &generated)
+		assert.NoError(t, err)
+		err = yaml.Unmarshal(goldenBytes, &golden)
+		assert.NoError(t, err)
+
+		assert.Equal(t, golden, generated)
+	case "network-config":
+		var generated, golden NetplanConfig
+		err = yaml.Unmarshal(generatedBytes, &generated)
+		assert.NoError(t, err)
+		err = yaml.Unmarshal(goldenBytes, &golden)
+		assert.NoError(t, err)
+
+		assert.Equal(t, golden, generated)
+	default:
 		assert.Equal(t, string(goldenBytes), string(generatedBytes))
 	}
 }

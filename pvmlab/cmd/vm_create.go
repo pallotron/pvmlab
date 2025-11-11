@@ -104,21 +104,24 @@ var vmCreateCmd = &cobra.Command{
 		vmDiskPath := filepath.Join(appDir, "vms", vmName+".qcow2")
 		if pxeboot {
 			distroPath := filepath.Join(appDir, "images", distroName, arch)
-			kernelPath := filepath.Join(distroPath, "vmlinuz")
-			modulesPath := filepath.Join(distroPath, "modules.cpio.gz")
+			distroInfo, err := config.GetDistro(distroName, arch)
+			if err != nil {
+				return errors.E("vm-create", fmt.Errorf("failed to get distro info: %w", err))
+			}
+			kernelPath := filepath.Join(distroPath, filepath.Base(distroInfo.KernelPath))
+			initrdPath := filepath.Join(distroPath, filepath.Base(distroInfo.InitrdPath))
 
 			if _, err := os.Stat(kernelPath); os.IsNotExist(err) {
-				return errors.E("vm-create", fmt.Errorf("kernel image not found at %s. Please run 'pvmlab distro pull %s --arch %s' first", kernelPath, distroName, arch))
+				return errors.E("vm-create", fmt.Errorf("kernel image not found at %s. Please run 'pvmlab distro pull --distro %s --arch %s' first", kernelPath, distroName, arch))
 			}
-			if _, err := os.Stat(modulesPath); os.IsNotExist(err) {
-				return errors.E("vm-create", fmt.Errorf("kernel modules not found at %s. Please run 'pvmlab distro pull %s --arch %s' first", modulesPath, distroName, arch))
+			if _, err := os.Stat(initrdPath); os.IsNotExist(err) {
+				return errors.E("vm-create", fmt.Errorf("initrd image not found at %s. Please run 'pvmlab distro pull --distro %s --arch %s' first", initrdPath, distroName, arch))
 			}
 
 			if err := createBlankDisk(ctx, vmDiskPath, diskSize); err != nil {
 				return errors.E("vm-create", err)
 			}
-		} else {
-			// For target, get image info from the configured distros
+		} else { // For target, get image info from the configured distros
 			distroInfo, err := config.GetDistro(distroName, arch)
 			if err != nil {
 				return errors.E("vm-create", fmt.Errorf("failed to get distro info for non-pxeboot target: %w", err))
@@ -166,7 +169,17 @@ var vmCreateCmd = &cobra.Command{
 			subnetv6ForMetadata = parsedCIDR.String()
 		}
 
-		if err := metadata.Save(cfg, vmName, targetRole, arch, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, "", "", "", string(sshPubKey), 0, pxeboot, distroName); err != nil {
+		var kernel, initrd string
+		if distroName != "" {
+			distroInfo, err := config.GetDistro(distroName, arch)
+			if err != nil {
+				return errors.E("vm-create", fmt.Errorf("failed to get distro info: %w", err))
+			}
+			kernel = filepath.Base(distroInfo.KernelPath)
+			initrd = filepath.Base(distroInfo.InitrdPath)
+		}
+
+		if err := metadata.Save(cfg, vmName, targetRole, arch, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, "", "", "", string(sshPubKey), kernel, initrd, 0, pxeboot, distroName); err != nil {
 			color.Yellow("Warning: failed to save VM metadata: %v", err)
 		}
 		color.Green("✔ Target VM '%s' created successfully.", vmName)

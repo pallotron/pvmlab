@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"pvmlab/internal/cloudinit"
@@ -16,16 +15,14 @@ import (
 	"pvmlab/internal/netutil"
 	"pvmlab/internal/ssh"
 	"syscall"
-	"time"
 
-	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
 var (
 	provIP, provIPv6, provMAC, provPxebootStackTar, provDockerImagesPath string
-	provVMsPath, provDiskSize, provArch, provPxebootStackImage           string
+	provVMsPath, provDiskSize, provArch                                 string
 )
 
 // provisionerCreateCmd represents the create command
@@ -82,7 +79,7 @@ var provisionerCreateCmd = &cobra.Command{
 			return errors.E("provisioner-create", err)
 		}
 
-		// If user specifies a tar file, use it. Otherwise, pull from registry.
+		// If user specifies a tar file, copy it. Otherwise, the provisioner will pull from the registry.
 		if cmd.Flags().Changed("docker-pxeboot-stack-tar") {
 			absTarPath, err := filepath.Abs(provPxebootStackTar)
 			if err != nil {
@@ -90,6 +87,7 @@ var provisionerCreateCmd = &cobra.Command{
 			}
 
 			if _, err := os.Stat(absTarPath); err == nil {
+				color.Cyan("i Using local docker tarball: %s", absTarPath)
 				if err := os.MkdirAll(finalDockerImagesPath, 0755); err != nil {
 					return errors.E("provisioner-create", fmt.Errorf("failed to create docker images directory: %w", err))
 				}
@@ -97,51 +95,16 @@ var provisionerCreateCmd = &cobra.Command{
 				if err := copyFile(absTarPath, destTarPath); err != nil {
 					return errors.E("provisioner-create", fmt.Errorf("failed to copy pxeboot stack tar file: %w", err))
 				}
+				// Set the tarball name to be passed to the script
 				provPxebootStackTar = filepath.Base(absTarPath)
-			} else if !os.IsNotExist(err) {
-				return errors.E("provisioner-create", fmt.Errorf("error checking --docker-pxeboot-stack-tar path: %w", err))
+			} else {
+				// The flag was used but the file doesn't exist. This is an error.
+				return errors.E("provisioner-create", fmt.Errorf("specified --docker-pxeboot-stack-tar not found at %s", absTarPath))
 			}
-			provPxebootStackImage = config.GetPxeBootStackImageName()
-		} else { // Pull image from registry
-			s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
-			s.Suffix = fmt.Sprintf(" Pulling docker image %s (press Ctrl+C to cancel)...", provPxebootStackImage)
-			s.Start()
-
-			pullCmd := exec.CommandContext(ctx, "docker", "pull", provPxebootStackImage)
-			if err := pullCmd.Run(); err != nil {
-				if ctx.Err() == context.Canceled {
-					color.Yellow("\nOperation cancelled by user.")
-					return nil
-				}
-				s.FinalMSG = color.RedString("✖ Failed to pull docker image.\n")
-				return errors.E("provisioner-create", fmt.Errorf("failed to pull docker image %s: %w", provPxebootStackImage, err))
-			}
-			s.FinalMSG = color.GreenString("✔ Docker image pulled successfully.\n")
-			s.Stop()
-
-			s.Suffix = " Saving docker image to tar (press Ctrl+C to cancel)..."
-			s.Start()
-
-			if err := os.MkdirAll(finalDockerImagesPath, 0755); err != nil {
-				s.FinalMSG = color.RedString("✖ Failed to create docker images directory.\n")
-				return errors.E("provisioner-create", fmt.Errorf("failed to create docker images directory: %w", err))
-			}
-			destTarPath := filepath.Join(finalDockerImagesPath, provPxebootStackTar)
-			saveCmd := exec.CommandContext(ctx, "docker", "save", provPxebootStackImage, "-o", destTarPath)
-			if err := saveCmd.Run(); err != nil {
-				if ctx.Err() == context.Canceled {
-					color.Yellow("\nOperation cancelled by user.")
-					// Clean up the partial tar file
-					os.Remove(destTarPath)
-					return nil
-				}
-				s.FinalMSG = color.RedString("✖ Failed to save docker image.\n")
-				return errors.E("provisioner-create", fmt.Errorf("failed to save docker image %s to %s: %w", provPxebootStackImage, destTarPath, err))
-			}
-			provPxebootStackTar = filepath.Base(destTarPath)
-			provPxebootStackImage = config.GetPxeBootStackImageName()
-			s.FinalMSG = color.GreenString("✔ Docker image saved successfully in %s.\n", destTarPath)
-			s.Stop()
+		} else {
+			// The flag was not used. Set the tarball name to empty so the script inside the VM will pull from the registry.
+			color.Cyan("i No local docker tarball specified. Provisioner will pull latest image from registry.")
+			provPxebootStackTar = ""
 		}
 
 		if err := checkExistingVMs(cfg, vmName, provisionerRole); err != nil {
@@ -172,6 +135,7 @@ var provisionerCreateCmd = &cobra.Command{
 			return errors.E("provisioner-create", err)
 		}
 		isoPath := filepath.Join(appDir, "configs", "cloud-init", vmName+".iso")
+		provPxebootStackImage := config.GetPxeBootStackImageURL()
 		if err := cloudinit.CreateISO(
 			ctx, vmName, provisionerRole, appDir, isoPath, provIP, provIPv6,
 			macForMetadata,
@@ -205,7 +169,7 @@ var provisionerCreateCmd = &cobra.Command{
 			return errors.E("provisioner-create", fmt.Errorf("could not find an available SSH port: %w", err))
 		}
 
-		if err := metadata.Save(cfg, vmName, provisionerRole, provArch, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, provPxebootStackTar, finalDockerImagesPath, finalVMsPath, string(sshPubKey), sshPort, false, ""); err != nil {
+		if err := metadata.Save(cfg, vmName, provisionerRole, provArch, ipForMetadata, subnetForMetadata, ipv6ForMetadata, subnetv6ForMetadata, macForMetadata, provPxebootStackTar, finalDockerImagesPath, finalVMsPath, string(sshPubKey), "", "", sshPort, false, ""); err != nil {
 			color.Yellow("Warning: failed to save VM metadata: %v", err)
 		}
 		color.Green("✔ Provisioner VM '%s' created successfully.", vmName)
@@ -222,7 +186,7 @@ func init() {
 	provisionerCreateCmd.Flags().StringVar(&provDiskSize, "disk-size", "15G", "The size of the VM disk")
 	provisionerCreateCmd.Flags().StringVar(&provArch, "arch", "aarch64", "The architecture of the VM ('aarch64' or 'x86_64')")
 	provisionerCreateCmd.Flags().StringVar(&provPxebootStackTar, "docker-pxeboot-stack-tar", "pxeboot_stack.tar", "Path to the pxeboot stack docker tar file")
-	provisionerCreateCmd.Flags().StringVar(&provPxebootStackImage, "docker-pxeboot-stack-image", config.GetPxeBootStackImageURL(), "Docker image for the pxeboot stack to pull from a registry")
+
 	provisionerCreateCmd.Flags().StringVar(&provDockerImagesPath, "docker-images-path", "", "Path to docker images to share with the provisioner VM")
 	provisionerCreateCmd.Flags().StringVar(&provVMsPath, "vms-path", "", "Path to vms to share with the provisioner VM")
 }

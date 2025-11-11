@@ -22,14 +22,16 @@ func TestIpxeHandler(t *testing.T) {
 
 	// Create a mock VM JSON file
 	vmMAC := "52:54:00:12:34:56"
-	vmJSON := fmt.Sprintf(`{
-		"name": "test-vm",
-		"arch": "aarch64",
-		"distro": "ubuntu-24.04",
-		"mac": "%s",
-		"ssh_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC... test@example.com"
-	}`, vmMAC)
-	vmFile := filepath.Join(tmpDir, "test-vm.json")
+			vmJSON := fmt.Sprintf(`{
+			"name": "test-vm",
+			"arch": "aarch64",
+			"distro": "ubuntu-24.04",
+			"mac": "%s",
+			"ssh_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC... test@example.com",
+			"kernel": "vmlinuz-generic",
+			"initrd": "initrd-generic.img",
+			"pxeboot": true
+		}`, vmMAC)	vmFile := filepath.Join(tmpDir, "test-vm.json")
 	if err := os.WriteFile(vmFile, []byte(vmJSON), 0644); err != nil {
 		t.Fatalf("Failed to write mock VM JSON: %v", err)
 	}
@@ -65,11 +67,23 @@ boot
 			mac:            vmMAC,
 			expectedStatus: http.StatusOK,
 			expectedBody: `#!ipxe
-echo Booting test-vm (aarch64)
-set base-url http://192.168.100.1/images/ubuntu-24.04
-kernel ${base-url}/vmlinuz quiet autoinstall
-initrd ${base-url}/initrd
-boot
+
+set kernel_args ip=dhcp console=ttyS0,115200 config_url=http://${next-server}/config/${mac}
+
+# Use custom installer initrd for PXE boot installations
+set initrd http://${next-server}/initrds/initrd.gz
+set kernel http://${next-server}/images/ubuntu-24.04/aarch64/vmlinuz-generic
+
+echo "==> VM Name: test-vm"
+echo "==> MAC: 52:54:00:12:34:56"
+echo "==> Distro: ubuntu-24.04"
+echo "==> Arch: aarch64"
+echo "==> Kernel: ${kernel} ${kernel_args}"
+echo "==> Initrd: ${initrd}"
+
+kernel ${kernel} ${kernel_args} || shell
+initrd ${initrd} || shell
+boot || shell
 `,
 		},
 		{

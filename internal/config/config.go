@@ -36,10 +36,9 @@ type Distro struct {
 
 // ArchInfo contains architecture-specific information for a distribution.
 type ArchInfo struct {
-	ISOURL     string `yaml:"iso_url"`
-	ISOName    string `yaml:"iso_name"`
 	Qcow2URL   string `yaml:"qcow2_url"`
-	KernelFile string `yaml:"kernel_file"`
+	KernelPath string `yaml:"kernel_path"`
+	InitrdPath string `yaml:"initrd_path"`
 }
 
 // LoadOrCreateDistros loads the distro configurations from the user's app directory.

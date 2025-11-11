@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// prepareDisk partitions, formats, and mounts the target disk
-func prepareDisk() error {
+// prepareDisk partitions, formats, and mounts the target disk, returning the disk path.
+func prepareDisk() (string, error) {
 	fmt.Println("  -> Detecting disks...")
 
 	// Find the first available disk (usually /dev/sda or /dev/vda)
@@ -21,7 +21,7 @@ func prepareDisk() error {
 	}
 
 	if targetDisk == "" {
-		return fmt.Errorf("no suitable disk found")
+		return "", fmt.Errorf("no suitable disk found")
 	}
 
 	fmt.Printf("  -> Found disk: %s\n", targetDisk)
@@ -35,7 +35,7 @@ func prepareDisk() error {
 	// Zap any existing partition table to ensure a clean slate.
 	fmt.Println("  -> Wiping existing partition table...")
 	if err := runCommand("sgdisk", "--zap-all", targetDisk); err != nil {
-		return fmt.Errorf("failed to wipe partition table: %w", err)
+		return "", fmt.Errorf("failed to wipe partition table: %w", err)
 	}
 
 	// Partition the disk
@@ -44,12 +44,12 @@ func prepareDisk() error {
 	// Use sgdisk for GPT partitioning
 	// Create EFI partition (+512MB)
 	if err := runCommand("sgdisk", "-n", "1:1M:+512M", "-t", "1:ef00", "-c", "1:EFI", targetDisk); err != nil {
-		return fmt.Errorf("failed to create EFI partition: %w", err)
+		return "", fmt.Errorf("failed to create EFI partition: %w", err)
 	}
 
 	// Create root partition (rest of disk)
 	if err := runCommand("sgdisk", "-n", "2:0:0", "-t", "2:8300", "-c", "2:root", targetDisk); err != nil {
-		return fmt.Errorf("failed to create root partition: %w", err)
+		return "", fmt.Errorf("failed to create root partition: %w", err)
 	}
 
 	fmt.Println("  -> Partitioning complete")
@@ -72,13 +72,15 @@ func prepareDisk() error {
 	}
 
 	// Format EFI partition
-	if err := runCommand("mkfs.vfat", "-F", "32", "-n", "EFI", efiPart); err != nil {
-		return fmt.Errorf("failed to format EFI partition: %w (mkfs.vfat not available - needs to be added to initrd)", err)
+	// TODO: make sure all distros are ok with this label, or if it is only an Ubuntu thing
+	if err := runCommand("mkfs.vfat", "-F", "32", "-n", "UEFI", efiPart); err != nil {
+		return "", fmt.Errorf("failed to format EFI partition: %w (mkfs.vfat not available - needs to be added to initrd)", err)
 	}
 
 	// Format root partition
-	if err := runCommand("mkfs.ext4", "-L", "root", rootPart); err != nil {
-		return fmt.Errorf("failed to format root partition: %w (mkfs.ext4 not available - needs to be added to initrd)", err)
+	// TODO: change label to something more specific for all distros
+	if err := runCommand("mkfs.ext4", "-L", "cloudimg-rootfs", rootPart); err != nil {
+		return "", fmt.Errorf("failed to format root partition: %w (mkfs.ext4 not available - needs to be added to initrd)", err)
 	}
 
 	fmt.Println("  -> Disk preparation complete")
@@ -87,22 +89,22 @@ func prepareDisk() error {
 	fmt.Println("  -> Mounting partitions...")
 
 	if err := os.MkdirAll("/mnt/target", 0755); err != nil {
-		return fmt.Errorf("failed to create mount point: %w", err)
+		return "", fmt.Errorf("failed to create mount point: %w", err)
 	}
 
 	if err := runCommand("mount", "-t", "ext4", rootPart, "/mnt/target"); err != nil {
-		return fmt.Errorf("failed to mount root partition: %w", err)
+		return "", fmt.Errorf("failed to mount root partition: %w", err)
 	}
 
 	if err := os.MkdirAll("/mnt/target/boot/efi", 0755); err != nil {
-		return fmt.Errorf("failed to create EFI mount point: %w", err)
+		return "", fmt.Errorf("failed to create EFI mount point: %w", err)
 	}
 
 	if err := runCommand("mount", "-t", "vfat", efiPart, "/mnt/target/boot/efi"); err != nil {
-		return fmt.Errorf("failed to mount EFI partition: %w", err)
+		return "", fmt.Errorf("failed to mount EFI partition: %w", err)
 	}
 
 	fmt.Println("  -> Partitions mounted")
 
-	return nil
+	return targetDisk, nil
 }
