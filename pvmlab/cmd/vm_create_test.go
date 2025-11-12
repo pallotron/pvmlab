@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"os"
 	"pvmlab/internal/cloudinit"
 	"pvmlab/internal/config"
 	"pvmlab/internal/metadata"
@@ -112,6 +113,399 @@ func TestVMCreateCommand(t *testing.T) {
 				if !strings.Contains(output, tt.expectedOut) {
 					t.Errorf("expected output to contain '%s', but got '%s'", tt.expectedOut, output)
 				}
+			}
+		})
+	}
+}
+
+func TestParseSize(t *testing.T) {
+	tests := []struct {
+		name     string
+		sizeStr  string
+		expected int64
+		wantErr  bool
+	}{
+		{
+			name:     "bytes only",
+			sizeStr:  "2048",
+			expected: 2048,
+			wantErr:  false,
+		},
+		{
+			name:     "kilobytes with K",
+			sizeStr:  "10K",
+			expected: 10 * 1024,
+			wantErr:  false,
+		},
+		{
+			name:     "kilobytes with KB",
+			sizeStr:  "10KB",
+			expected: 10 * 1024,
+			wantErr:  false,
+		},
+		{
+			name:     "megabytes with M",
+			sizeStr:  "512M",
+			expected: 512 * 1024 * 1024,
+			wantErr:  false,
+		},
+		{
+			name:     "megabytes with MB",
+			sizeStr:  "512MB",
+			expected: 512 * 1024 * 1024,
+			wantErr:  false,
+		},
+		{
+			name:     "gigabytes with G",
+			sizeStr:  "10G",
+			expected: 10 * 1024 * 1024 * 1024,
+			wantErr:  false,
+		},
+		{
+			name:     "gigabytes with GB",
+			sizeStr:  "10GB",
+			expected: 10 * 1024 * 1024 * 1024,
+			wantErr:  false,
+		},
+		{
+			name:     "terabytes with T",
+			sizeStr:  "2T",
+			expected: 2 * 1024 * 1024 * 1024 * 1024,
+			wantErr:  false,
+		},
+		{
+			name:     "terabytes with TB",
+			sizeStr:  "2TB",
+			expected: 2 * 1024 * 1024 * 1024 * 1024,
+			wantErr:  false,
+		},
+		{
+			name:     "bytes with B suffix",
+			sizeStr:  "2048B",
+			expected: 2048,
+			wantErr:  false,
+		},
+		{
+			name:     "lowercase units",
+			sizeStr:  "10g",
+			expected: 10 * 1024 * 1024 * 1024,
+			wantErr:  false,
+		},
+		{
+			name:    "invalid format - no number",
+			sizeStr: "abc",
+			wantErr: true,
+		},
+		{
+			name:    "invalid format - unknown unit",
+			sizeStr: "10X",
+			wantErr: true,
+		},
+		{
+			name:    "empty string",
+			sizeStr: "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseSize(tt.sizeStr)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("parseSize(%q) expected error, but got none", tt.sizeStr)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("parseSize(%q) unexpected error: %v", tt.sizeStr, err)
+				return
+			}
+
+			if result != tt.expected {
+				t.Errorf("parseSize(%q) = %d, want %d", tt.sizeStr, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestValidateIP(t *testing.T) {
+	tests := []struct {
+		name    string
+		ip      string
+		wantErr bool
+	}{
+		{
+			name:    "empty IP (valid)",
+			ip:      "",
+			wantErr: false,
+		},
+		{
+			name:    "valid IPv4 CIDR",
+			ip:      "192.168.1.10/24",
+			wantErr: false,
+		},
+		{
+			name:    "valid IPv4 CIDR with /32",
+			ip:      "10.0.0.1/32",
+			wantErr: false,
+		},
+		{
+			name:    "invalid - no CIDR notation",
+			ip:      "192.168.1.10",
+			wantErr: true,
+		},
+		{
+			name:    "invalid - malformed IP",
+			ip:      "999.999.999.999/24",
+			wantErr: true,
+		},
+		{
+			name:    "invalid - malformed CIDR",
+			ip:      "192.168.1.10/abc",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateIP(tt.ip)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateIP(%q) error = %v, wantErr %v", tt.ip, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateIPv6(t *testing.T) {
+	tests := []struct {
+		name    string
+		ipv6    string
+		wantErr bool
+	}{
+		{
+			name:    "empty IPv6 (valid)",
+			ipv6:    "",
+			wantErr: false,
+		},
+		{
+			name:    "valid IPv6 CIDR",
+			ipv6:    "fd00:cafe:babe::1/64",
+			wantErr: false,
+		},
+		{
+			name:    "valid IPv6 CIDR with /128",
+			ipv6:    "2001:db8::1/128",
+			wantErr: false,
+		},
+		{
+			name:    "invalid - no CIDR notation",
+			ipv6:    "fd00:cafe:babe::1",
+			wantErr: true,
+		},
+		{
+			name:    "invalid - malformed IPv6",
+			ipv6:    "gggg::1/64",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateIPv6(tt.ipv6)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateIPv6(%q) error = %v, wantErr %v", tt.ipv6, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateMac(t *testing.T) {
+	tests := []struct {
+		name    string
+		mac     string
+		wantErr bool
+	}{
+		{
+			name:    "empty MAC (valid)",
+			mac:     "",
+			wantErr: false,
+		},
+		{
+			name:    "valid MAC with colons",
+			mac:     "00:11:22:33:44:55",
+			wantErr: false,
+		},
+		{
+			name:    "valid MAC with hyphens",
+			mac:     "00-11-22-33-44-55",
+			wantErr: false,
+		},
+		{
+			name:    "valid MAC uppercase",
+			mac:     "AA:BB:CC:DD:EE:FF",
+			wantErr: false,
+		},
+		{
+			name:    "valid MAC lowercase",
+			mac:     "aa:bb:cc:dd:ee:ff",
+			wantErr: false,
+		},
+		{
+			name:    "invalid - no separators",
+			mac:     "001122334455",
+			wantErr: true,
+		},
+		{
+			name:    "invalid - wrong length",
+			mac:     "00:11:22:33:44",
+			wantErr: true,
+		},
+		{
+			name:    "invalid - invalid characters",
+			mac:     "00:11:22:33:44:GG",
+			wantErr: true,
+		},
+		{
+			name:    "invalid - mixed separators",
+			mac:     "00:11-22:33:44:55",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateMac(tt.mac)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateMac(%q) error = %v, wantErr %v", tt.mac, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestResolvePath(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        string
+		defaultPath string
+		wantErr     bool
+	}{
+		{
+			name:        "empty path - use default",
+			path:        "",
+			defaultPath: "/default/path",
+			wantErr:     false,
+		},
+		{
+			name:        "relative path",
+			path:        "relative/path",
+			defaultPath: "/default/path",
+			wantErr:     false,
+		},
+		{
+			name:        "absolute path",
+			path:        "/absolute/path",
+			defaultPath: "/default/path",
+			wantErr:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := resolvePath(tt.path, tt.defaultPath)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("resolvePath(%q, %q) error = %v, wantErr %v", tt.path, tt.defaultPath, err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				if tt.path == "" && result != tt.defaultPath {
+					t.Errorf("resolvePath(%q, %q) = %q, want %q", tt.path, tt.defaultPath, result, tt.defaultPath)
+				}
+			}
+		})
+	}
+}
+
+func TestGetImageVirtualSize(t *testing.T) {
+	tests := []struct {
+		name      string
+		imagePath string
+		wantErr   bool
+	}{
+		{
+			name:      "non-existent image",
+			imagePath: "/non/existent/path/image.qcow2",
+			wantErr:   true,
+		},
+		{
+			name:      "empty path",
+			imagePath: "",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := getImageVirtualSize(tt.imagePath)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("getImageVirtualSize(%q) expected error, but got none", tt.imagePath)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("getImageVirtualSize(%q) unexpected error: %v", tt.imagePath, err)
+				}
+			}
+		})
+	}
+}
+
+func TestCopyFile(t *testing.T) {
+	// Create a temporary source file
+	tmpDir := t.TempDir()
+	srcFile := tmpDir + "/source.txt"
+	dstFile := tmpDir + "/dest.txt"
+
+	// Write some content to the source file
+	content := []byte("test content for copy")
+	if err := os.WriteFile(srcFile, content, 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		src     string
+		dst     string
+		wantErr bool
+	}{
+		{
+			name:    "successful copy",
+			src:     srcFile,
+			dst:     dstFile,
+			wantErr: false,
+		},
+		{
+			name:    "non-existent source",
+			src:     "/non/existent/source.txt",
+			dst:     dstFile,
+			wantErr: true,
+		},
+		{
+			name:    "invalid destination path",
+			src:     srcFile,
+			dst:     "/non/existent/dir/dest.txt",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := copyFile(tt.src, tt.dst)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("copyFile(%q, %q) error = %v, wantErr %v", tt.src, tt.dst, err, tt.wantErr)
 			}
 		})
 	}
