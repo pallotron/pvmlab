@@ -154,6 +154,15 @@ func gatherVMInfo(vmName string) (*vmStartOptions, error) {
 
 var uefiVarsTemplatePath = "/opt/homebrew/share/qemu/edk2-arm-vars.fd"
 
+func findFile(paths []string) (string, error) {
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+	return "", fmt.Errorf("could not find file in any of the following locations: %s", strings.Join(paths, ", "))
+}
+
 func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 	pidPath := filepath.Join(opts.appDir, "pids", opts.vmName+".pid")
 	monitorPath := filepath.Join(opts.appDir, "monitors", opts.vmName+".sock")
@@ -163,10 +172,28 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 	var qemuBinary, codePath string
 	if opts.meta.Arch == "aarch64" {
 		qemuBinary = "qemu-system-aarch64"
-		codePath = "/opt/homebrew/share/qemu/edk2-aarch64-code.fd"
+		paths := []string{
+			"/usr/share/qemu-efi-aarch64/QEMU_EFI.fd",
+			"/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
+		}
+		var err error
+		codePath, err = findFile(paths)
+		if err != nil {
+			return nil, err
+		}
 	} else { // x86_64
 		qemuBinary = "qemu-system-x86_64"
-		codePath = "/opt/homebrew/share/qemu/edk2-x86_64-code.fd"
+		paths := []string{
+			"/usr/share/OVMF/OVMF_CODE.fd",
+			"/usr/share/qemu/OVMF.fd",
+			"/usr/share/ovmf/OVMF.fd",
+			"/opt/homebrew/share/qemu/edk2-x86_64-code.fd",
+		}
+		var err error
+		codePath, err = findFile(paths)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	machineType := "virt,gic-version=3"

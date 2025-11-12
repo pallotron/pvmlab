@@ -213,3 +213,6 @@ integration.test.ssh.provisioner:
 
 integration.test.ssh.client:
 	@PVMLAB_HOME=$$(./tests/find-test-pvmlab-home.sh) ./build/pvmlab_test vm shell test-client
+
+github-ci.go-test:
+	act -W .github/workflows/go-test.yml --container-daemon-socket -

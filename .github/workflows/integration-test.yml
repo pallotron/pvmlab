@@ -49,6 +49,7 @@ jobs:
       - name: Build and export to tar
         run: |
           make -C pxeboot_stack download-assets
+          make -C pxeboot_stack build-boot-handler
           docker buildx build --platform linux/arm64 -t pxeboot_stack:latest --load ./pxeboot_stack
           docker save pxeboot_stack:latest -o pxeboot_stack.tar
 

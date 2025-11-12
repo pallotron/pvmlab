@@ -31,6 +31,11 @@ jobs:
           go-version-file: "./go.mod" # Or use a .go-version file
           cache: true
 
+      - name: Install QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 ovmf qemu-efi-aarch64
+
       - name: Test
         run: |
           export RUN_INTEGRATION_TESTS=false
