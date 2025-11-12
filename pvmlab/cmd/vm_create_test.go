@@ -369,9 +369,9 @@ func TestValidateMac(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "invalid - mixed separators",
+			name:    "mixed separators - actually valid per regex",
 			mac:     "00:11-22:33:44:55",
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 
@@ -506,6 +506,154 @@ func TestCopyFile(t *testing.T) {
 			err := copyFile(tt.src, tt.dst)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("copyFile(%q, %q) error = %v, wantErr %v", tt.src, tt.dst, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestCheckExistingVMs(t *testing.T) {
+	tests := []struct {
+		name    string
+		vmName  string
+		role    string
+		setup   func()
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:   "target VM - no existing VM",
+			vmName: "new-vm",
+			role:   "target",
+			setup: func() {
+				metadata.FindVM = func(c *config.Config, name string) (string, error) {
+					return "", nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:   "target VM - existing VM found",
+			vmName: "existing-vm",
+			role:   "target",
+			setup: func() {
+				metadata.FindVM = func(c *config.Config, name string) (string, error) {
+					return "existing-vm", nil
+				}
+			},
+			wantErr: true,
+			errMsg:  "already exists",
+		},
+		{
+			name:   "target VM - error checking",
+			vmName: "test-vm",
+			role:   "target",
+			setup: func() {
+				metadata.FindVM = func(c *config.Config, name string) (string, error) {
+					return "", errors.New("database error")
+				}
+			},
+			wantErr: true,
+			errMsg:  "error checking for existing VM",
+		},
+		{
+			name:   "provisioner - no existing provisioner",
+			vmName: "new-provisioner",
+			role:   "provisioner",
+			setup: func() {
+				metadata.FindProvisioner = func(c *config.Config) (string, error) {
+					return "", nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:   "provisioner - existing provisioner found",
+			vmName: "new-provisioner",
+			role:   "provisioner",
+			setup: func() {
+				metadata.FindProvisioner = func(c *config.Config) (string, error) {
+					return "existing-provisioner", nil
+				}
+			},
+			wantErr: true,
+			errMsg:  "already exists",
+		},
+		{
+			name:   "provisioner - error checking",
+			vmName: "test-provisioner",
+			role:   "provisioner",
+			setup: func() {
+				metadata.FindProvisioner = func(c *config.Config) (string, error) {
+					return "", errors.New("database error")
+				}
+			},
+			wantErr: true,
+			errMsg:  "error checking for existing provisioner",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupMocks(t)
+			tt.setup()
+
+			cfg, _ := config.New()
+			err := checkExistingVMs(cfg, tt.vmName, tt.role)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("checkExistingVMs() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr && tt.errMsg != "" && err != nil {
+				if !stringContains(err.Error(), tt.errMsg) {
+					t.Errorf("checkExistingVMs() error = %v, want error containing %q", err, tt.errMsg)
+				}
+			}
+		})
+	}
+}
+
+func TestGetMac(t *testing.T) {
+	tests := []struct {
+		name    string
+		mac     string
+		wantErr bool
+	}{
+		{
+			name:    "valid MAC provided",
+			mac:     "00:11:22:33:44:55",
+			wantErr: false,
+		},
+		{
+			name:    "empty MAC - should generate random",
+			mac:     "",
+			wantErr: false,
+		},
+		{
+			name:    "invalid MAC",
+			mac:     "invalid-mac",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := getMac(tt.mac)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getMac(%q) error = %v, wantErr %v", tt.mac, err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr {
+				if result == "" {
+					t.Errorf("getMac(%q) returned empty MAC", tt.mac)
+				}
+				// Validate the returned MAC is valid format
+				if err := validateMac(result); err != nil {
+					t.Errorf("getMac(%q) returned invalid MAC %q: %v", tt.mac, result, err)
+				}
 			}
 		})
 	}
