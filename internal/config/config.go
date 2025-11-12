@@ -26,7 +26,7 @@ var (
 
 // Distro represents a distribution that can be used for PXE booting.
 type Distro struct {
-	Name       string              `yaml:"name"`
+	Name string `yaml:"name"`
 	// DistroName is the "family" name of the distribution (e.g., "ubuntu", "fedora").
 	// This is used by the extractor factory to determine which extraction logic to use.
 	DistroName string              `yaml:"distro_name"`
@@ -119,12 +119,12 @@ func GetPxeBootStackImageURL() string {
 }
 
 // GetPxeBootStackImageName returns the local name for the pxeboot stack image.
-func GetPxeBootStackImageName() string {
+func GetPxeBootStackImageName() (string, string) {
 	version := Version
 	if Version == "devel" {
 		version = "latest"
 	}
-	return fmt.Sprintf("pxeboot_stack:%s", version)
+	return "pxeboot_stack", version
 }
 
 // Config holds the application's configuration.
