@@ -101,15 +101,21 @@ func TestGetPxeBootStackImageURL(t *testing.T) {
 
 func TestGetPxeBootStackImageName(t *testing.T) {
 	Version = "devel"
-	name := GetPxeBootStackImageName()
-	if name != "pxeboot_stack:latest" {
-		t.Errorf("GetPxeBootStackImageName() = %v, want %v", name, "pxeboot_stack:latest")
+	name, tag := GetPxeBootStackImageName()
+	if name != "pxeboot_stack" {
+		t.Errorf("GetPxeBootStackImageName() = %v, want %v", name, "pxeboot_stack")
+	}
+	if tag != "latest" {
+		t.Errorf("GetPxeBootStackImageName() = %v, want %v", tag, "latest")
 	}
 
 	Version = "v0.1.0"
-	name = GetPxeBootStackImageName()
-	if name != "pxeboot_stack:v0.1.0" {
-		t.Errorf("GetPxeBootStackImageName() = %v, want %v", name, "pxeboot_stack:v0.1.0")
+	name, tag = GetPxeBootStackImageName()
+	if name != "pxeboot_stack" {
+		t.Errorf("GetPxeBootStackImageName() = %v, want %v", name, "pxeboot_stack")
+	}
+	if tag != Version {
+		t.Errorf("GetPxeBootStackImageName() = %v, want %v", tag, Version)
 	}
 }
 

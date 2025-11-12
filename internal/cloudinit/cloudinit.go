@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"pvmlab/internal/config"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -27,9 +28,9 @@ type MetaData struct {
 	InstanceID        string   `yaml:"instance-id"`
 	LocalHostname     string   `yaml:"local-hostname"`
 	PublicKeys        []string `yaml:"public-keys"`
-	PxeBootStackTar   string   `yaml:"pxe_boot_stack_tar,omitempty"`
-	PxeBootStackName  string   `yaml:"pxe_boot_stack_name,omitempty"`
-	PxeBootStackImage string   `yaml:"pxe_boot_stack_image,omitempty"`
+	PxeBootStackTar   string   `yaml:"pxe_boot_stack_tar"`
+	PxeBootStackName  string   `yaml:"pxe_boot_stack_name"`
+	PxeBootStackImage string   `yaml:"pxe_boot_stack_image"`
 	ProvisionerIP     string   `yaml:"provisioner_ip,omitempty"`
 	ProvisionerIPv6   string   `yaml:"provisioner_ipv6,omitempty"`
 	DhcpRangeStart    string   `yaml:"dhcp_range_start,omitempty"`
@@ -143,7 +144,12 @@ func buildProvisionerMetaData(
 	sshKey, tar, image, provisionerIP, dhcpStart, dhcpEnd,
 	provisionerIpV6, dhcpV6Start, dhcpV6End, ipv6Subnet string,
 ) *MetaData {
-	pxebootStackName := strings.TrimSuffix(tar, filepath.Ext(tar))
+	var pxebootStackName string
+	if tar != "" {
+		pxebootStackName = strings.TrimSuffix(tar, filepath.Ext(tar))
+	} else {
+		pxebootStackName, _ = config.GetPxeBootStackImageName()
+	}
 	return &MetaData{
 		InstanceID:        "iid-cloudimg-provisioner",
 		LocalHostname:     "provisioner",
@@ -438,4 +444,3 @@ var CreateISO = func(ctx context.Context, vmName, role, appDir, isoPath, ip, ipv
 	cmd := execCommand("mkisofs", "-o", isoPath, "-V", "cidata", "-r", "-J", configDir)
 	return cmd.Run()
 }
-

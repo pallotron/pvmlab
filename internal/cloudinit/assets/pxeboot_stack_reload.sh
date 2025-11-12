@@ -2,18 +2,35 @@
 set -e
 
 # The image to pull is passed in from cloud-init.
-IMAGE_TO_PULL="{{ ds.meta_data.pxeboot_stack_image }}"
+IMAGE_TO_PULL="{{ ds.meta_data.pxe_boot_stack_image }}"
 
 # --- Argument Parsing ---
-if [ "$#" -lt 2 ]; then
-    echo "Usage: $0 <tar_file_name | ''> <container_name> [docker_run_flags...]" >&2
+TAR_FILE_ARG=""
+CONTAINER_NAME=""
+DOCKER_RUN_FLAGS=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --tar-file)
+      TAR_FILE_ARG="$2"
+      shift 2
+      ;;
+    --container-name)
+      CONTAINER_NAME="$2"
+      shift 2
+      ;;
+    *)
+      # Assuming the rest are docker run flags
+      DOCKER_RUN_FLAGS="$@"
+      break
+      ;;
+  esac
+done
+
+if [ -z "$CONTAINER_NAME" ]; then
+    echo "Usage: $0 --container-name <name> [--tar-file <tar_file_name>] [docker_run_flags...]" >&2
     exit 1
 fi
-
-TAR_FILE_ARG=$1
-CONTAINER_NAME=$2
-shift 2
-DOCKER_RUN_FLAGS="$@"
 
 # --- Main Logic ---
 echo "Stopping and removing old container..."

@@ -6,7 +6,7 @@ Requires=docker.service network-online.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/local/bin/pxeboot_stack_reload.sh {{ ds.meta_data.pxe_boot_stack_tar }} {{ ds.meta_data.pxe_boot_stack_name }} --net=host --privileged
+ExecStart=/usr/local/bin/pxeboot_stack_reload.sh --container-name {{ ds.meta_data.pxe_boot_stack_name }} --tar-file {{ ds.meta_data.pxe_boot_stack_tar }} --net=host --privileged
 
 [Install]
 WantedBy=multi-user.target
