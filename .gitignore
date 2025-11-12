@@ -12,3 +12,4 @@ pxeboot_stack/initrd/go.work.sum
 pxeboot_stack/initrd/u-root/*
 pxeboot_stack/initrd/installer/output/*
 pxeboot_stack/boot_handler/bin/*
+coverage.out
