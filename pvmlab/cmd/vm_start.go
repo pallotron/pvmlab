@@ -25,6 +25,7 @@ import (
 
 var wait, interactive bool
 var bootOverride string
+var installerNoReboot bool
 
 type vmStartOptions struct {
 	vmName string
@@ -73,6 +74,21 @@ var vmStartCmd = &cobra.Command{
 		// Create a context that is cancelled on a SIGINT or SIGTERM.
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
+
+		// Handle --installer-no-reboot flag
+		if installerNoReboot {
+			noRebootFilePath := filepath.Join(opts.appDir, "vms", opts.vmName+".noreboot")
+			color.Cyan("i Creating .noreboot file: %s", noRebootFilePath)
+			if _, err := os.Create(noRebootFilePath); err != nil {
+				return fmt.Errorf("failed to create .noreboot file: %w", err)
+			}
+			defer func() {
+				color.Cyan("i Cleaning up .noreboot file: %s", noRebootFilePath)
+				if err := os.Remove(noRebootFilePath); err != nil {
+					color.Red("Error cleaning up .noreboot file: %v", err)
+				}
+			}()
+		}
 
 		if err := runQEMU(ctx, opts, qemuArgs); err != nil {
 			// Check if the error was due to context cancellation
@@ -138,6 +154,15 @@ func gatherVMInfo(vmName string) (*vmStartOptions, error) {
 
 var uefiVarsTemplatePath = "/opt/homebrew/share/qemu/edk2-arm-vars.fd"
 
+func findFile(paths []string) (string, error) {
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+	return "", fmt.Errorf("could not find file in any of the following locations: %s", strings.Join(paths, ", "))
+}
+
 func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 	pidPath := filepath.Join(opts.appDir, "pids", opts.vmName+".pid")
 	monitorPath := filepath.Join(opts.appDir, "monitors", opts.vmName+".sock")
@@ -147,10 +172,28 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 	var qemuBinary, codePath string
 	if opts.meta.Arch == "aarch64" {
 		qemuBinary = "qemu-system-aarch64"
-		codePath = "/opt/homebrew/share/qemu/edk2-aarch64-code.fd"
+		paths := []string{
+			"/usr/share/qemu-efi-aarch64/QEMU_EFI.fd",
+			"/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
+		}
+		var err error
+		codePath, err = findFile(paths)
+		if err != nil {
+			return nil, err
+		}
 	} else { // x86_64
 		qemuBinary = "qemu-system-x86_64"
-		codePath = "/opt/homebrew/share/qemu/edk2-x86_64-code.fd"
+		paths := []string{
+			"/usr/share/OVMF/OVMF_CODE.fd",
+			"/usr/share/qemu/OVMF.fd",
+			"/usr/share/ovmf/OVMF.fd",
+			"/opt/homebrew/share/qemu/edk2-x86_64-code.fd",
+		}
+		var err error
+		codePath, err = findFile(paths)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	machineType := "virt,gic-version=3"
@@ -200,8 +243,18 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 			"-drive", fmt.Sprintf("if=pflash,format=raw,file=%s", vmVarsPath),
 		)
 	} else {
-		// x86_64 can use a single, unified pflash drive.
-		qemuArgs = append(qemuArgs, "-drive", fmt.Sprintf("if=pflash,format=raw,readonly=on,file=%s", codePath))
+		// x86_64 uses a unified pflash drive, but we need a writable copy for settings.
+		vmCodePath := filepath.Join(opts.appDir, "vms", opts.vmName+"-code.fd")
+		if _, err := os.Stat(vmCodePath); os.IsNotExist(err) {
+			input, err := os.ReadFile(codePath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read UEFI code template: %w", err)
+			}
+			if err := os.WriteFile(vmCodePath, input, 0644); err != nil {
+				return nil, fmt.Errorf("failed to write UEFI code file: %w", err)
+			}
+		}
+		qemuArgs = append(qemuArgs, "-drive", fmt.Sprintf("if=pflash,format=raw,file=%s", vmCodePath))
 	}
 
 	qemuArgs = append(qemuArgs,
@@ -216,7 +269,7 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 		qemuArgs = append(qemuArgs, "-drive", fmt.Sprintf("file=%s,format=raw,if=virtio", isoPath))
 	}
 	if isPxeBoot {
-		qemuArgs = append(qemuArgs, "-boot", "n")
+		qemuArgs = append(qemuArgs, "-boot", "menu=on")
 	}
 
 	if interactive {
@@ -231,7 +284,7 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 			return nil, fmt.Errorf("could not find an available SSH port: %w", err)
 		}
 		opts.meta.SSHPort = sshPort
-		if err := metadata.Save(opts.cfg, opts.vmName, opts.meta.Role, opts.meta.Arch, opts.meta.IP, opts.meta.Subnet, opts.meta.IPv6, opts.meta.SubnetV6, opts.meta.MAC, opts.meta.PxeBootStackTar, opts.meta.DockerImagesPath, opts.meta.VMsPath, opts.meta.SSHKey, opts.meta.SSHPort, opts.meta.PxeBoot, opts.meta.Distro); err != nil {
+		if err := metadata.Save(opts.cfg, opts.vmName, opts.meta.Role, opts.meta.Arch, opts.meta.IP, opts.meta.Subnet, opts.meta.IPv6, opts.meta.SubnetV6, opts.meta.MAC, opts.meta.PxeBootStackTar, opts.meta.DockerImagesPath, opts.meta.VMsPath, opts.meta.SSHKey, opts.meta.Kernel, opts.meta.Initrd, opts.meta.SSHPort, opts.meta.PxeBoot, opts.meta.Distro); err != nil {
 			return nil, fmt.Errorf("failed to save updated metadata with new SSH port: %w", err)
 		}
 
@@ -415,4 +468,5 @@ func init() {
 	vmStartCmd.Flags().BoolVar(&wait, "wait", false, "Wait for cloud-init to complete before exiting.")
 	vmStartCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Attach to the VM's serial console.")
 	vmStartCmd.Flags().StringVar(&bootOverride, "boot", "", "Override boot device (disk or pxe)")
+	vmStartCmd.Flags().BoolVar(&installerNoReboot, "installer-no-reboot", false, "Do not reboot after successful installation.")
 }

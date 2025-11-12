@@ -159,18 +159,71 @@ func buildTargetNetworkConfig(mac string) *NetplanConfig {
 }
 
 // VM represents the structure of the VM's JSON definition file.
-
 type VM struct {
-	Name   string `json:"name"`
-	Arch   string `json:"arch"`
-	Distro string `json:"distro"`
-	MAC    string `json:"mac"`
-	SSHKey string `json:"ssh_key"`
+	Name    string `json:"name"`
+	Arch    string `json:"arch"`
+	Distro  string `json:"distro"`
+	MAC     string `json:"mac"`
+	SSHKey  string `json:"ssh_key"`
+	Kernel  string `json:"kernel,omitempty"`
+	Initrd  string `json:"initrd,omitempty"`
+	PxeBoot bool   `json:"pxeboot,omitempty"`
+}
+
+// InstallerConfig is the configuration provided to the installer running in the initrd.
+type InstallerConfig struct {
+	CloudInitURL    string `json:"cloud_init_url"`
+	Distro          string `json:"distro"`
+	Arch            string `json:"arch"`
+	RootfsURL       string `json:"rootfs_url"`
+	KmodsURL        string `json:"kmods_url"`
+	KernelURL       string `json:"kernel_url"`
+	RebootOnSuccess bool   `json:"reboot_on_success"`
 }
 
 type httpServer struct {
 	vmsDir       string
 	templatePath string
+}
+
+func (s *httpServer) configHandler(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 3 {
+		http.NotFound(w, r)
+		return
+	}
+	mac := parts[2]
+
+	vm, err := s.findVMByMAC(mac)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Determine the base URL from the request host
+	// This makes the configuration independent of the provisioner's IP
+	baseURL := fmt.Sprintf("http://%s", r.Host)
+
+	// Check for a .noreboot file to disable reboot on success
+	noRebootFilePath := filepath.Join(s.vmsDir, vm.Name+".noreboot")
+	rebootOnSuccess := true
+	if _, err := os.Stat(noRebootFilePath); err == nil {
+		log.Printf("Found .noreboot file for %s, disabling reboot on success.", vm.Name)
+		rebootOnSuccess = false
+	}
+
+	config := &InstallerConfig{
+		CloudInitURL:    fmt.Sprintf("%s/cloud-init/%s", baseURL, vm.Name),
+		Distro:          vm.Distro,
+		Arch:            vm.Arch,
+		RootfsURL:       fmt.Sprintf("%s/images/%s/%s/rootfs.tar.gz", baseURL, vm.Distro, vm.Arch),
+		KmodsURL:        fmt.Sprintf("%s/images/%s/%s/modules.cpio.gz", baseURL, vm.Distro, vm.Arch),
+		KernelURL:       fmt.Sprintf("%s/images/%s/%s/%s", baseURL, vm.Distro, vm.Arch, vm.Kernel),
+		RebootOnSuccess: rebootOnSuccess,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(config)
 }
 
 func (s *httpServer) cloudInitHandler(w http.ResponseWriter, r *http.Request) {
@@ -314,6 +367,7 @@ func main() {
 
 	http.HandleFunc("/ipxe", server.ipxeHandler)
 	http.HandleFunc("/cloud-init/", server.cloudInitHandler)
+	http.HandleFunc("/config/", server.configHandler)
 	log.Printf("Starting PXE boot server on :8080, watching VM definitions in %s", *vmsDir)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

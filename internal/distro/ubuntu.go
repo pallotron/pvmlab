@@ -2,11 +2,11 @@ package distro
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"pvmlab/internal/config"
 	"pvmlab/internal/downloader"
@@ -14,88 +14,78 @@ import (
 	"github.com/fatih/color"
 )
 
+//go:embed create-rootfs.sh
+var createRootfsScript []byte
+
 // UbuntuExtractor implements the Extractor interface for Ubuntu.
 type UbuntuExtractor struct{}
 
-func (e *UbuntuExtractor) ExtractKernelAndModules(ctx context.Context, cfg *config.Config, distroInfo *config.ArchInfo, isoPath, distroPath string) error {
-	// Step 1: Extract the kernel
-	color.Cyan("i Extracting vmlinuz kernel...")
-	extractCmd := exec.CommandContext(ctx, "7z", "x", "-y", isoPath, "-o"+distroPath, distroInfo.KernelFile)
-	if output, err := extractCmd.CombinedOutput(); err != nil {
+func (e *UbuntuExtractor) ExtractKernelAndInitrd(ctx context.Context, cfg *config.Config, distroInfo *config.ArchInfo, distroPath string) error {
+	color.Cyan("i Extracting PXE boot assets from rootfs...")
+
+	rootfsPath := filepath.Join(distroPath, "rootfs.tar.gz")
+	if _, err := os.Stat(rootfsPath); os.IsNotExist(err) {
+		return fmt.Errorf("rootfs.tar.gz not found at %s", rootfsPath)
+	}
+
+	// --- Extract Kernel and Initrd ---
+	extractDir, err := os.MkdirTemp(distroPath, "extract-")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary extraction directory: %w", err)
+	}
+	defer os.RemoveAll(extractDir)
+
+	cmd := exec.CommandContext(ctx, "tar", "-xzf", rootfsPath, "-C", extractDir, distroInfo.KernelPath, distroInfo.InitrdPath)
+	if output, err := cmd.CombinedOutput(); err != nil {
 		if ctx.Err() == context.Canceled {
 			color.Yellow("\nOperation cancelled by user.")
 			return nil
 		}
-		color.Red("! 7z kernel extraction failed. Output:\n%s", string(output))
-		return fmt.Errorf("failed to extract kernel: %w", err)
+		color.Red("! Failed to extract from rootfs.tar.gz. Output:\n%s", string(output))
+		return fmt.Errorf("failed to extract kernel and initrd from rootfs: %w", err)
 	}
 
-	extractedVmlinuzPath := filepath.Join(distroPath, distroInfo.KernelFile)
-	targetVmlinuzPath := filepath.Join(distroPath, "vmlinuz")
-
-	if _, err := os.Stat(extractedVmlinuzPath); os.IsNotExist(err) {
-		return fmt.Errorf("vmlinuz not found at expected path after extraction: %s", extractedVmlinuzPath)
+	// Move kernel
+	finalVmlinuz := filepath.Join(distroPath, filepath.Base(distroInfo.KernelPath))
+	if err := os.Rename(filepath.Join(extractDir, distroInfo.KernelPath), finalVmlinuz); err != nil {
+		return fmt.Errorf("failed to move vmlinuz: %w", err)
 	}
-
-	if err := os.Rename(extractedVmlinuzPath, targetVmlinuzPath); err != nil {
-		return fmt.Errorf("failed to move kernel: %w", err)
-	}
-
-	// Clean up the directory structure created by the extraction
-	if dir := filepath.Dir(distroInfo.KernelFile); dir != "." {
-		if err := os.RemoveAll(filepath.Join(distroPath, dir)); err != nil {
-			color.Yellow("Warning: failed to clean up temporary kernel directory: %v", err)
-		}
-	}
-	if err := os.Chmod(targetVmlinuzPath, 0644); err != nil {
+	if err := os.Chmod(finalVmlinuz, 0644); err != nil {
 		return fmt.Errorf("failed to set permissions on vmlinuz: %w", err)
 	}
 
-	// Step 2: Extract and create the modules cpio
-	color.Cyan("i Extracting kernel modules...")
-	extractPoolCmd := exec.CommandContext(ctx, "7z", "x", "-y", isoPath, "-o"+distroPath, "pool")
-	if output, err := extractPoolCmd.CombinedOutput(); err != nil {
-		if ctx.Err() == context.Canceled {
-			color.Yellow("\nOperation cancelled by user.")
-			return nil
-		}
-		color.Red("! 7z pool extraction failed. Output:\n%s", string(output))
-		return fmt.Errorf("failed to extract pool directory: %w", err)
+	// Move initrd
+	finalInitrd := filepath.Join(distroPath, filepath.Base(distroInfo.InitrdPath))
+	if err := os.Rename(filepath.Join(extractDir, distroInfo.InitrdPath), finalInitrd); err != nil {
+		return fmt.Errorf("failed to move initrd.img: %w", err)
+	}
+	if err := os.Chmod(finalInitrd, 0644); err != nil {
+		return fmt.Errorf("failed to set permissions on initrd.img: %w", err)
 	}
 
-	modulesDebPath, err := findFileWithPrefix(filepath.Join(distroPath, "pool", "main", "l", "linux"), "linux-modules-")
+	// --- Create modules.cpio.gz ---
+	color.Cyan("i Creating modules.cpio.gz from rootfs...")
+	modulesDir, err := os.MkdirTemp(distroPath, "modules-")
 	if err != nil {
-		return fmt.Errorf("failed to find linux-modules package: %w", err)
+		return fmt.Errorf("failed to create temporary modules directory: %w", err)
 	}
+	defer os.RemoveAll(modulesDir)
 
-	modulesExtractDir := filepath.Join(distroPath, "modules_extract")
-	if err := os.MkdirAll(modulesExtractDir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory for module extraction: %w", err)
-	}
-	extractModulesCmd := exec.CommandContext(ctx, "7z", "x", "-y", modulesDebPath, "-o"+modulesExtractDir)
-	if output, err := extractModulesCmd.CombinedOutput(); err != nil {
+	// Extract lib/modules from the rootfs
+	tarCmd := exec.CommandContext(ctx, "tar", "-xzf", rootfsPath, "-C", modulesDir, "usr/lib/modules")
+	if output, err := tarCmd.CombinedOutput(); err != nil {
 		if ctx.Err() == context.Canceled {
 			color.Yellow("\nOperation cancelled by user.")
 			return nil
 		}
-		color.Red("! 7z module extraction failed. Output:\n%s", string(output))
-		return fmt.Errorf("failed to extract modules from .deb: %w", err)
+		color.Red("! Failed to extract modules from rootfs.tar.gz. Output:\n%s", string(output))
+		return fmt.Errorf("failed to extract modules from rootfs: %w", err)
 	}
 
-	dataTarPath := filepath.Join(modulesExtractDir, "data.tar")
-	extractDataTarCmd := exec.CommandContext(ctx, "7z", "x", "-y", dataTarPath, "-o"+modulesExtractDir)
-	if output, err := extractDataTarCmd.CombinedOutput(); err != nil {
-		if ctx.Err() == context.Canceled {
-			color.Yellow("\nOperation cancelled by user.")
-			return nil
-		}
-		color.Red("! 7z data.tar extraction failed. Output:\n%s", string(output))
-		return fmt.Errorf("failed to extract data.tar from .deb: %w", err)
-	}
-
+	// Create the cpio archive
 	modulesCpioPath := filepath.Join(distroPath, "modules.cpio")
-	cpioCmd := exec.CommandContext(ctx, "sh", "-c", fmt.Sprintf("find lib -print | cpio -o -H newc > %s", modulesCpioPath))
-	cpioCmd.Dir = modulesExtractDir
+	cpioCmd := exec.CommandContext(ctx, "sh", "-c", fmt.Sprintf("find . -print | cpio -o -H newc > %s", modulesCpioPath))
+	cpioCmd.Dir = filepath.Join(modulesDir, "usr") // Run from inside the temp dir, at the 'usr' level
 	if output, err := cpioCmd.CombinedOutput(); err != nil {
 		if ctx.Err() == context.Canceled {
 			color.Yellow("\nOperation cancelled by user.")
@@ -105,6 +95,7 @@ func (e *UbuntuExtractor) ExtractKernelAndModules(ctx context.Context, cfg *conf
 		return fmt.Errorf("failed to create modules cpio: %w", err)
 	}
 
+	// Gzip the archive
 	gzipCmd := exec.CommandContext(ctx, "gzip", "-f", modulesCpioPath)
 	if output, err := gzipCmd.CombinedOutput(); err != nil {
 		if ctx.Err() == context.Canceled {
@@ -115,11 +106,9 @@ func (e *UbuntuExtractor) ExtractKernelAndModules(ctx context.Context, cfg *conf
 		return fmt.Errorf("failed to gzip modules cpio: %w", err)
 	}
 
-	if err := os.RemoveAll(filepath.Join(distroPath, "pool")); err != nil {
-		color.Yellow("Warning: failed to clean up temporary pool directory: %v", err)
-	}
-	if err := os.RemoveAll(modulesExtractDir); err != nil {
-		color.Yellow("Warning: failed to clean up temporary module extraction directory: %v", err)
+	// Set final permissions
+	if err := os.Chmod(modulesCpioPath+".gz", 0644); err != nil {
+		return fmt.Errorf("failed to set permissions on modules.cpio.gz: %w", err)
 	}
 
 	return nil
@@ -133,24 +122,33 @@ func (e *UbuntuExtractor) CreateRootfs(ctx context.Context, distroInfo *config.A
 		return err
 	}
 
-	// Step 2: Get project root to find the script
-	wd, err := os.Getwd()
+	// Step 2: Create a temporary script file from the embedded script in distroPath
+	tmpfile, err := os.CreateTemp(distroPath, "create-rootfs-*.sh")
 	if err != nil {
-		return fmt.Errorf("failed to get current working directory: %w", err)
+		return fmt.Errorf("failed to create temporary script file in %s: %w", distroPath, err)
 	}
-	projectRoot := wd
-	createScriptPath := filepath.Join(projectRoot, "scripts", "create-rootfs.sh")
+	defer os.Remove(tmpfile.Name()) // clean up
+
+	if _, err := tmpfile.Write(createRootfsScript); err != nil {
+		return fmt.Errorf("failed to write to temporary script file: %w", err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary script file: %w", err)
+	}
+	if err := os.Chmod(tmpfile.Name(), 0755); err != nil {
+		return fmt.Errorf("failed to make temporary script executable: %w", err)
+	}
 
 	// Step 3: Run the Docker container to create the rootfs tarball
 	color.Cyan("i Creating rootfs tarball via Docker (press Ctrl+C to cancel)...")
 
 	containerImagePath := filepath.Join("/images", qcow2Name)
+	containerScriptPath := filepath.Join("/images", filepath.Base(tmpfile.Name()))
 	cmd := exec.CommandContext(ctx, "docker", "run", "--rm",
 		"--privileged",
 		"-v", fmt.Sprintf("%s:/images", distroPath),
-		"-v", fmt.Sprintf("%s:/create-rootfs.sh", createScriptPath),
 		"debian:12",
-		"sh", "-c", "/create-rootfs.sh \"$1\"", "sh", containerImagePath,
+		"sh", "-c", fmt.Sprintf("chmod +x %s && %s \"$1\"", containerScriptPath, containerScriptPath), "sh", containerImagePath,
 	)
 
 	// Stream the output directly to the console
@@ -168,25 +166,4 @@ func (e *UbuntuExtractor) CreateRootfs(ctx context.Context, distroInfo *config.A
 
 	color.Green("✔ Rootfs tarball created successfully.")
 	return nil
-}
-
-func findFileWithPrefix(dir, prefix string) (string, error) {
-	var foundPath string
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() && strings.HasPrefix(info.Name(), prefix) {
-			foundPath = path
-			return filepath.SkipDir // Stop searching once found
-		}
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	if foundPath == "" {
-		return "", fmt.Errorf("no file with prefix '%s' found in '%s'", prefix, dir)
-	}
-	return foundPath, nil
 }

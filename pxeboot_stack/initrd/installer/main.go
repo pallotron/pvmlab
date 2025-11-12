@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 )
@@ -17,24 +18,36 @@ func main() {
 
 	fmt.Println("==> Go OS Installer started!")
 
-	cloudInitURL := os.Getenv("CLOUD_INIT_URL")
-	if cloudInitURL == "" {
-		fmt.Println("ERROR: CLOUD_INIT_URL not set")
-		dropToShell()
-		return
-	}
-
-	fmt.Printf("==> Cloud-init URL: %s\n", cloudInitURL)
-
 	fmt.Println("\n==> Phase 1: Network Setup")
-	if err := setupNetworking(); err != nil {
+	netConfig, err := setupNetworking()
+	if err != nil {
 		fmt.Printf("ERROR: Failed to setup networking: %v\n", err)
 		dropToShell()
 		return
 	}
 
-	fmt.Println("\n==> Phase 2: Fetch Cloud-Init Configuration")
-	cloudInit, err := fetchCloudInitData(cloudInitURL)
+	fmt.Println("\n==> Phase 2: Fetch Installer Configuration")
+	if netConfig.ConfigURL == "" {
+		fmt.Println("ERROR: config_url not found in kernel command line")
+		dropToShell()
+		return
+	}
+	fmt.Printf("==> Config URL: %s\n", netConfig.ConfigURL)
+	configBytes, err := fetchURL(netConfig.ConfigURL)
+	if err != nil {
+		fmt.Printf("ERROR: Failed to fetch installer config: %v\n", err)
+		dropToShell()
+		return
+	}
+	var installerConfig InstallerConfig
+	if err := json.Unmarshal(configBytes, &installerConfig); err != nil {
+		fmt.Printf("ERROR: Failed to parse installer config: %v\n", err)
+		dropToShell()
+		return
+	}
+
+	fmt.Println("\n==> Phase 3: Fetch Cloud-Init Configuration")
+	cloudInit, err := fetchCloudInitData(installerConfig.CloudInitURL)
 	if err != nil {
 		fmt.Printf("ERROR: Failed to fetch cloud-init data: %v\n", err)
 		dropToShell()
@@ -42,14 +55,15 @@ func main() {
 	}
 
 	fmt.Println("\n==> Phase 4: Disk Preparation")
-	if err := prepareDisk(); err != nil {
+	diskPath, err := prepareDisk()
+	if err != nil {
 		fmt.Printf("ERROR: Failed to prepare disk: %v\n", err)
 		dropToShell()
 		return
 	}
 
 	fmt.Println("\n==> Phase 5: OS Installation")
-	if err := installOS(); err != nil {
+	if err := installOS(&installerConfig); err != nil {
 		fmt.Printf("ERROR: Failed to install OS: %v\n", err)
 		dropToShell()
 		return
@@ -63,7 +77,7 @@ func main() {
 	}
 
 	fmt.Println("\n==> Phase 7: Finalization")
-	if err := finalize(); err != nil {
+	if err := finalize(installerConfig.RebootOnSuccess, installerConfig.Arch, installerConfig.Distro, diskPath); err != nil {
 		fmt.Printf("ERROR: Failed to finalize: %v\n", err)
 		dropToShell()
 		return

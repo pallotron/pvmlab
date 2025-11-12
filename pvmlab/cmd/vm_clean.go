@@ -59,6 +59,7 @@ func cleanSingleVM(vmName string) error {
 	filesToRemove := []string{
 		filepath.Join(appDir, "vms", vmName+".qcow2"),
 		filepath.Join(appDir, "vms", vmName+"-vars.fd"),
+		filepath.Join(appDir, "vms", vmName+"-code.fd"), // Added for x86_64 UEFI
 		filepath.Join(appDir, "configs", "cloud-init", vmName+".iso"),
 		filepath.Join(appDir, "configs", "cloud-init", vmName),
 		filepath.Join(appDir, "logs", vmName+".log"),

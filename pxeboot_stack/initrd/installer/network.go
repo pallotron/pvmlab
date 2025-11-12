@@ -9,12 +9,12 @@ import (
 )
 
 // setupNetworking configures the network interface
-func setupNetworking() error {
+func setupNetworking() (*NetworkConfig, error) {
 	fmt.Println("  -> Parsing network configuration from kernel command line...")
 
 	netConfig, err := parseNetworkConfig()
 	if err != nil {
-		return fmt.Errorf("failed to parse network config: %w", err)
+		return nil, fmt.Errorf("failed to parse network config: %w", err)
 	}
 
 	fmt.Printf("  -> Network mode: %s\n", netConfig.IP)
@@ -26,7 +26,7 @@ func setupNetworking() error {
 	fmt.Println("  -> Detecting network interfaces...")
 	iface, err := findNetworkInterface(netConfig.MAC)
 	if err != nil {
-		return fmt.Errorf("failed to find network interface: %w", err)
+		return nil, fmt.Errorf("failed to find network interface: %w", err)
 	}
 
 	netConfig.InterfaceName = iface
@@ -35,19 +35,19 @@ func setupNetworking() error {
 	// Bring interface up
 	fmt.Println("  -> Bringing interface up...")
 	if err := runCommand("ip", "link", "set", iface, "up"); err != nil {
-		return fmt.Errorf("failed to bring interface up: %w", err)
+		return nil, fmt.Errorf("failed to bring interface up: %w", err)
 	}
 
 	// Configure network based on mode
 	if netConfig.IP == "dhcp" {
 		if err := setupDHCP(iface); err != nil {
-			return fmt.Errorf("failed to setup DHCP: %w", err)
+			return nil, fmt.Errorf("failed to setup DHCP: %w", err)
 		}
 	} else {
 		// TODO: Implement static IP configuration
 		// This would parse ip=<IP>:<gateway>:<netmask>:<hostname>:<interface>:<dns>
 		// or similar format and configure the interface accordingly
-		return fmt.Errorf("static IP configuration not yet implemented (TODO)")
+		return nil, fmt.Errorf("static IP configuration not yet implemented (TODO)")
 	}
 
 	// Wait a bit for network to be ready
@@ -60,7 +60,7 @@ func setupNetworking() error {
 		fmt.Printf("  -> Warning: failed to show interface details: %v\n", err)
 	}
 
-	return nil
+	return netConfig, nil
 }
 
 // parseNetworkConfig reads /proc/cmdline and extracts network parameters
@@ -92,6 +92,8 @@ func parseNetworkConfig() (*NetworkConfig, error) {
 			// ip=<client-ip>:<server-ip>:<gw-ip>:<netmask>:<hostname>:<device>:<autoconf>:<dns0-ip>:<dns1-ip>
 		case "installer_mac":
 			config.MAC = value
+		case "config_url":
+			config.ConfigURL = value
 		// TODO: Add support for additional network parameters:
 		// case "netmask":
 		//     config.Netmask = value
