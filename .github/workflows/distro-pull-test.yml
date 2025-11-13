@@ -1,7 +1,10 @@
 name: Distro Pull Integration Tests
 
 on:
-  # Run on demand or on schedule to avoid slowing down regular CI
+  pull_request:
+  push:
+    branches:
+      - main
   workflow_dispatch:
   schedule:
     # Run weekly on Sundays at 2 AM UTC
@@ -10,7 +13,7 @@ on:
 jobs:
   distro-pull-test:
     name: Distro Pull Test
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
@@ -24,14 +27,15 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          brew install p7zip
-          # Docker is pre-installed on macOS GitHub runners
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full libguestfs-tools linux-image-generic pv
 
       - name: Verify Dependencies
         run: |
           which 7z || (echo "7z not found" && exit 1)
           which docker || (echo "docker not found" && exit 1)
           docker --version
+          docker ps
 
       - name: Setup PVMLAB_HOME
         run: |

@@ -22,9 +22,8 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update > /dev/null
 apt-get install -y libguestfs-tools pv btrfs-progs > /dev/null
 
-echo "Available RAM in the container:"
+echo "Available RAM in the container/github runner:"
 free -h
-
 
 # --- Create the rootfs tarball ---
 echo "Creating rootfs tarball for ${DISTRO_NAME}..."
@@ -39,7 +38,7 @@ elif [ "${DISTRO_NAME}" == "ubuntu" ]; then
     if guestfish --ro -a "${IMAGE_PATH}" run : list-filesystems | grep -q /dev/sda16; then
         echo "Found /dev/sda16, assuming it is the boot partition and including it in the rootfs."
         SIZE=$(guestfish --ro -a "${IMAGE_PATH}" -m /dev/sda1 -m /dev/sda16:/boot du / | awk '{print $1}')
-        guestfish --ro -a "${IMAGE_PATH}" -m /dev/sda1 -m /dev/sda16:/boot tar-out / - | pv -s "${SIZE}" | gzip > "${ROOTFS_PATH}"
+        guestfish --ro -a "${IMAGE_PATH}" -m /dev/sda1 -m /dev/sda16:/boot tar-out / - numericowner:true | pv -s "${SIZE}" | gzip > "${ROOTFS_PATH}"
     else
         echo "No /dev/sda16 found, creating rootfs from /dev/sda1 only."
         SIZE=$(guestfish --ro -a "${IMAGE_PATH}" -m /dev/sda1 du / | awk '{print $1}')
@@ -51,4 +50,3 @@ else
 fi
 
 echo "Rootfs tarball created successfully."
-
