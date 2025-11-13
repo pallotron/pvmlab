@@ -1,0 +1,60 @@
+name: Distro Pull Integration Tests
+
+on:
+  # Run on demand or on schedule to avoid slowing down regular CI
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+jobs:
+  distro-pull-test:
+    name: Distro Pull Test
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.1"
+
+      - name: Install Dependencies
+        run: |
+          brew install p7zip
+          # Docker is pre-installed on macOS GitHub runners
+
+      - name: Verify Dependencies
+        run: |
+          which 7z || (echo "7z not found" && exit 1)
+          which docker || (echo "docker not found" && exit 1)
+          docker --version
+
+      - name: Setup PVMLAB_HOME
+        run: |
+          PVMLAB_HOME=$(mktemp -d)
+          echo "PVMLAB_HOME=${PVMLAB_HOME}" >> $GITHUB_ENV
+          echo "Created temporary directory: ${PVMLAB_HOME}"
+
+      - name: Run Distro Pull Integration Tests
+        run: |
+          export RUN_INTEGRATION_TESTS=true
+          export CI=true
+          go test -v -timeout 30m ./tests/integration -run TestDistroPull
+        env:
+          PVMLAB_HOME: ${{ env.PVMLAB_HOME }}
+
+      - name: Check Downloaded Files
+        if: always()
+        run: |
+          echo "Contents of PVMLAB_HOME/images:"
+          ls -lR "${{ env.PVMLAB_HOME }}/images" || echo "No images directory found"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "Cleaning up test directory"
+          rm -rf "${{ env.PVMLAB_HOME }}"
