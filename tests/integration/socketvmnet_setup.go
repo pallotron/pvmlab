@@ -15,7 +15,17 @@ import (
 // setupSocketVMNet handles the compilation, setup, and execution of a self-contained
 // socket_vmnet process for integration tests. It returns a cleanup function
 // that should be deferred by the caller to ensure the process is terminated.
+// On non-macOS systems, it returns a no-op cleanup function.
 func setupSocketVMNet(tempHomeDir, projectRoot string) (cleanupFunc func()) {
+	// socket_vmnet is macOS-only, skip on other platforms
+	if os.Getenv("GOOS") == "linux" || os.Getenv("CI") == "true" {
+		// Check if we're actually on Linux (not just cross-compiling)
+		if _, err := os.Stat("/proc/version"); err == nil {
+			log.Println("Skipping socket_vmnet setup on Linux")
+			return func() {}
+		}
+	}
+
 	socketVMNetDir := filepath.Join(projectRoot, "socket_vmnet")
 	tempBinDir := filepath.Join(tempHomeDir, "bin")
 	if err := os.MkdirAll(tempBinDir, 0755); err != nil {

@@ -21,19 +21,30 @@ func TestDistroPull_Integration(t *testing.T) {
 	}
 
 	// Skip if required binaries are not available
-	if _, err := os.Stat("/usr/local/bin/7z"); os.IsNotExist(err) {
-		if _, err := os.Stat("/opt/homebrew/bin/7z"); os.IsNotExist(err) {
-			t.Skip("7z binary not found, skipping distro pull test")
+	// Check common paths for 7z (macOS and Linux)
+	sevenZipPaths := []string{"/usr/local/bin/7z", "/opt/homebrew/bin/7z", "/usr/bin/7z", "/bin/7z"}
+	found7z := false
+	for _, path := range sevenZipPaths {
+		if _, err := os.Stat(path); err == nil {
+			found7z = true
+			break
 		}
+	}
+	if !found7z {
+		t.Skip("7z binary not found, skipping distro pull test")
 	}
 
 	// Skip if docker is not available
-	if _, err := os.Stat("/usr/local/bin/docker"); os.IsNotExist(err) {
-		if _, err := os.Stat("/opt/homebrew/bin/docker"); os.IsNotExist(err) {
-			if _, err := os.Stat("/usr/bin/docker"); os.IsNotExist(err) {
-				t.Skip("docker binary not found, skipping distro pull test")
-			}
+	dockerPaths := []string{"/usr/local/bin/docker", "/opt/homebrew/bin/docker", "/usr/bin/docker", "/bin/docker"}
+	foundDocker := false
+	for _, path := range dockerPaths {
+		if _, err := os.Stat(path); err == nil {
+			foundDocker = true
+			break
 		}
+	}
+	if !foundDocker {
+		t.Skip("docker binary not found, skipping distro pull test")
 	}
 
 	// TODO: add fedora
@@ -52,7 +63,7 @@ func TestDistroPull_Integration(t *testing.T) {
 			expectError: false,
 			validateFunc: func(t *testing.T, homeDir string) {
 				// Verify expected files were created
-				expectedDir := filepath.Join(homeDir, "images", "ubuntu-24.04", "aarch64")
+				expectedDir := filepath.Join(homeDir, ".pvmlab", "images", "ubuntu-24.04", "aarch64")
 
 				// Check directory exists
 				if _, err := os.Stat(expectedDir); os.IsNotExist(err) {
@@ -82,7 +93,7 @@ func TestDistroPull_Integration(t *testing.T) {
 			expectError: false,
 			validateFunc: func(t *testing.T, homeDir string) {
 				// Verify expected files were created
-				expectedDir := filepath.Join(homeDir, "images", "ubuntu-24.04", "x86_64")
+				expectedDir := filepath.Join(homeDir, ".pvmlab", "images", "ubuntu-24.04", "x86_64")
 
 				// Check directory exists
 				if _, err := os.Stat(expectedDir); os.IsNotExist(err) {

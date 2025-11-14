@@ -20,6 +20,12 @@ var createRootfsScript []byte
 // UbuntuExtractor implements the Extractor interface for Ubuntu.
 type UbuntuExtractor struct{}
 
+// fileExists checks if a file exists
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 func (e *UbuntuExtractor) ExtractKernelAndInitrd(ctx context.Context, cfg *config.Config, distroInfo *config.ArchInfo, distroPath string) error {
 	color.Cyan("i Extracting PXE boot assets from rootfs...")
 
@@ -71,8 +77,10 @@ func (e *UbuntuExtractor) ExtractKernelAndInitrd(ctx context.Context, cfg *confi
 	}
 	defer os.RemoveAll(modulesDir)
 
-	// Extract lib/modules from the rootfs
-	tarCmd := exec.CommandContext(ctx, "tar", "-xzf", rootfsPath, "-C", modulesDir, "usr/lib/modules")
+	// Extract usr/lib/modules from the rootfs
+	// Modern Ubuntu uses merged /usr where /lib is a symlink to usr/lib
+	// When guestfish creates the tarball, it follows the symlink, so modules are at ./usr/lib/modules
+	tarCmd := exec.CommandContext(ctx, "tar", "-xzf", rootfsPath, "-C", modulesDir, "./usr/lib/modules")
 	if output, err := tarCmd.CombinedOutput(); err != nil {
 		if ctx.Err() == context.Canceled {
 			color.Yellow("\nOperation cancelled by user.")
@@ -82,10 +90,12 @@ func (e *UbuntuExtractor) ExtractKernelAndInitrd(ctx context.Context, cfg *confi
 		return fmt.Errorf("failed to extract modules from rootfs: %w", err)
 	}
 
+	cpioBaseDir := filepath.Join(modulesDir, "usr")
+
 	// Create the cpio archive
 	modulesCpioPath := filepath.Join(distroPath, "modules.cpio")
 	cpioCmd := exec.CommandContext(ctx, "sh", "-c", fmt.Sprintf("find . -print | cpio -o -H newc > %s", modulesCpioPath))
-	cpioCmd.Dir = filepath.Join(modulesDir, "usr") // Run from inside the temp dir, at the 'usr' level
+	cpioCmd.Dir = cpioBaseDir // Run from the appropriate base directory
 	if output, err := cpioCmd.CombinedOutput(); err != nil {
 		if ctx.Err() == context.Canceled {
 			color.Yellow("\nOperation cancelled by user.")
@@ -139,17 +149,26 @@ func (e *UbuntuExtractor) CreateRootfs(ctx context.Context, distroInfo *config.A
 		return fmt.Errorf("failed to make temporary script executable: %w", err)
 	}
 
-	// Step 3: Run the Docker container to create the rootfs tarball
-	color.Cyan("i Creating rootfs tarball via Docker (press Ctrl+C to cancel)...")
+	// Step 3: Run the script to create the rootfs tarball
+	// On Linux, run natively. On other platforms (macOS), use Docker.
+	var cmd *exec.Cmd
 
-	containerImagePath := filepath.Join("/images", qcow2Name)
-	containerScriptPath := filepath.Join("/images", filepath.Base(tmpfile.Name()))
-	cmd := exec.CommandContext(ctx, "docker", "run", "--rm",
-		"--privileged",
-		"-v", fmt.Sprintf("%s:/images", distroPath),
-		"debian:12",
-		"sh", "-c", fmt.Sprintf("chmod +x %s && %s \"$1\" \"$2\"", containerScriptPath, containerScriptPath), "sh", containerImagePath, distroName,
-	)
+	if os.Getenv("GOOS") == "linux" || fileExists("/proc/version") {
+		// Running on Linux - execute script directly
+		color.Cyan("i Creating rootfs tarball natively on Linux (press Ctrl+C to cancel)...")
+		cmd = exec.CommandContext(ctx, "sudo", tmpfile.Name(), qcow2Path, distroName)
+	} else {
+		color.Cyan("i Creating rootfs tarball via Docker (press Ctrl+C to cancel)...")
+		containerImagePath := filepath.Join("/images", qcow2Name)
+		containerScriptPath := filepath.Join("/images", filepath.Base(tmpfile.Name()))
+		cmd = exec.CommandContext(ctx, "docker", "run", "--rm",
+			"--privileged",
+			"-v", fmt.Sprintf("%s:/images", distroPath),
+			"debian:12",
+			containerScriptPath, containerImagePath, distroName,
+		)
+		fmt.Println(cmd)
+	}
 
 	// Stream the output directly to the console
 	cmd.Stdout = os.Stdout
@@ -161,7 +180,7 @@ func (e *UbuntuExtractor) CreateRootfs(ctx context.Context, distroInfo *config.A
 			color.Yellow("\nOperation cancelled by user.")
 			return nil // Return nil to avoid showing a scary error message
 		}
-		return fmt.Errorf("failed to create rootfs tarball via Docker: %w", err)
+		return fmt.Errorf("failed to create rootfs tarball: %w", err)
 	}
 
 	color.Green("✔ Rootfs tarball created successfully.")
