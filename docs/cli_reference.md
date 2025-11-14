@@ -171,6 +171,57 @@ Stops the VM and deletes its generated files (disk, ISO, logs, etc.).
 **Usage:**
 `pvmlab vm clean <name>`
 
+### `pvmlab vm copy <source> <destination>`
+
+Copies files to/from a VM using `scp`. One of the source or destination must be a remote path in the format `vm-name:/path/to/file`.
+
+**Usage:**
+`pvmlab vm copy <source> <destination> [flags]`
+
+**Arguments:**
+
+- `<source>`: The source path.
+- `<destination>`: The destination path.
+
+**Flags:**
+
+- `-r`, `--recursive`: Recursively copy entire directories.
+
+**Example:**
+
+```bash
+# Copy a local file to a VM
+pvmlab vm copy ./local-file.txt my-vm:/home/user/
+
+# Copy a file from a VM to the local machine
+pvmlab vm copy my-vm:/home/user/remote-file.txt ./
+```
+
+---
+
+## `pvmlab distro`
+
+Manages distributions that can be used to provision VMs.
+
+### `pvmlab distro ls`
+
+Lists available distributions and their status.
+
+**Usage:**
+`pvmlab distro ls`
+
+### `pvmlab distro pull`
+
+Downloads and extracts a distribution for PXE booting.
+
+**Usage:**
+`pvmlab distro pull [flags]`
+
+**Flags:**
+
+- `--distro`: The distribution to pull (e.g., `ubuntu-24.04`). Defaults to `ubuntu-24.04`.
+- `--arch`: The architecture of the distribution (`aarch64` or `x86_64`). Defaults to `aarch64`.
+
 ---
 
 ## `pvmlab provisioner docker`

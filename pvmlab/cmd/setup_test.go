@@ -10,8 +10,6 @@ import (
 	"testing"
 )
 
-
-
 // mockCmd is a mock implementation of exec.Cmd for testing purposes.
 type mockCmd struct {
 	RunFunc func() error
@@ -81,7 +79,7 @@ func TestSetupCommand(t *testing.T) {
 			// Reset mocks to default success behavior
 			ssh.GenerateKey = func(string) error { return nil }
 			socketvmnet.IsSocketVmnetRunning = func() (bool, error) { return true, nil }
-			execCommand = func(name string, arg ...string) *exec.Cmd {
+			execCommand = func(_ string, _ ...string) *exec.Cmd {
 				cmd := exec.Command("true")
 				return cmd
 			}
