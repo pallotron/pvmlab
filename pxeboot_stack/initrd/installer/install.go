@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
+	"installer/log"
 	"os"
 	"path/filepath"
 )
 
 // installOS downloads and installs the base operating system
 func installOS(config *InstallerConfig) error {
-	fmt.Println("  -> Installing base system...")
-	fmt.Printf("  -> Downloading rootfs from %s\n", config.RootfsURL)
+	log.Info("Installing base system...")
+	log.Info("Downloading rootfs from %s", config.RootfsURL)
 
 	// We will stream the download directly into the tar command to avoid
 	// saving the tarball to disk in the initrd.
@@ -19,18 +20,18 @@ func installOS(config *InstallerConfig) error {
 		return fmt.Errorf("failed to download and extract rootfs: %w", err)
 	}
 
-	fmt.Println("  -> Rootfs extracted successfully.")
+	log.Info("Rootfs extracted successfully.")
 
 	// Install the kernel
-	fmt.Println("  -> Installing kernel...")
+	log.Info("Installing kernel...")
 
 	// Construct the Kernel URL using the filename from the config
 	kernelURL := config.KernelURL
-	fmt.Printf("  -> Kernel URL: %s\n", kernelURL)
+	log.Info("Kernel URL: %s", kernelURL)
 
 	// The destination path for the kernel
 	kernelDestPath := filepath.Join("/mnt/target/boot", filepath.Base(config.KernelURL))
-	fmt.Printf("  -> Kernel Destination: %s\n", kernelDestPath)
+	log.Info("Kernel Destination: %s", kernelDestPath)
 
 	// Download the kernel using wget
 	if err := runCommand("wget", "-O", kernelDestPath, kernelURL); err != nil {
@@ -42,7 +43,7 @@ func installOS(config *InstallerConfig) error {
 		return fmt.Errorf("failed to set permissions on kernel: %w", err)
 	}
 
-	fmt.Println("  -> Kernel installed successfully.")
+	log.Info("Kernel installed successfully.")
 
 	return nil
 }

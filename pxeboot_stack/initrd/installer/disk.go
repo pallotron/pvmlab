@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"installer/log"
 	"os"
 	"strings"
 	"time"
@@ -9,7 +10,7 @@ import (
 
 // prepareDisk partitions, formats, and mounts the target disk, returning the disk path.
 func prepareDisk() (string, error) {
-	fmt.Println("  -> Detecting disks...")
+	log.Info("Detecting disks...")
 
 	// Find the first available disk (usually /dev/sda or /dev/vda)
 	var targetDisk string
@@ -24,22 +25,22 @@ func prepareDisk() (string, error) {
 		return "", fmt.Errorf("no suitable disk found")
 	}
 
-	fmt.Printf("  -> Found disk: %s\n", targetDisk)
+	log.Info("Found disk: %s", targetDisk)
 
 	// Print disk information for debugging
-	fmt.Println("  -> Dumping disk information...")
+	log.Info("Dumping disk information...")
 	if err := runCommand("parted", "-s", targetDisk, "print"); err != nil {
-		fmt.Printf("WARNING: Failed to print disk info: %v\n", err)
+		log.Warn("Failed to print disk info: %v", err)
 	}
 
 	// Zap any existing partition table to ensure a clean slate.
-	fmt.Println("  -> Wiping existing partition table...")
+	log.Info("Wiping existing partition table...")
 	if err := runCommand("sgdisk", "--zap-all", targetDisk); err != nil {
 		return "", fmt.Errorf("failed to wipe partition table: %w", err)
 	}
 
 	// Partition the disk
-	fmt.Println("  -> Partitioning disk...")
+	log.Info("Partitioning disk...")
 
 	// Use sgdisk for GPT partitioning
 	// Create EFI partition (+512MB)
@@ -52,14 +53,14 @@ func prepareDisk() (string, error) {
 		return "", fmt.Errorf("failed to create root partition: %w", err)
 	}
 
-	fmt.Println("  -> Partitioning complete")
+	log.Info("Partitioning complete")
 
 	// Wait for partitions to appear
-	fmt.Println("  -> Waiting for partitions...")
+	log.Info("Waiting for partitions...")
 	time.Sleep(2 * time.Second)
 
 	// Format partitions
-	fmt.Println("  -> Formatting partitions...")
+	log.Info("Formatting partitions...")
 
 	// Determine partition naming scheme
 	var efiPart, rootPart string
@@ -83,10 +84,10 @@ func prepareDisk() (string, error) {
 		return "", fmt.Errorf("failed to format root partition: %w (mkfs.ext4 not available - needs to be added to initrd)", err)
 	}
 
-	fmt.Println("  -> Disk preparation complete")
+	log.Info("Disk preparation complete")
 
 	// Mount partitions
-	fmt.Println("  -> Mounting partitions...")
+	log.Info("Mounting partitions...")
 
 	if err := os.MkdirAll("/mnt/target", 0755); err != nil {
 		return "", fmt.Errorf("failed to create mount point: %w", err)
@@ -104,7 +105,7 @@ func prepareDisk() (string, error) {
 		return "", fmt.Errorf("failed to mount EFI partition: %w", err)
 	}
 
-	fmt.Println("  -> Partitions mounted")
+	log.Info("Partitions mounted")
 
 	return targetDisk, nil
 }

@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	"installer/log"
 	"os"
 )
 
@@ -10,75 +10,75 @@ func main() {
 	// Catch any panics and drop to shell
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Printf("\n==> PANIC: %v\n", r)
-			fmt.Println("==> Dropping to debug shell...")
+			log.Panic("%v", r)
+			log.Title("Dropping to debug shell...")
 			dropToShell()
 		}
 	}()
 
-	fmt.Println("==> Go OS Installer started!")
+	log.Title("Go OS Installer started!")
 
-	fmt.Println("\n==> Phase 1: Network Setup")
+	log.Step("Phase 1: Network Setup")
 	netConfig, err := setupNetworking()
 	if err != nil {
-		fmt.Printf("ERROR: Failed to setup networking: %v\n", err)
+		log.Error("Failed to setup networking: %v", err)
 		dropToShell()
 		return
 	}
 
-	fmt.Println("\n==> Phase 2: Fetch Installer Configuration")
+	log.Step("Phase 2: Fetch Installer Configuration")
 	if netConfig.ConfigURL == "" {
-		fmt.Println("ERROR: config_url not found in kernel command line")
+		log.Error("config_url not found in kernel command line")
 		dropToShell()
 		return
 	}
-	fmt.Printf("==> Config URL: %s\n", netConfig.ConfigURL)
+	log.Title("Config URL: %s", netConfig.ConfigURL)
 	configBytes, err := fetchURL(netConfig.ConfigURL)
 	if err != nil {
-		fmt.Printf("ERROR: Failed to fetch installer config: %v\n", err)
+		log.Error("Failed to fetch installer config: %v", err)
 		dropToShell()
 		return
 	}
 	var installerConfig InstallerConfig
 	if err := json.Unmarshal(configBytes, &installerConfig); err != nil {
-		fmt.Printf("ERROR: Failed to parse installer config: %v\n", err)
+		log.Error("Failed to parse installer config: %v", err)
 		dropToShell()
 		return
 	}
 
-	fmt.Println("\n==> Phase 3: Fetch Cloud-Init Configuration")
+	log.Step("Phase 3: Fetch Cloud-Init Configuration")
 	cloudInit, err := fetchCloudInitData(installerConfig.CloudInitURL)
 	if err != nil {
-		fmt.Printf("ERROR: Failed to fetch cloud-init data: %v\n", err)
+		log.Error("Failed to fetch cloud-init data: %v", err)
 		dropToShell()
 		return
 	}
 
-	fmt.Println("\n==> Phase 4: Disk Preparation")
+	log.Step("Phase 4: Disk Preparation")
 	diskPath, err := prepareDisk()
 	if err != nil {
-		fmt.Printf("ERROR: Failed to prepare disk: %v\n", err)
+		log.Error("Failed to prepare disk: %v", err)
 		dropToShell()
 		return
 	}
 
-	fmt.Println("\n==> Phase 5: OS Installation")
+	log.Step("Phase 5: OS Installation")
 	if err := installOS(&installerConfig); err != nil {
-		fmt.Printf("ERROR: Failed to install OS: %v\n", err)
+		log.Error("Failed to install OS: %v", err)
 		dropToShell()
 		return
 	}
 
-	fmt.Println("\n==> Phase 6: System Configuration")
+	log.Step("Phase 6: System Configuration")
 	if err := configureSystem(cloudInit); err != nil {
-		fmt.Printf("ERROR: Failed to configure system: %v\n", err)
+		log.Error("Failed to configure system: %v", err)
 		dropToShell()
 		return
 	}
 
-	fmt.Println("\n==> Phase 7: Finalization")
+	log.Step("Phase 7: Finalization")
 	if err := finalize(installerConfig.RebootOnSuccess, installerConfig.Arch, installerConfig.Distro, diskPath); err != nil {
-		fmt.Printf("ERROR: Failed to finalize: %v\n", err)
+		log.Error("Failed to finalize: %v", err)
 		dropToShell()
 		return
 	}

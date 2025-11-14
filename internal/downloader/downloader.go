@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,8 +13,8 @@ import (
 )
 
 // DownloadFile downloads a file from a URL to a local path, with support for Range headers and a progress bar.
-func DownloadFile(path string, url string, rangeHeader string, totalSize int64, initialSize int64) error {
-	req, err := http.NewRequest("GET", url, nil)
+func DownloadFile(ctx context.Context, path string, url string, rangeHeader string, totalSize int64, initialSize int64) error {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return err
 	}
@@ -71,15 +72,20 @@ func DownloadFile(path string, url string, rangeHeader string, totalSize int64, 
 
 // DownloadImageIfNotExists checks if an image exists and downloads it if it doesn't,
 // supporting resumable downloads.
-var DownloadImageIfNotExists = func(imagePath, imageUrl string) error {
+var DownloadImageIfNotExists = func(ctx context.Context, imagePath, imageUrl string) error {
 	color.Cyan("i Checking for distro image at %s...", imageUrl)
 
 	// Get remote file size
-	resp, err := http.Head(imageUrl)
+	req, err := http.NewRequestWithContext(ctx, "HEAD", imageUrl, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create HEAD request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to get remote file headers: %w", err)
 	}
 	remoteSize := resp.ContentLength
+	resp.Body.Close()
 
 	localFileInfo, err := os.Stat(imagePath)
 	if err == nil {
@@ -93,7 +99,7 @@ var DownloadImageIfNotExists = func(imagePath, imageUrl string) error {
 			// Resume download
 			color.Cyan("i Resuming download of distro image from %s...", imageUrl)
 			rangeHeader := fmt.Sprintf("bytes=%d-", localSize)
-			if err := DownloadFile(imagePath, imageUrl, rangeHeader, remoteSize, localSize); err != nil {
+			if err := DownloadFile(ctx, imagePath, imageUrl, rangeHeader, remoteSize, localSize); err != nil {
 				return err
 			}
 			color.Green("✔ Download complete.")
@@ -104,7 +110,7 @@ var DownloadImageIfNotExists = func(imagePath, imageUrl string) error {
 
 	// File does not exist or needs re-downloading
 	color.Cyan("i Downloading distro image from %s...", imageUrl)
-	if err := DownloadFile(imagePath, imageUrl, "", remoteSize, 0); err != nil {
+	if err := DownloadFile(ctx, imagePath, imageUrl, "", remoteSize, 0); err != nil {
 		return err
 	}
 	color.Green("✔ Download complete.")

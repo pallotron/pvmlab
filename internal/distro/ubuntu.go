@@ -114,11 +114,11 @@ func (e *UbuntuExtractor) ExtractKernelAndInitrd(ctx context.Context, cfg *confi
 	return nil
 }
 
-func (e *UbuntuExtractor) CreateRootfs(ctx context.Context, distroInfo *config.ArchInfo, distroPath string) error {
+func (e *UbuntuExtractor) CreateRootfs(ctx context.Context, distroInfo *config.ArchInfo, distroName, distroPath string) error {
 	// Step 1: Download the qcow2 image
 	qcow2Name := filepath.Base(distroInfo.Qcow2URL)
 	qcow2Path := filepath.Join(distroPath, qcow2Name)
-	if err := downloader.DownloadImageIfNotExists(qcow2Path, distroInfo.Qcow2URL); err != nil {
+	if err := downloader.DownloadImageIfNotExists(ctx, qcow2Path, distroInfo.Qcow2URL); err != nil {
 		return err
 	}
 
@@ -148,7 +148,7 @@ func (e *UbuntuExtractor) CreateRootfs(ctx context.Context, distroInfo *config.A
 		"--privileged",
 		"-v", fmt.Sprintf("%s:/images", distroPath),
 		"debian:12",
-		"sh", "-c", fmt.Sprintf("chmod +x %s && %s \"$1\"", containerScriptPath, containerScriptPath), "sh", containerImagePath,
+		"sh", "-c", fmt.Sprintf("chmod +x %s && %s \"$1\" \"$2\"", containerScriptPath, containerScriptPath), "sh", containerImagePath, distroName,
 	)
 
 	// Stream the output directly to the console

@@ -127,7 +127,7 @@ func setupMocks(t *testing.T) {
 		}
 		return cfg, nil
 	}
-	downloader.DownloadImageIfNotExists = func(string, string) error {
+	downloader.DownloadImageIfNotExists = func(ctx context.Context, imagePath, imageUrl string) error {
 		return nil
 	}
 	createDisk = func(ctx context.Context, imagePath, vmDiskPath, diskSize string) error {

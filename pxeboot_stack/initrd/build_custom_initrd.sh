@@ -41,6 +41,12 @@ cp "/etc/terminfo/v/vt100" "${STAGE_DIR}/etc/terminfo/v/vt100"
 mkdir -p "${STAGE_DIR}/usr/share/udhcpc"
 cp "/usr/share/udhcpc/default.script" "${STAGE_DIR}/usr/share/udhcpc/default.script"
 
+# Copy mdev configuration for automatic network setup
+mkdir -p "${STAGE_DIR}/etc/mdev"
+cp "/work/mdev_conf/mdev.conf" "${STAGE_DIR}/etc/mdev.conf"
+cp "/work/mdev_conf/network-up.sh" "${STAGE_DIR}/etc/mdev/network-up.sh"
+chmod +x "${STAGE_DIR}/etc/mdev/network-up.sh"
+
 # Copy dynamic linker
 DYNAMIC_LINKER_PATH="/lib/ld-musl-${TARGET_ARCH}.so.1"
 mkdir -p "${STAGE_DIR}$(dirname "${DYNAMIC_LINKER_PATH}")"
@@ -61,6 +67,11 @@ for tool in $TOOLS; do
         fi
     done
 done
+
+# Copy udev rules
+echo "==> [${TARGET_ARCH}] Installing udev rules..."
+mkdir -p "${STAGE_DIR}/usr/lib/udev/rules.d"
+if [ -d /usr/lib/udev/rules.d ] && [ "$(ls -A /usr/lib/udev/rules.d)" ]; then cp -r /usr/lib/udev/rules.d/* "${STAGE_DIR}/usr/lib/udev/rules.d/"; fi
 
 echo "==> [${TARGET_ARCH}] Installing busybox symlinks..."
 (cd "${STAGE_DIR}/bin" && for P in $(./busybox --list); do ln -s busybox "$P"; done)

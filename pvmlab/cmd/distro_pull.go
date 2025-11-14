@@ -3,15 +3,41 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"os/signal"
 	"pvmlab/internal/config"
 	"pvmlab/internal/distro"
 	"pvmlab/internal/errors"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+
+func checkDockerMemory() error {
+	cmd := exec.Command("docker", "info", "--format", "{{.MemTotal}}")
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to get docker info: %w", err)
+	}
+
+	memTotalStr := strings.TrimSpace(string(output))
+	memTotal, err := strconv.ParseInt(memTotalStr, 10, 64)
+	if err != nil {
+		return fmt.Errorf("failed to parse docker memory info: %w", err)
+	}
+
+	// 4GB in bytes
+	if memTotal < 4095369216 {
+		return fmt.Errorf(
+			"your docker setup has less than 4GB of memory available to VMs. This may cause issues. " +
+				"If you use colima please run `colima stop && colima start --memory 4`")
+	}
+
+	return nil
+}
 
 // distroPullCmd represents the pull command
 var distroPullCmd = &cobra.Command{
@@ -24,6 +50,10 @@ var distroPullCmd = &cobra.Command{
 		}
 		if distroPullArch != "aarch64" && distroPullArch != "x86_64" {
 			return errors.E("distro-pull", fmt.Errorf("--arch must be either 'aarch64' or 'x86_64'"))
+		}
+
+		if err := checkDockerMemory(); err != nil {
+			color.Yellow("! Warning: %v", err)
 		}
 
 		cfg, err := config.New()
