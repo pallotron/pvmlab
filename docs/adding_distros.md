@@ -2,6 +2,8 @@
 
 This guide outlines the process for adding support for a new Linux distribution to `pvmlab`. The system is designed to be extensible, but each new distro requires some specific information to be gathered first.
 
+**Note for Colima Users:** If you are using Colima to run Docker containers, ensure it is configured with at least 4GB of RAM to prevent potential issues during the distribution setup process.
+
 ## Step 1: Gather Distribution Information
 
 Before making any code changes, you need to find the following information for the new distribution:

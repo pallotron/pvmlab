@@ -1,7 +1,7 @@
 # Interacting with the pxeboot Container
 
 The provisioner VM runs a Docker container that includes the entire pxeboot stack (DHCP, TFTP, HTTP services). This container is built from the sources in the `pxeboot_stack/` directory.
-
+More information about the pxeboot stack can be found in the [relative pxeboot_stack/README.md](pxeboot_stack/README.md).
 While you can interact with Docker directly inside the provisioner VM, the `pvmlab` CLI provides convenient wrapper commands to manage the container's lifecycle.
 
 ## Managing the Container with `pvmlab`

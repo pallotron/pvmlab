@@ -76,11 +76,11 @@ The diagram above illustrates the `pvmlab` architecture, which is composed of se
   - `virtual_net1_private`: A private, host-only network used for provisioning the target VMs.
 - **Provisioner VM:** An `aarch64` Ubuntu server that acts as the provisioning server for the lab. It runs a Docker container with the `pxeboot_stack` to provide the necessary services for network booting the target VMs. Its initial configuration is handled by `cloud-init`, defined in [`internal/cloudinit/cloudinit.go`](../internal/cloudinit/cloudinit.go).
 - **Target VM:** An `aarch64` Ubuntu server that is provisioned by the provisioner VM. It obtains its IP address and boot files from the `pxeboot_stack` container.
-- **`pxeboot_stack`:** A Docker container running on the provisioner VM that provides the following services. The container is defined in the [`pxeboot_stack/`](../pxeboot_stack/) directory. While `pvmlab` provides this default implementation, users can supply their own custom Docker container (in `.tar` format) to tailor the provisioning environment to their specific needs.
-  - **DHCP:** `dnsmasq` assigns IPv4 and IPv6 addresses to the target VMs. The configuration template is in [`dnsmasq.conf.template`](../pxeboot_stack/dnsmasq.conf.template).
-  - **TFTP:** `dnsmasq` serves the iPXE boot files to the target VMs.
-  - **HTTP:** An HTTP server (to be implemented) will serve the OS installer, cloud-init configuration, and other files to the target VMs.
-  - **IPv6 Router Advertisements:** `dnsmasq` provides IPv6 router advertisements to the target VMs, enabling them to set the provisioner VM as default gateway.
+- **`pxeboot_stack`:** A Docker container running on the provisioner VM that provides a fully automated, distro-agnostic OS installation environment. The container is defined in the [`pxeboot_stack/`](../pxeboot_stack/) directory. While `pvmlab` provides this default implementation, users can supply their own custom Docker container (in `.tar` format) to tailor the provisioning environment to their specific needs. It includes:
+  - **`dnsmasq`**: Provides DHCP for IP address assignment and TFTP to serve the initial iPXE bootloader.
+  - **`nginx`**: A web server that serves the OS kernel, root filesystems, and acts as a reverse proxy for the boot handler.
+  - **`boot_handler`**: A custom Go HTTP server that dynamically generates iPXE boot scripts and provides a JSON-based configuration to the OS installer, making the process stateless and flexible.
+  - **Custom Installer**: A generic, Go-based OS installer packaged into a custom `initrd`. It handles disk partitioning, formatting, OS installation from a rootfs tarball, and bootloader setup.
 
 ### Network Architecture
 
@@ -94,16 +94,38 @@ The network architecture is designed to provide both isolation and internet acce
 
 ## Provisioning Flow
 
-The following steps outline the automated provisioning process for a target VM:
+The provisioning process in `pvmlab` is designed to be robust and stateless, leveraging a "disk first, network second" boot strategy.
 
-1. The `pvmlab` CLI initiates the process by starting the `provisioner` VM.
-2. On its first boot, the `provisioner` VM is configured by `cloud-init`. This setup includes configuring network interfaces, installing Docker, and enabling essential networking services like IP forwarding.
-3. The `provisioner` VM launches the `pxeboot_stack` Docker container.
-4. This container exposes DHCP, TFTP, and (soon) HTTP services on the private network interface, creating a self-contained provisioning environment.
-5. The `pvmlab` CLI then starts a `target` VM.
-6. The `target` VM boots up and initiates a PXE boot sequence over the private network.
-7. The DHCP service within the `pxeboot_stack` assigns an IP address to the `target` VM and points it to the TFTP server for boot files.
-8. The `target` VM downloads and executes the iPXE boot script from the TFTP server.
-9. The iPXE script directs the `target` VM to fetch the operating system installer (kernel and initrd) from the HTTP server.
-10. The installer, in turn, retrieves its configuration (e.g., preseed or autoinstall files), which can include a `cloud-init` configuration, also from the HTTP server.
-11. The `target` VM completes the OS installation and configuration. It gains internet connectivity through the NAT service provided by the `provisioner` VM.
+1.  **Initiation**: The `pvmlab` CLI starts the `provisioner` VM. On its first boot, `cloud-init` configures the VM, installs Docker, and starts the `pxeboot_stack` container.
+
+2.  **Target VM First Boot (Blank Disk)**:
+    a. The `pvmlab` CLI starts a new `target` VM with a blank virtual disk. The VM's firmware is configured to attempt booting from the disk first, then from the network.
+    b. The disk boot **fails** as there is no bootloader.
+    c. The firmware automatically falls back to a **network (PXE) boot**.
+
+3.  **PXE Boot Process**:
+    a. The `target` VM sends a DHCP request on the private network.
+    b. `dnsmasq` (in the `pxeboot_stack` container) responds, assigning an IP address and providing the iPXE network bootloader (`ipxe-*.efi`) via TFTP.
+    c. The `target` VM loads iPXE, which then makes an HTTP request to the `boot_handler` service to fetch its boot script.
+
+4.  **Custom Installer Loading**:
+    a. The `boot_handler` service dynamically generates an iPXE script for the specific VM.
+    b. This script instructs the `target` VM to download two components from the `nginx` server:
+        - The **distro-specific kernel** (e.g., `vmlinuz`), which was previously extracted from the official distro ISO.
+        - A **generic, custom installer `initrd`**. This RAM disk contains the Go-based OS installer and all necessary tools.
+    c. The `target` VM boots this kernel and `initrd`, launching the custom OS installer.
+
+5.  **Automated OS Installation**:
+    a. The Go installer starts and fetches a JSON configuration file from the `boot_handler` service. This config contains URLs for the OS root filesystem, cloud-init settings, and other metadata.
+    b. The installer completely wipes the target disk and partitions it (EFI and root partitions).
+    c. It downloads the OS root filesystem tarball and extracts it to the newly created root partition.
+    d. It installs and configures the GRUB bootloader within the new OS environment.
+    e. It seeds the new OS with `cloud-init` data, which will configure the system (hostname, users, SSH keys) on its first real boot.
+    f. The installer triggers a reboot of the `target` VM.
+
+6.  **Subsequent Boots (Installed OS)**:
+    a. The `target` VM starts and again attempts to boot from the disk first.
+    b. This time, the boot **succeeds** because the installer has placed a valid GRUB bootloader on the disk.
+    c. The VM boots directly into the newly installed operating system. The network boot process is skipped entirely.
+
+This design ensures that re-provisioning is as simple as cleaning the VM's disk (`pvmlab vm clean`), which causes the next boot to automatically fall back to the network and repeat the installation process.
