@@ -128,7 +128,7 @@ var provisionerCreateCmd = &cobra.Command{
 		vmDiskPath := filepath.Join(appDir, "vms", vmName+".qcow2")
 		imageUrl, imageName := config.GetProvisionerImageURL(provArch)
 		imagePath := filepath.Join(appDir, "images", imageName)
-		if err := downloader.DownloadImageIfNotExists(imagePath, imageUrl); err != nil {
+		if err := downloader.DownloadImageIfNotExists(ctx, imagePath, imageUrl); err != nil {
 			return errors.E("provisioner-create", err)
 		}
 		if err := createDisk(ctx, imagePath, vmDiskPath, provDiskSize); err != nil {

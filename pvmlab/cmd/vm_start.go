@@ -273,7 +273,7 @@ func buildQEMUArgs(opts *vmStartOptions) ([]string, error) {
 	}
 
 	if interactive {
-		qemuArgs = append(qemuArgs, "-nographic", "-chardev", "stdio,id=char0,mux=on,signal=off", "-serial", "chardev:char0")
+		qemuArgs = append(qemuArgs, "-nographic", "-chardev", "stdio,id=char0,mux=on,signal=off", "-serial", "chardev:char0", "-mon", "chardev=char0")
 	} else {
 		qemuArgs = append(qemuArgs, "-display", "none", "-daemonize", "-serial", fmt.Sprintf("file:%s", logPath))
 	}
@@ -353,8 +353,17 @@ func runInteractiveSession(cmdRun *exec.Cmd) error {
 	color.Yellow("--- Interactive Console ---")
 	fmt.Println()
 	color.Cyan("You are about to connect to the VM's serial console.")
+	color.Cyan("The console is multiplexed with the QEMU monitor.")
 	fmt.Println()
-	color.Red("To exit the QEMU session, press: Ctrl-a x")
+	color.Red("To switch to the QEMU monitor, press: Ctrl+a c")
+	color.Red("To switch back to the serial console, press: Ctrl+a c")
+	color.Red("To terminate the VM, press: Ctrl+a x")
+	fmt.Println()
+	color.Yellow("Note: If you are using tmux, the prefix is Ctrl+a by default.")
+	color.Yellow("In that case, press Ctrl+a a c to switch.")
+	fmt.Println()
+	color.Yellow("To detach from the console without stopping the VM,")
+	color.Yellow("run this command inside a 'screen' or 'tmux' session and detach from it.")
 	fmt.Println()
 	color.Yellow("---------------------------")
 	fmt.Print("Press Enter to continue, or ESC to cancel...")

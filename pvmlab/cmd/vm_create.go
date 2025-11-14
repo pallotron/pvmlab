@@ -134,7 +134,7 @@ var vmCreateCmd = &cobra.Command{
 				return errors.E("vm-create", fmt.Errorf("failed to create distro image directory: %w", err))
 			}
 			imagePath := filepath.Join(distroPath, imageName)
-			if err := downloader.DownloadImageIfNotExists(imagePath, imageUrl); err != nil {
+			if err := downloader.DownloadImageIfNotExists(ctx, imagePath, imageUrl); err != nil {
 				return errors.E("vm-create", err)
 			}
 			if err := createDisk(ctx, imagePath, vmDiskPath, diskSize); err != nil {

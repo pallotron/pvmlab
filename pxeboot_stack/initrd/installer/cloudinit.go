@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"installer/log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,13 +35,12 @@ func fetchURL(url string) ([]byte, error) {
 
 // fetchCloudInitData fetches cloud-init configuration from the given base URL
 func fetchCloudInitData(baseURL string) (*CloudInitData, error) {
-	fmt.Println("  -> Fetching cloud-init configuration...")
-	fmt.Println("  -> Using wget (Go HTTP client has issues in u-root)")
+	log.Info("Fetching cloud-init configuration...")
 
 	cloudInit := &CloudInitData{}
 
 	// Fetch meta-data
-	fmt.Println("  -> Fetching meta-data...")
+	log.Info("Fetching meta-data...")
 	metaDataURL := baseURL + "/meta-data"
 	metaDataBytes, err := fetchURL(metaDataURL)
 	if err != nil {
@@ -49,10 +49,10 @@ func fetchCloudInitData(baseURL string) (*CloudInitData, error) {
 
 	cloudInit.MetaData = string(metaDataBytes)
 
-	fmt.Printf("  -> Meta-data fetched (%d bytes)\n", len(metaDataBytes))
+	log.Info("Meta-data fetched (%d bytes)", len(metaDataBytes))
 
 	// Fetch user-data
-	fmt.Println("  -> Fetching user-data...")
+	log.Info("Fetching user-data...")
 	userDataURL := baseURL + "/user-data"
 	userDataBytes, err := fetchURL(userDataURL)
 	if err != nil {
@@ -60,10 +60,10 @@ func fetchCloudInitData(baseURL string) (*CloudInitData, error) {
 	}
 
 	cloudInit.UserData = string(userDataBytes)
-	fmt.Printf("  -> User-data fetched (%d bytes)\n", len(userDataBytes))
+	log.Info("User-data fetched (%d bytes)", len(userDataBytes))
 
 	// Fetch network-config
-	fmt.Println("  -> Fetching network-config...")
+	log.Info("Fetching network-config...")
 	networkConfigURL := baseURL + "/network-config"
 	networkConfigBytes, err := fetchURL(networkConfigURL)
 	if err != nil {
@@ -71,14 +71,14 @@ func fetchCloudInitData(baseURL string) (*CloudInitData, error) {
 	}
 
 	cloudInit.NetworkConfig = string(networkConfigBytes)
-	fmt.Printf("  -> Network-config fetched (%d bytes)\n", len(networkConfigBytes))
+	log.Info("Network-config fetched (%d bytes)", len(networkConfigBytes))
 
 	return cloudInit, nil
 }
 
 // configureSystem writes cloud-init configuration to the target system
 func configureSystem(cloudInit *CloudInitData) error {
-	fmt.Println("  -> Configuring system with cloud-init data...")
+	log.Info("Configuring system with cloud-init data...")
 
 	// Create cloud-init directory
 	cloudInitDir := "/mnt/target/var/lib/cloud/seed/nocloud-net"
@@ -87,27 +87,27 @@ func configureSystem(cloudInit *CloudInitData) error {
 	}
 
 	// Write meta-data
-	fmt.Println("  -> Writing meta-data...")
+	log.Info("Writing meta-data...")
 	metaDataPath := filepath.Join(cloudInitDir, "meta-data")
 	if err := os.WriteFile(metaDataPath, []byte(cloudInit.MetaData), 0644); err != nil {
 		return fmt.Errorf("failed to write meta-data: %w", err)
 	}
 
 	// Write user-data
-	fmt.Println("  -> Writing user-data...")
+	log.Info("Writing user-data...")
 	userDataPath := filepath.Join(cloudInitDir, "user-data")
 	if err := os.WriteFile(userDataPath, []byte(cloudInit.UserData), 0644); err != nil {
 		return fmt.Errorf("failed to write user-data: %w", err)
 	}
 
 	// Write network-config
-	fmt.Println("  -> Writing network-config...")
+	log.Info("Writing network-config...")
 	networkConfigPath := filepath.Join(cloudInitDir, "network-config")
 	if err := os.WriteFile(networkConfigPath, []byte(cloudInit.NetworkConfig), 0644); err != nil {
 		return fmt.Errorf("failed to write network-config: %w", err)
 	}
 
-	fmt.Println("  -> Cloud-init configuration written")
+	log.Info("Cloud-init configuration written")
 
 	return nil
 }

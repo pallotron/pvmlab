@@ -9,7 +9,7 @@ import (
 // Extractor defines the interface for distribution-specific asset extraction.
 type Extractor interface {
 	ExtractKernelAndInitrd(ctx context.Context, cfg *config.Config, distroInfo *config.ArchInfo, distroPath string) error
-	CreateRootfs(ctx context.Context, distroInfo *config.ArchInfo, distroPath string) error
+	CreateRootfs(ctx context.Context, distroInfo *config.ArchInfo, distroName, distroPath string) error
 }
 
 // NewExtractor is a factory function that returns the correct extractor for a given distro.

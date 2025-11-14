@@ -12,6 +12,7 @@ import (
 	"github.com/fatih/color"
 )
 
+
 func Pull(ctx context.Context, cfg *config.Config, distroName, arch string) error {
 	if _, err := exec.LookPath("7z"); err != nil {
 		return fmt.Errorf("7z is not installed. Please install it to extract PXE boot assets")
@@ -28,12 +29,20 @@ func Pull(ctx context.Context, cfg *config.Config, distroName, arch string) erro
 		return fmt.Errorf("failed to enforce permissions on images directory: %w", err)
 	}
 
-	distroPath := filepath.Join(imagesDir, distroName, arch)
-	if err := os.MkdirAll(distroPath, 0755); err != nil {
+	distroDir := filepath.Join(imagesDir, distroName)
+	if err := os.MkdirAll(distroDir, 0755); err != nil {
 		return fmt.Errorf("failed to create distro directory: %w", err)
 	}
-	if err := os.Chmod(distroPath, 0755); err != nil {
+	if err := os.Chmod(distroDir, 0755); err != nil {
 		return fmt.Errorf("failed to enforce permissions on distro directory: %w", err)
+	}
+
+	distroPath := filepath.Join(distroDir, arch)
+	if err := os.MkdirAll(distroPath, 0755); err != nil {
+		return fmt.Errorf("failed to create arch directory: %w", err)
+	}
+	if err := os.Chmod(distroPath, 0755); err != nil {
+		return fmt.Errorf("failed to enforce permissions on arch directory: %w", err)
 	}
 
 	distro, ok := config.Distros[distroName]
@@ -51,7 +60,7 @@ func Pull(ctx context.Context, cfg *config.Config, distroName, arch string) erro
 		return err
 	}
 
-	if err := extractor.CreateRootfs(ctx, &distroInfo, distroPath); err != nil {
+	if err := extractor.CreateRootfs(ctx, &distroInfo, distro.DistroName, distroPath); err != nil {
 		return err
 	}
 

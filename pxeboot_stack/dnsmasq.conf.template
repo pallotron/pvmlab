@@ -39,7 +39,7 @@ dhcp-boot=tag:efi-aarch64,tag:!ipxe,ipxe-arm64.efi
 dhcp-match=set:ipxe,option:user-class,"iPXE"
 dhcp-boot=tag:ipxe,boot.ipxe
 
-dhcp-range=${DHCP_RANGE_START},${DHCP_RANGE_END},12h
+dhcp-range=${DHCP_RANGE_START},${DHCP_RANGE_END},1m
 dhcp-option=option:router,${PROVISIONER_IP}
 dhcp-option=option:dns-server,${PROVISIONER_IP}
 dhcp-option=66,${PROVISIONER_IP}
@@ -48,4 +48,4 @@ dhcp-option=option:tftp-server,${PROVISIONER_IP}
 # DHCPv6 configuration (to be improved/fixed)
 # Use a ULA (Unique Local Address) range for the private network.
 dhcp-option=option6:dns-server,[2001:4860:4860::8888],[2001:4860:4860::8844]
-dhcp-range=::2,::400,constructor:enp0s2,12h
+dhcp-range=::2,::400,constructor:enp0s2,1m

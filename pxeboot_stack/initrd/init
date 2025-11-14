@@ -12,14 +12,27 @@ mkdir -p /dev/pts
 mount -t devpts devpts /dev/pts
 mount -t efivarfs none /sys/firmware/efi/efivars 2>/dev/null || true
 
-echo "==> Loading kernel modules"
+echo "==> Creating /run directory for udev"
+mkdir -p /run
+
+echo "==> Decompressing kernel modules..."
+find /lib/modules -name "*.ko.xz" -exec xz -d {} \;
+
+echo "==> Running depmod -a"
 busybox depmod -a
-busybox modprobe nls_iso8859-1 &> /dev/null || true
+busybox modprobe vfat || true
+
+echo "==> Starting udev"
+/bin/udevd --daemon
+udevadm trigger --action=add --type=subsystems
+udevadm trigger --action=add --type=devices
+udevadm settle
+
+busybox modprobe nls_iso8859-1 || true
 
 
 # Default to install mode if not specified
 mode="install"
-cloud_init_url=""
 
 # Read the kernel command line and look for our custom arguments
 for arg in $(cat /proc/cmdline); do
@@ -27,17 +40,12 @@ for arg in $(cat /proc/cmdline); do
         initrd.mode=*)
             mode=${arg#*=}
             ;;
-        cloud_init_url=*)
-            cloud_init_url=${arg#*=}
-            ;;
     esac
 done
 
 echo "==> Boot mode: $mode"
-echo "==> Cloud-init URL: $cloud_init_url"
 
 # Export cloud_init_url for the installer to use
-export CLOUD_INIT_URL="$cloud_init_url"
 export PS1='initrd# '
 export TERM=xterm
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin

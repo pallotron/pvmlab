@@ -1,8 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
+	"installer/log"
 	"os"
 	"strings"
 	"time"
@@ -10,30 +10,30 @@ import (
 
 // setupNetworking configures the network interface
 func setupNetworking() (*NetworkConfig, error) {
-	fmt.Println("  -> Parsing network configuration from kernel command line...")
+	log.Info("Parsing network configuration from kernel command line...")
 
 	netConfig, err := parseNetworkConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse network config: %w", err)
 	}
 
-	fmt.Printf("  -> Network mode: %s\n", netConfig.IP)
+	log.Info("Network mode: %s", netConfig.IP)
 	if netConfig.MAC != "" {
-		fmt.Printf("  -> Target MAC: %s\n", netConfig.MAC)
+		log.Info("Target MAC: %s", netConfig.MAC)
 	}
 
 	// Find the network interface
-	fmt.Println("  -> Detecting network interfaces...")
+	log.Info("Detecting network interfaces...")
 	iface, err := findNetworkInterface(netConfig.MAC)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find network interface: %w", err)
 	}
 
 	netConfig.InterfaceName = iface
-	fmt.Printf("  -> Using interface: %s\n", iface)
+	log.Info("Using interface: %s", iface)
 
 	// Bring interface up
-	fmt.Println("  -> Bringing interface up...")
+	log.Info("Bringing interface up...")
 	if err := runCommand("ip", "link", "set", iface, "up"); err != nil {
 		return nil, fmt.Errorf("failed to bring interface up: %w", err)
 	}
@@ -51,13 +51,13 @@ func setupNetworking() (*NetworkConfig, error) {
 	}
 
 	// Wait a bit for network to be ready
-	fmt.Println("  -> Waiting for network to be ready...")
+	log.Info("Waiting for network to be ready...")
 	time.Sleep(2 * time.Second)
 
 	// Verify network is working
-	fmt.Println("  -> Verifying network connectivity...")
+	log.Info("Verifying network connectivity...")
 	if err := runCommand("ip", "addr", "show", iface); err != nil {
-		fmt.Printf("  -> Warning: failed to show interface details: %v\n", err)
+		log.Warn("failed to show interface details: %v", err)
 	}
 
 	return netConfig, nil
@@ -65,12 +65,11 @@ func setupNetworking() (*NetworkConfig, error) {
 
 // parseNetworkConfig reads /proc/cmdline and extracts network parameters
 func parseNetworkConfig() (*NetworkConfig, error) {
-	data, err := os.ReadFile("/proc/cmdline")
+	cmdline, err := getKernelCmdline()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read /proc/cmdline: %w", err)
 	}
 
-	cmdline := string(data)
 	config := &NetworkConfig{
 		IP: "dhcp", // default to DHCP
 	}
@@ -94,13 +93,13 @@ func parseNetworkConfig() (*NetworkConfig, error) {
 			config.MAC = value
 		case "config_url":
 			config.ConfigURL = value
-		// TODO: Add support for additional network parameters:
-		// case "netmask":
-		//     config.Netmask = value
-		// case "gateway":
-		//     config.Gateway = value
-		// case "dns":
-		//     config.DNS = value
+			// TODO: Add support for additional network parameters:
+			// case "netmask":
+			//     config.Netmask = value
+			// case "gateway":
+			//     config.Gateway = value
+			// case "dns":
+			//     config.DNS = value
 		}
 	}
 
@@ -166,48 +165,25 @@ func findFirstInterface() (string, error) {
 
 // setupDHCP configures the interface using DHCP
 func setupDHCP(iface string) error {
-	fmt.Printf("  -> Running DHCP on %s...\n", iface)
+	log.Info("Running DHCP on %s...", iface)
 
 	// Try using dhclient first
 	if err := runCommand("dhclient", "-v", iface); err == nil {
-		fmt.Println("  -> DHCP configuration successful (dhclient)")
+		log.Info("DHCP configuration successful (dhclient)")
 		return nil
 	}
 
 	// Fallback to udhcpc (common in minimal environments)
 	if err := runCommand("udhcpc", "-i", iface, "-n", "-q"); err == nil {
-		fmt.Println("  -> DHCP configuration successful (udhcpc)")
+		log.Info("DHCP configuration successful (udhcpc)")
 		return nil
 	}
 
 	// Fallback to dhcpcd
 	if err := runCommand("dhcpcd", iface); err == nil {
-		fmt.Println("  -> DHCP configuration successful (dhcpcd)")
+		log.Info("DHCP configuration successful (dhcpcd)")
 		return nil
 	}
 
 	return fmt.Errorf("no DHCP client available (tried dhclient, udhcpc, dhcpcd)")
-}
-
-// parseDNSServers reads /etc/resolv.conf and returns DNS servers
-func parseDNSServers() ([]string, error) {
-	file, err := os.Open("/etc/resolv.conf")
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var servers []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "nameserver") {
-			parts := strings.Fields(line)
-			if len(parts) >= 2 {
-				servers = append(servers, parts[1])
-			}
-		}
-	}
-
-	return servers, scanner.Err()
 }

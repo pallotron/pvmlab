@@ -96,6 +96,9 @@ var GenerateKey = func(privateKeyPath string) error {
 	if err := os.WriteFile(publicKeyPath, ssh.MarshalAuthorizedKey(publicKey), 0644); err != nil {
 		return fmt.Errorf("failed to write public key: %w", err)
 	}
+	if err := os.Chmod(publicKeyPath, 0644); err != nil {
+		return fmt.Errorf("failed to set public key permissions: %w", err)
+	}
 
 	return nil
 }

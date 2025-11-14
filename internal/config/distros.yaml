@@ -2,6 +2,8 @@
 # This file will be created at ~/.pvmlab/distros.yaml on the first run.
 # You can add, remove, or modify entries here.
 
+# NOTE: The kernel_path and initrd_path paths are version-specific and may need updates with new releases.
+
 - name: ubuntu-24.04
   distro_name: ubuntu
   version: "24.04"
@@ -21,5 +23,9 @@
   arch:
     aarch64:
       qcow2_url: "https://download.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/aarch64/images/Fedora-Cloud-Base-Generic.aarch64-40-1.14.qcow2"
+      kernel_path: "./boot/vmlinuz-6.8.5-301.fc40.x86_64"
+      initrd_path: "./boot/initramfs-6.8.5-301.fc40.x86_64.img"
     x86_64:
       qcow2_url: "https://download.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/x86_64/images/Fedora-Cloud-Base-Generic.x86_64-40-1.14.qcow2"
+      kernel_path: "./boot/vmlinuz-6.8.5-301.fc40.x86_64"
+      initrd_path: "./boot/initramfs-6.8.5-301.fc40.x86_64.img"

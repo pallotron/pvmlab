@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"installer/log"
 	"os"
 	"os/exec"
 	"strings"
@@ -12,12 +12,21 @@ func runCommand(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	fmt.Printf("  -> Running: %s %s\n", name, strings.Join(args, " "))
+	log.Command(name, args...)
 	return cmd.Run()
 }
 
 // dropToShell drops to a debug shell when an error occurs
 func dropToShell() {
-	fmt.Println("\n==> Installation failed, exiting...")
+	log.Step("Installation failed, exiting...")
 	os.Exit(1)
+}
+
+// getKernelCmdline reads and returns the kernel command line from /proc/cmdline.
+func getKernelCmdline() (string, error) {
+	data, err := os.ReadFile("/proc/cmdline")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
 }
