@@ -14,3 +14,4 @@ pxeboot_stack/initrd/installer/output/*
 pxeboot_stack/boot_handler/bin/*
 *_coverage.out
 coverage.out
+coverage.html

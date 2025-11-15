@@ -67,6 +67,7 @@ func TestMain(m *testing.M) {
 	originalCreateISO := createISO
 	originalCloudInitCreateISO := cloudinit.CreateISO
 	originalMetadataSave := metadata.Save
+	originalMetadataLoad := metadata.Load
 	originalMetadataFindProvisioner := metadata.FindProvisioner
 	originalMetadataFindVM := metadata.FindVM
 	originalMetadataGetAll := metadata.GetAll
@@ -85,6 +86,7 @@ func TestMain(m *testing.M) {
 		createISO = originalCreateISO
 		cloudinit.CreateISO = originalCloudInitCreateISO
 		metadata.Save = originalMetadataSave
+		metadata.Load = originalMetadataLoad
 		metadata.FindProvisioner = originalMetadataFindProvisioner
 		metadata.FindVM = originalMetadataFindVM
 		metadata.GetAll = originalMetadataGetAll
@@ -141,6 +143,9 @@ func setupMocks(t *testing.T) {
 	}
 	metadata.Save = func(*config.Config, string, string, string, string, string, string, string, string, string, string, string, string, string, string, int, bool, string) error {
 		return nil
+	}
+	metadata.Load = func(*config.Config, string) (*metadata.Metadata, error) {
+		return &metadata.Metadata{}, nil
 	}
 	metadata.FindProvisioner = func(*config.Config) (string, error) {
 		return "", nil // No provisioner exists by default
