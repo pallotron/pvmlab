@@ -69,7 +69,7 @@ Make sure launchd is configured to launch the socket_vmnet service.`,
 	},
 }
 
-func createDirectories(appDir string) error {
+var createDirectories = func(appDir string) error {
 	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 	s.Suffix = " Creating directory structure..."
 	s.Start()

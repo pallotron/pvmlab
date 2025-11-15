@@ -15,3 +15,4 @@ pxeboot_stack/boot_handler/bin/*
 *_coverage.out
 coverage.out
 coverage.html
+coverage.txt
