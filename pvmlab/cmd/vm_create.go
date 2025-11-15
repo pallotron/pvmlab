@@ -1,10 +1,8 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -18,9 +16,10 @@ import (
 	"pvmlab/internal/downloader"
 	"pvmlab/internal/errors"
 	"pvmlab/internal/metadata"
+	"pvmlab/internal/qemu"
 	"pvmlab/internal/ssh"
+	"pvmlab/internal/util"
 	"regexp"
-	"strings"
 	"syscall"
 	"time"
 
@@ -37,6 +36,9 @@ const (
 var (
 	ip, ipv6, mac, diskSize, arch string
 	pxeboot                       bool
+
+	// readFile is a wrapper around os.ReadFile to allow mocking in tests.
+	readFile = os.ReadFile
 )
 
 // vmCreateCmd represents the create command
@@ -61,6 +63,18 @@ var vmCreateCmd = &cobra.Command{
 			return errors.E("vm-create", fmt.Errorf("--distro is required for --pxeboot. Run 'pvmlab distro ls' to see a list of available distributions"))
 		}
 
+		cfg, err := config.New()
+		if err != nil {
+			return errors.E("vm-create", err)
+		}
+
+		if ip == "" {
+			if err := suggestNextIP(cfg); err != nil {
+				return errors.E("vm-create", fmt.Errorf("failed to suggest next available IP: %w", err))
+			}
+			return nil
+		}
+
 		if err := validateIP(ip); err != nil {
 			return err
 		}
@@ -69,16 +83,10 @@ var vmCreateCmd = &cobra.Command{
 			return err
 		}
 
-		cfg, err := config.New()
-		if err != nil {
-			return errors.E("vm-create", err)
-		}
 		appDir := cfg.GetAppDir()
-
 		if err := createDirectories(appDir); err != nil {
 			return errors.E("vm-create", fmt.Errorf("failed to create app directories: %w", err))
 		}
-
 		if err := metadata.CheckForDuplicateIPs(cfg, ip, ipv6); err != nil {
 			return errors.E("vm-create", err)
 		}
@@ -96,7 +104,7 @@ var vmCreateCmd = &cobra.Command{
 		if err := ssh.GenerateKey(sshKeyPath); err != nil {
 			return errors.E("vm-create", fmt.Errorf("failed to ensure ssh key exists: %w", err))
 		}
-		sshPubKey, err := os.ReadFile(sshKeyPath + ".pub")
+		sshPubKey, err := readFile(sshKeyPath + ".pub")
 		if err != nil {
 			return errors.E("vm-create", fmt.Errorf("failed to read ssh public key: %w", err))
 		}
@@ -228,7 +236,7 @@ func resolvePath(path, defaultPath string) (string, error) {
 	return defaultPath, nil
 }
 
-func checkExistingVMs(cfg *config.Config, vmName, role string) error {
+var checkExistingVMs = func(cfg *config.Config, vmName, role string) error {
 	if role == provisionerRole {
 		existingProvisioner, err := metadata.FindProvisioner(cfg)
 		if err != nil {
@@ -249,7 +257,7 @@ func checkExistingVMs(cfg *config.Config, vmName, role string) error {
 	return nil
 }
 
-func getMac(mac string) (string, error) {
+var getMac = func(mac string) (string, error) {
 	if err := validateMac(mac); err != nil {
 		return "", err
 	}
@@ -291,7 +299,7 @@ var createDisk = func(ctx context.Context, imagePath, vmDiskPath, diskSize strin
 	}
 
 	// Get base image size
-	baseImageSize, err := getImageVirtualSize(imagePath)
+	baseImageSize, err := qemu.GetImageVirtualSize(imagePath)
 	if err != nil {
 		// Don't fail the whole process, just warn and proceed.
 		// qemu-img will fail anyway if it's a shrink, and we can rely on that.
@@ -299,7 +307,7 @@ var createDisk = func(ctx context.Context, imagePath, vmDiskPath, diskSize strin
 		color.Yellow("Warning: could not determine base image size: %v. Proceeding with resize...", err)
 	} else {
 		// Get target disk size
-		targetDiskSize, err := parseSize(diskSize)
+		targetDiskSize, err := util.ParseSize(diskSize)
 		if err != nil {
 			// This should be caught by validation earlier, but as a safeguard:
 			return fmt.Errorf("invalid disk size format '%s': %w", diskSize, err)
@@ -368,86 +376,99 @@ var createBlankDisk = func(ctx context.Context, vmDiskPath, diskSize string) err
 }
 
 func copyFile(src, dst string) error {
+
 	in, err := os.Open(src)
+
 	if err != nil {
+
 		return err
+
 	}
+
 	defer in.Close()
 
 	out, err := os.Create(dst)
+
 	if err != nil {
+
 		return err
+
 	}
+
 	defer out.Close()
 
 	_, err = io.Copy(out, in)
+
 	if err != nil {
+
 		return err
+
 	}
+
 	return out.Close()
-}
 
-// getImageVirtualSize executes `qemu-img info` to get the virtual size of an image in bytes.
-func getImageVirtualSize(imagePath string) (int64, error) {
-	cmd := exec.Command("qemu-img", "info", "--output=json", imagePath)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
-		return 0, fmt.Errorf("failed to get image info for %s: %w", imagePath, err)
-	}
-
-	var info struct {
-		VirtualSize int64 `json:"virtual-size"`
-	}
-	if err := json.Unmarshal(out.Bytes(), &info); err != nil {
-		return 0, fmt.Errorf("failed to parse qemu-img info output: %w", err)
-	}
-
-	return info.VirtualSize, nil
-}
-
-// parseSize converts a size string like "10G", "512M", "2048K" into bytes.
-func parseSize(sizeStr string) (int64, error) {
-	var value int64
-	var unit string
-
-	// Try to parse with unit (e.g., "10G", "512M")
-	n, err := fmt.Sscanf(sizeStr, "%d%s", &value, &unit)
-	if err != nil || n != 2 {
-		// If parsing with unit fails, try to parse as just a number (bytes)
-		n, err = fmt.Sscanf(sizeStr, "%d", &value)
-		if err != nil || n != 1 {
-			return 0, fmt.Errorf("invalid size format '%s'. Expected format like '10G', '512M', or '2048'", sizeStr)
-		}
-		unit = "B" // Default to bytes if no unit is specified
-	}
-
-	unit = strings.ToUpper(unit)
-	switch unit {
-	case "K", "KB":
-		value *= 1024
-	case "M", "MB":
-		value *= 1024 * 1024
-	case "G", "GB":
-		value *= 1024 * 1024 * 1024
-	case "T", "TB":
-		value *= 1024 * 1024 * 1024 * 1024
-	case "", "B":
-		// value is already in bytes
-	default:
-		return 0, fmt.Errorf("unknown size unit '%s' in '%s'", unit, sizeStr)
-	}
-
-	return value, nil
 }
 
 func init() {
+
 	vmCmd.AddCommand(vmCreateCmd)
+
 	vmCreateCmd.Flags().StringVar(&mac, "mac", "", "The MAC address of the VM")
+
 	vmCreateCmd.Flags().StringVar(&ip, "ip", "", "The static IP address for the VM in CIDR format (e.g. 192.168.1.2/24)")
+
 	vmCreateCmd.Flags().StringVar(&ipv6, "ipv6", "", "The static IPv6 address for the VM in CIDR format (e.g. fd00:cafe:babe::2/64)")
+
 	vmCreateCmd.Flags().StringVar(&diskSize, "disk-size", "15G", "The size of the VM disk")
+
 	vmCreateCmd.Flags().BoolVar(&pxeboot, "pxeboot", false, "Create a VM that boots from the network for installation")
+
 	vmCreateCmd.Flags().StringVar(&arch, "arch", "aarch64", "The architecture of the VM ('aarch64' or 'x86_64')")
+
 	vmCreateCmd.Flags().StringVar(&distroName, "distro", "", "The distribution for the VM (e.g. ubuntu-24.04)")
+
+}
+
+func suggestNextIP(cfg *config.Config) error {
+	provisioner, err := metadata.GetProvisioner(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to get provisioner metadata: %w", err)
+	}
+	if provisioner == nil {
+		return fmt.Errorf("provisioner VM not found. Please create a provisioner first")
+	}
+
+	_, ipNet, err := net.ParseCIDR(provisioner.IP + "/24")
+	if err != nil {
+		return fmt.Errorf("failed to parse provisioner IP CIDR: %w", err)
+	}
+
+	ip4 := ipNet.IP.To4()
+	if ip4 == nil {
+		return fmt.Errorf("provisioner IP is not a valid IPv4 address")
+	}
+
+	allMeta, err := metadata.GetAll(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to get all VM metadata: %w", err)
+	}
+
+	usedIPs := make(map[string]bool)
+	for _, meta := range allMeta {
+		if meta.IP != "" {
+			usedIPs[meta.IP] = true
+		}
+	}
+
+	for i := 2; i < 255; i++ {
+		ip := net.IPv4(ip4[0], ip4[1], ip4[2], byte(i))
+		if !usedIPs[ip.String()] {
+			color.Yellow("The --ip flag is required.")
+			color.Cyan("  To create a VM with the next available IP, run:")
+			fmt.Printf("  pvmlab vm create <vm-name> --distro <distro> --ip %s/24\n", ip.String())
+			return nil
+		}
+	}
+
+	return fmt.Errorf("no available IPs in the range 100-254")
 }
