@@ -86,6 +86,14 @@ jobs:
           name: initrds
           path: pxeboot_stack/initrd/output
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build boot_handler binaries for multiple architectures
+        run: make -C pxeboot_stack build-boot-handler
+
       - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
