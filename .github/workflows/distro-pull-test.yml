@@ -47,9 +47,16 @@ jobs:
         run: |
           export RUN_INTEGRATION_TESTS=true
           export CI=true
-          go test -v -timeout 30m ./tests/integration -run TestDistroPull
+          go test -v -timeout 30m ./tests/integration -run TestDistroPull -coverprofile=coverage.txt
         env:
           PVMLAB_HOME: ${{ env.PVMLAB_HOME }}
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: distropulltests
+          verbose: true
 
       - name: Check Downloaded Files
         if: always()
