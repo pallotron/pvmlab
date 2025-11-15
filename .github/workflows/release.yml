@@ -89,7 +89,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: "1.25.1"
 
       - name: Build boot_handler binaries for multiple architectures
         run: make -C pxeboot_stack build-boot-handler
