@@ -60,6 +60,63 @@ ARM64 provisioner images must be built and uploaded manually because GitHub's AR
 - [ ] Verify both images are available in the release
 - [ ] Test download and deployment of both architectures
 
+## Manual PXE Boot Container Build and Push
+
+If the automated GitHub Actions workflow fails or you need to push a container manually without creating a release tag:
+
+### Prerequisites
+
+- Docker with buildx support
+- GitHub Personal Access Token with `write:packages` scope
+- 1Password CLI (`op`) if storing token in 1Password
+
+### Steps
+
+1. **Sign in to 1Password (if using):**
+
+   ```bash
+   eval $(op signin)
+   ```
+
+2. **Log in to GitHub Container Registry:**
+
+   ```bash
+   # Using 1Password CLI
+   op read "op://Private/GitHub Personal Access Token/password" | docker login ghcr.io -u YOUR_USERNAME --password-stdin
+
+   # Or using environment variable
+   export GITHUB_TOKEN=your_token_here
+   echo $GITHUB_TOKEN | docker login ghcr.io -u YOUR_USERNAME --password-stdin
+   ```
+
+   Replace "GitHub Personal Access Token" accordingly to your 1password vault.
+
+3. **Build initrds:**
+
+   ```bash
+   git submodule update --init --recursive
+   make -C pxeboot_stack/initrd all
+   ```
+
+4. **Build boot_handler binaries:**
+
+   ```bash
+   make -C pxeboot_stack build-boot-handler
+   ```
+
+5. **Build and push the container:**
+
+   ```bash
+   docker buildx build \
+     --platform linux/amd64,linux/arm64 \
+     --push \
+     --tag ghcr.io/pallotron/pvmlab/pxeboot_stack:manual \
+     --tag ghcr.io/pallotron/pvmlab/pxeboot_stack:latest \
+     ./pxeboot_stack
+   ```
+
+   You can replace `manual` with any tag you prefer (e.g., `v0.0.3`, `dev`, etc.)
+
 ## Example
 
 ```bash
