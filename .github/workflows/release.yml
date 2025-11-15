@@ -28,35 +28,50 @@ jobs:
     needs: create-release
     permissions:
       contents: write
-    strategy:
-      matrix:
-        arch: [amd64, arm64]
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        if: matrix.arch == 'arm64'
-        uses: docker/setup-qemu-action@v3
-
-      - name: Build image
+      - name: Build AMD64 image
         run: |
-          ./image_builder/build-image.sh ${{ matrix.arch }}
+          ./image_builder/build-image.sh amd64
 
-      - name: Upload Release Asset
+      - name: Upload AMD64 Release Asset
         id: upload-release-asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./image_builder/output/provisioner-custom.${{ matrix.arch }}.qcow2
-          asset_name: provisioner-custom.${{ matrix.arch }}.qcow2
+          asset_path: ./image_builder/output/provisioner-custom.amd64.qcow2
+          asset_name: provisioner-custom.amd64.qcow2
           asset_content_type: application/octet-stream
 
-  build-and-push-pxeboot-container:
+  build-initrds:
     needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize all submodules
+        run: git submodule update --init --recursive
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Build initrds
+        run: make -C pxeboot_stack/initrd all
+
+      - name: Upload initrds artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: initrds
+          path: pxeboot_stack/initrd/output
+
+  build-and-push-pxeboot-container:
+    needs: build-initrds
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -64,6 +79,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Download initrds artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: initrds
+          path: pxeboot_stack/initrd/output
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
