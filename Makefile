@@ -11,7 +11,7 @@ endif
 
 LDFLAGS = -ldflags="-X 'pvmlab/internal/config.Version=$(BUILD_VERSION)'"
 
-.PHONY: isntall socket_vmnet clean clean.iso install.socket_vmnet install.socket_vmnet.launchd install.completions test integration.test uninstall uninstall-pvmlab uninstall.socket_vmnet uninstall.launchd uninstall.completions uninstall-pxeboot-stack-container clean.initrd clean.socket_vmnet build.socket_vmnet build-pxeboot-stack-container release lint lint.md clean.iso clean.initrd
+.PHONY: isntall socket_vmnet clean clean.iso install.socket_vmnet install.socket_vmnet.launchd install.completions test test.coverage integration.test uninstall uninstall-pvmlab uninstall.socket_vmnet uninstall.launchd uninstall.completions uninstall-pxeboot-stack-container clean.initrd clean.socket_vmnet build.socket_vmnet build-pxeboot-stack-container release lint lint.md clean.iso clean.initrd
 
 install: install-pvmlab build.socket_vmnet install.completions install.socket_vmnet install.launchd build-pxeboot-stack-container
 	@echo "🚀"
@@ -201,8 +201,21 @@ lint.md:
 	fi
 	markdownlint --disable MD013 MD033 MD041 --fix $(MD_FILES)
 
-test: 
+test:
 	RUN_INTEGRATION_TESTS=false go test ./...
+
+test.coverage:
+	@echo "Running tests with coverage..."
+	@RUN_INTEGRATION_TESTS=false go test ./... -coverprofile=coverage.txt -covermode=atomic
+	@echo ""
+	@echo "Coverage summary:"
+	@go tool cover -func=coverage.txt | tail -1
+	@echo ""
+	@echo "Detailed coverage by package:"
+	@go tool cover -func=coverage.txt | grep -E "^total:|pvmlab/" | grep -v ".pb.go"
+	@echo ""
+	@echo "HTML coverage report generated at coverage.html"
+	@go tool cover -html=coverage.txt -o coverage.html
 
 integration.test: 
 	@make -C pxeboot_stack tar
