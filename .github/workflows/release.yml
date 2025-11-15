@@ -31,10 +31,14 @@ jobs:
     strategy:
       matrix:
         arch: [amd64, arm64]
-    runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-latest' || 'ubuntu-latest-arm64' }}
+    runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
 
       - name: Build image
         run: |
