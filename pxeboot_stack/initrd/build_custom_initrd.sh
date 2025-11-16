@@ -79,14 +79,11 @@ echo "==> [${TARGET_ARCH}] Installing busybox symlinks..."
 # Ensure /bin/reboot is a relative symlink to busybox
 ln -sf busybox "${STAGE_DIR}/bin/reboot"
 
-echo "==> [${TARGET_ARCH}] Contents of staging directory (${STAGE_DIR}):"
-find "${STAGE_DIR}" -print
-
 echo "==> [${TARGET_ARCH}] Creating initramfs archive..."
 mkdir -p "/work/${OUTPUT_DIR}/${TARGET_ARCH}"
 cd "${STAGE_DIR}"
 find . -print0 \
-| cpio --null -ov --format=newc \
+| cpio --null -o --format=newc \
 | gzip -9 > "/work/${OUTPUT_DIR}/${TARGET_ARCH}/initrd.gz"
 
 echo "==> [${TARGET_ARCH}] Build complete."
