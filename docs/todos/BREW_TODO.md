@@ -4,70 +4,65 @@ This document outlines the plan to create and maintain a Homebrew formula for `p
 
 ## Goal
 
-The primary goal is to provide a seamless, standard installation method for macOS users via the `brew` command. This will handle dependencies, install the necessary binaries, and guide the user through the required one-time privileged setup in a simple and secure manner.
+The primary goal is to provide a seamless, standard installation method for macOS users via the `brew` command. This will handle dependencies, install the necessary binaries, and set up the required launchd service.
 
-## Chosen Approach: Formula with a Post-Install Helper Script
+## Formula (`pvmlab.rb`) Implementation
 
-We will adopt the "Helper Script" method. This approach offers the best balance of a simplified user experience and manageable developer effort. It avoids the complexity of creating a full `.pkg` installer while still reducing the post-install steps to a single command for the user.
+The formula will be hosted in a new, dedicated public GitHub repository named `homebrew-pvmlab`.
 
-### Key Tasks
+### 1. Metadata and Source
 
-#### 1. Create the `pvmlab-post-install.sh` Helper Script
+-   **Metadata:** `desc`, `homepage`, `license`.
+-   **Source:** A `url` pointing to a specific versioned release tarball (e.g., `.../archive/refs/tags/v0.1.0.tar.gz`) and a corresponding `sha256` checksum.
 
-This script will encapsulate all the setup steps that require `sudo`.
+### 2. Dependencies
 
-- **Purpose:** To be the single entry point for users to authorize the installation of privileged components.
-- **Location:** The script will be created in the `launchd/` directory of the main repository.
-- **Functionality:** The script must perform the following actions:
-  1. Accept the Homebrew formula's installation prefix (e.g., `/opt/homebrew/opt/pvmlab`) as an argument to locate the necessary files.
-  2. Install the `socket_vmnet` binary to `/opt/socket_vmnet/bin/`.
-  3. Set the correct ownership (`root:staff`) and permissions (`555`, `u+s`) on the `socket_vmnet` binary.
-  4. Install the `socket_vmnet_wrapper.sh` script to `/opt/pvmlab/libexec/`.
-  5. Install the `io.github.pallotron.pvmlab.socket_vmnet.plist` launchd service file to `/Library/LaunchDaemons/`.
-  6. Unload any existing version of the launchd service before loading the new one to ensure clean upgrades.
-  7. Bootstrap and enable the new launchd service using `launchctl`.
-  8. Provide clear, user-friendly output at each step.
+The formula must declare all necessary dependencies.
 
-#### 2. Create the `pvmlab.rb` Homebrew Formula
+```ruby
+depends_on "go" => :build
+depends_on "qemu"
+depends_on "cdrtools"
+depends_on "socat"
+depends_on "socket_vmnet"
+```
 
-This Ruby script will define how Homebrew builds and installs `pvmlab`.
+### 3. `install` Block
 
-- **Location:** This formula will be hosted in a new, dedicated public GitHub repository named `homebrew-pvmlab`. The file will reside at `Formula/pvmlab.rb`.
-- **Content:** The formula will contain:
+The `install` block will perform the following actions:
 
-  1. **Metadata:** `desc`, `homepage`, `license`.
-  2. **Source:** A `url` pointing to a specific versioned release tarball (e.g., `.../archive/refs/tags/v0.1.0.tar.gz`) and a corresponding `sha256` checksum.
-  3. **Dependencies:** `depends_on "go" => :build` and `depends_on "qemu"`.
-  4. **`install` Block:**
-     - Compile the main `pvmlab` binary from source, injecting the version number using `-ldflags`.
-     - Install the compiled `pvmlab` binary to `bin/`.
-     - `cd` into the `socket_vmnet` directory and run `make all`.
-     - Install the non-privileged `socket_vmnet_client` to `bin/`.
-     - Install the privileged components (`socket_vmnet`, `socket_vmnet_wrapper.sh`, and the `.plist` file) into the formula's `prefix` so the post-install script can access them.
-     - Install the `pvmlab-post-install.sh` script into `bin/`.
-     - Install shell completions (`bash`, `zsh`).
-  5. **`caveats` Block:**
+1.  **Compile `pvmlab`:**
+    -   Compile the main `pvmlab` binary from source, injecting the version number using `-ldflags`.
+    -   Install the compiled `pvmlab` binary to `bin/`.
 
-     - Provide a clear, simple message instructing the user to run the single post-install command:
+2.  **Install Supporting Files:**
+    -   Install the `socket_vmnet_wrapper.sh` script to the formula's `libexec` directory (`libexec.install "launchd/socket_vmnet_wrapper.sh"`).
+    -   Install the `io.github.pallotron.pvmlab.socket_vmnet.plist` launchd service file into the formula's prefix for later use (`prefix.install "launchd/io.github.pallotron.pvmlab.socket_vmnet.plist"`).
 
-     To complete the installation, you must run the post-install script with sudo:
+3.  **Install Shell Completions:**
+    -   Generate and install shell completions for `bash` and `zsh`.
 
-     ```shell
-       sudo pvmlab-post-install /opt/homebrew/opt/pvmlab
-     ```
+### 4. `post_install` or `caveats` Block
 
-  6. **`test` Block:**
-     - Include a simple test to verify the binary runs and reports the correct version (e.g., `shell_output("#{bin}/pvmlab --version")`).
+Since installing and loading a launchd service requires `sudo`, Homebrew cannot do this automatically. The formula must provide clear instructions to the user.
 
-#### 3. Document the User Installation Process
+A `caveats` message is the most appropriate way to handle this. It will instruct the user to run a command to finalize the setup. We can add a dedicated command to `pvmlab` for this purpose, for example `pvmlab system setup-launchd`.
 
-Update the main `README.md` and any installation documentation with the new, simplified instructions.
+The `caveats` message would look like this:
 
-- **Instructions:**
-  1. Tap the formula repository: `brew tap pallotron/pvmlab`
-  2. Install the formula: `brew install pvmlab`
-  3. Run the post-install command as instructed by the installer's output.
+```
+To complete the installation and set up the networking service, run the following command:
 
-## Alternative Considered
+  sudo pvmlab system setup-launchd
+```
 
-- **Homebrew Cask with `.pkg` Installer:** This provides a fully native, GUI-driven installation. While it offers the best user experience, it was deemed overly complex for the current stage of the project due to the high overhead of creating, signing, and notarizing a macOS installer package. The helper script approach provides a comparable level of simplicity for the user with significantly less developer effort.
+### 5. `pvmlab system setup-launchd` Command
+
+This new command needs to be created within the `pvmlab` CLI. It will perform the necessary privileged operations:
+
+1.  Create the `/opt/pvmlab/libexec/` directory.
+2.  Copy the `socket_vmnet_wrapper.sh` from the Homebrew `libexec` directory to `/opt/pvmlab/libexec/`.
+3.  Copy the `.plist` file from the Homebrew prefix to `/Library/LaunchDaemons/`.
+4.  Load and start the launchd service using `launchctl`.
+
+This approach keeps the Homebrew formula clean and informs the user about the necessary `sudo` command, which is standard practice for formulas requiring elevated permissions.

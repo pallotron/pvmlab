@@ -133,7 +133,6 @@ func checkDependencies() error {
 
 	// Special check for socket_vmnet
 	socketVmnetPaths := []string{
-		"/opt/socket_vmnet/bin/socket_vmnet",
 		"/opt/homebrew/opt/socket_vmnet/bin/socket_vmnet",
 	}
 	foundSocketVmnet := false

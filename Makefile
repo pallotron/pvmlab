@@ -13,10 +13,10 @@ LDFLAGS = -ldflags="-X 'pvmlab/internal/config.Version=$(BUILD_VERSION)'"
 
 .PHONY: isntall socket_vmnet clean clean.iso install.socket_vmnet install.socket_vmnet.launchd install.completions test test.coverage integration.test uninstall uninstall-pvmlab uninstall.socket_vmnet uninstall.launchd uninstall.completions uninstall-pxeboot-stack-container clean.initrd clean.socket_vmnet build.socket_vmnet build-pxeboot-stack-container release lint lint.md clean.iso clean.initrd
 
-install: install-pvmlab build.socket_vmnet install.completions install.socket_vmnet install.launchd build-pxeboot-stack-container
+install: install-pvmlab install.completions install.launchd build-pxeboot-stack-container
 	@echo "🚀"
 	
-clean: clean.socket_vmnet clean.iso clean.initrd
+clean: clean.iso clean.initrd
 	@make -C pxeboot_stack clean
 
 clean.iso:
@@ -29,19 +29,6 @@ clean.initrd:
 
 install-pvmlab:
 	go install $(LDFLAGS) ./pvmlab
-
-build.socket_vmnet:
-	logger echo "Building socket_vmnet..."
-	make -C socket_vmnet all
-
-clean.socket_vmnet:
-	logger echo "Cleaning socket_vmnet..."
-	make -C socket_vmnet clean
-
-install.socket_vmnet: build.socket_vmnet
-	logger "Installing socket_vmnet... sudo access might be required..."
-	sudo make -C socket_vmnet install.bin
-	sudo chown root:staff /opt/socket_vmnet/bin/socket_vmnet_client
 
 build-pxeboot-stack-container:
 	@make -C pxeboot_stack all
@@ -128,7 +115,7 @@ release:
 	git push origin $(VERSION)
 	@echo "🎉"
 
-uninstall: uninstall-pvmlab uninstall.socket_vmnet uninstall.launchd uninstall.completions uninstall-pxeboot-stack-container
+uninstall: uninstall-pvmlab uninstall.launchd uninstall.completions uninstall-pxeboot-stack-container
 	@echo "Uninstall complete."
 	@echo "👋"
 
@@ -141,15 +128,6 @@ uninstall-pvmlab:
 		echo "Removed $$(go env GOPATH)/bin/pvmlab"; \
 	else \
 		echo "pvmlab binary not found, skipping."; \
-	fi
-
-uninstall.socket_vmnet:
-	@echo "Uninstalling socket_vmnet..."
-	@sudo rm -f /var/run/vmlab.socket_vmnet
-	@if [ -f "/opt/socket_vmnet/bin/socket_vmnet" ]; then \
-		sudo make -C socket_vmnet uninstall; \
-	else \
-		echo "socket_vmnet not found, skipping."; \
 	fi
 
 uninstall.completions:

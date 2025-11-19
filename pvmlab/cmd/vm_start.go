@@ -456,7 +456,6 @@ func getSocketVMNetClientPath() (string, error) {
 	}
 
 	paths := []string{
-		"/opt/socket_vmnet/bin/socket_vmnet_client",
 		"/opt/homebrew/opt/socket_vmnet/bin/socket_vmnet_client",
 	}
 	for _, p := range paths {

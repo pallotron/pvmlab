@@ -71,7 +71,7 @@ The diagram above illustrates the `pvmlab` architecture, which is composed of se
 
 - **Hypervisor Host:** This is the machine where the lab is running, typically a macOS system. It hosts the `pvmlab` CLI, the VMs, and the networking components.
 - **`pvmlab` CLI:** The command-line interface is the primary tool for managing the lab. It is responsible for creating, starting, stopping, and deleting VMs, as well as managing the `socket_vmnet` service and the `pxeboot_stack` container. The main entrypoint for the CLI is in [`pvmlab/main.go`](../pvmlab/main.go) and the commands are defined in the [`pvmlab/cmd/`](../pvmlab/cmd/) directory.
-- **`socket_vmnet`:** This component, included as a submodule in the [`socket_vmnet/`](../socket_vmnet/) directory, leverages Apple's `vmnet.framework` to create virtual networks for the VMs. It provides two networks:
+- **`socket_vmnet`:** This component leverages Apple's `vmnet.framework` to create virtual networks for the VMs. It provides two networks:
   - `virtual_net0_shared`: A shared network that connects to the host's `en0` interface, providing internet access to the provisioner VM.
   - `virtual_net1_private`: A private, host-only network used for provisioning the target VMs.
 - **Provisioner VM:** An `aarch64` Ubuntu server that acts as the provisioning server for the lab. It runs a Docker container with the `pxeboot_stack` to provide the necessary services for network booting the target VMs. Its initial configuration is handled by `cloud-init`, defined in [`internal/cloudinit/cloudinit.go`](../internal/cloudinit/cloudinit.go).
