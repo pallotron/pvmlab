@@ -15,7 +15,7 @@ fi
 
 NETWORK_IDENTIFIER=$(cat "${IDENTIFIER_FILE}")
 
-exec /opt/socket_vmnet/bin/socket_vmnet \
+exec /opt/homebrew/opt/socket_vmnet/bin/socket_vmnet \
     --vmnet-mode=host \
     --vmnet-network-identifier="${NETWORK_IDENTIFIER}" \
     /var/run/vmlab.socket_vmnet

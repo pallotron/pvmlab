@@ -20,15 +20,6 @@ func GetSocketPath() (string, error) {
 		return socketPath, nil
 	}
 
-	// TODO: when https://github.com/lima-vm/socket_vmnet/pull/140 is merged
-	// we can use the brew socket_vmnet path
-	// cmd := exec.Command("brew", "--prefix")
-	// out, err := cmd.Output()
-	// if err != nil {
-	// 	return "", err
-	// }
-	// prefix := strings.TrimSpace(string(out))
-	// return prefix + "/var/run/socket_vmnet", nil
 	return "/var/run/vmlab.socket_vmnet", nil
 }
 

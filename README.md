@@ -56,12 +56,12 @@ For a detailed explanation of the project's architecture, features, and VM roles
 2. **Clone the Repository:**
 
    ```bash
-   git clone --recurse-submodules https://github.com/pallotron/pvmlab.git
+   git clone https://github.com/pallotron/pvmlab.git
    cd pvmlab
    ```
 
 3. **Build and Install:**
-   This command compiles the `pvmlab` CLI, installs the `socket_vmnet` daemons, builds the pxeboot stack Docker container, and sets up shell completion.
+   This command compiles the `pvmlab` CLI, builds the pxeboot stack Docker container, and sets up shell completion.
 
    ```bash
    make install
