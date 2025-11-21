@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for release'
+        required: false
+        default: 'v0.0.0-test'
 
 jobs:
   create-release:
@@ -20,8 +25,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          tag_name: ${{ inputs.tag_name || github.ref_name }}
+          release_name: Release ${{ inputs.tag_name || github.ref_name }}
           draft: false
           prerelease: false
 
@@ -29,24 +34,31 @@ jobs:
     needs: create-release
     permissions:
       contents: write
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Build AMD64 image
+      - name: Build ${{ matrix.arch }} image
         run: |
-          ./image_builder/build-image.sh amd64
+          ./image_builder/build-image.sh ${{ matrix.arch }}
 
-      - name: Upload AMD64 Release Asset
+      - name: Upload ${{ matrix.arch }} Release Asset
         id: upload-release-asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./image_builder/output/provisioner-custom.amd64.qcow2
-          asset_name: provisioner-custom.amd64.qcow2
+          asset_path: ./image_builder/output/provisioner-custom.${{ matrix.arch }}.qcow2
+          asset_name: provisioner-custom.${{ matrix.arch }}.qcow2
           asset_content_type: application/octet-stream
 
   build-initrds:
@@ -55,9 +67,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Initialize all submodules
-        run: git submodule update --init --recursive
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
