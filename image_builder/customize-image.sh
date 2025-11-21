@@ -13,7 +13,7 @@ fi
 echo "Updating container and installing dependencies..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y libguestfs-tools qemu-utils cloud-guest-utils curl
+apt-get install -y libguestfs-tools qemu-utils qemu-system-arm cloud-guest-utils curl
 
 # --- Customize the Image ---
 echo "Starting image customization..."

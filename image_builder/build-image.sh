@@ -27,6 +27,7 @@ cp "${IMAGE_DIR}/${BASE_IMAGE_NAME}" "${IMAGE_DIR}/${CUSTOM_IMAGE_NAME}"
 # --- Run Customization in Docker ---
 echo "Running customization script in Docker..."
 docker run --rm \
+    --platform "linux/${ARCH}" \
     --privileged \
     -v "${IMAGE_DIR}:/images" \
     -v "${BUILD_DIR}/files:/files" \
