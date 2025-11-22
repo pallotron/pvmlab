@@ -10,30 +10,6 @@ import (
 	"testing"
 )
 
-func copyAndMakeExecutable(src, dst string) error {
-	if err := copyFile(src, dst); err != nil {
-		return err
-	}
-	return os.Chmod(dst, 0755)
-}
-
-func copyFile(src, dst string) error {
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
-
-	dstFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer dstFile.Close()
-
-	_, err = io.Copy(dstFile, srcFile)
-	return err
-}
-
 func runCmdWithLiveOutput(command string, args ...string) (string, error) {
 	cmd := exec.Command(command, args...)
 	cmd.Env = os.Environ()

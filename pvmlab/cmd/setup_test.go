@@ -2,23 +2,12 @@ package cmd
 
 import (
 	"fmt"
-	"io"
 	"os/exec"
 	"pvmlab/internal/socketvmnet"
 	"pvmlab/internal/ssh"
 	"strings"
 	"testing"
 )
-
-// mockCmd is a mock implementation of exec.Cmd for testing purposes.
-type mockCmd struct {
-	RunFunc func() error
-	Stderr  io.Writer
-}
-
-func (m *mockCmd) Run() error {
-	return m.RunFunc()
-}
 
 func TestSetupCommand(t *testing.T) {
 	tests := []struct {

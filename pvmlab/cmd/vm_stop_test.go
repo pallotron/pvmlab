@@ -77,7 +77,7 @@ func TestVMStopCommand(t *testing.T) {
 					return true
 				}
 				// Mock syscallKill to prevent error on non-existent process
-				syscallKill = func(pid int, sig syscall.Signal) error {
+				syscallKill = func(_ int, _ syscall.Signal) error {
 					return nil
 				}
 			},
