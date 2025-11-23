@@ -96,26 +96,26 @@ The network architecture is designed to provide both isolation and internet acce
 
 The provisioning process in `pvmlab` is designed to be robust and stateless, leveraging a "disk first, network second" boot strategy.
 
-1.  **Initiation**: The `pvmlab` CLI starts the `provisioner` VM. On its first boot, `cloud-init` configures the VM, installs Docker, and starts the `pxeboot_stack` container.
+1. **Initiation**: The `pvmlab` CLI starts the `provisioner` VM. On its first boot, `cloud-init` configures the VM, installs Docker, and starts the `pxeboot_stack` container.
 
-2.  **Target VM First Boot (Blank Disk)**:
+2. **Target VM First Boot (Blank Disk)**:
     a. The `pvmlab` CLI starts a new `target` VM with a blank virtual disk. The VM's firmware is configured to attempt booting from the disk first, then from the network.
     b. The disk boot **fails** as there is no bootloader.
     c. The firmware automatically falls back to a **network (PXE) boot**.
 
-3.  **PXE Boot Process**:
+3. **PXE Boot Process**:
     a. The `target` VM sends a DHCP request on the private network.
     b. `dnsmasq` (in the `pxeboot_stack` container) responds, assigning an IP address and providing the iPXE network bootloader (`ipxe-*.efi`) via TFTP.
     c. The `target` VM loads iPXE, which then makes an HTTP request to the `boot_handler` service to fetch its boot script.
 
-4.  **Custom Installer Loading**:
+4. **Custom Installer Loading**:
     a. The `boot_handler` service dynamically generates an iPXE script for the specific VM.
     b. This script instructs the `target` VM to download two components from the `nginx` server:
         - The **distro-specific kernel** (e.g., `vmlinuz`), which was previously extracted from the official distro ISO.
         - A **generic, custom installer `initrd`**. This RAM disk contains the Go-based OS installer and all necessary tools.
     c. The `target` VM boots this kernel and `initrd`, launching the custom OS installer.
 
-5.  **Automated OS Installation**:
+5. **Automated OS Installation**:
     a. The Go installer starts and fetches a JSON configuration file from the `boot_handler` service. This config contains URLs for the OS root filesystem, cloud-init settings, and other metadata.
     b. The installer completely wipes the target disk and partitions it (EFI and root partitions).
     c. It downloads the OS root filesystem tarball and extracts it to the newly created root partition.
@@ -123,7 +123,7 @@ The provisioning process in `pvmlab` is designed to be robust and stateless, lev
     e. It seeds the new OS with `cloud-init` data, which will configure the system (hostname, users, SSH keys) on its first real boot.
     f. The installer triggers a reboot of the `target` VM.
 
-6.  **Subsequent Boots (Installed OS)**:
+6. **Subsequent Boots (Installed OS)**:
     a. The `target` VM starts and again attempts to boot from the disk first.
     b. This time, the boot **succeeds** because the installer has placed a valid GRUB bootloader on the disk.
     c. The VM boots directly into the newly installed operating system. The network boot process is skipped entirely.

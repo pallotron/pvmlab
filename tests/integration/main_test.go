@@ -59,7 +59,7 @@ func TestMain(m *testing.M) {
 	}
 
 	// --- Self-contained socket_vmnet setup ---
-	cleanupSocketVMNet := setupSocketVMNet(tempHomeDir, projectRoot)
+	cleanupSocketVMNet := setupSocketVMNet(tempHomeDir)
 	defer cleanupSocketVMNet()
 	// --- End of self-contained setup ---
 

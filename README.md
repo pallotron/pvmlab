@@ -44,28 +44,44 @@ For a detailed explanation of the project's architecture, features, and VM roles
 
 ### Installation
 
-1. **Install Dependencies with Homebrew:**
-   The `pvmlab setup` command will check for dependencies, but it will not install them for you. You must install them manually:
+To install `pvmlab` on macOS, the recommended method is using Homebrew:
 
-   ```bash
-   brew install qemu cdrtools socat socket_vmnet docker
-   ```
+1.  **Install with Homebrew:**
 
-   > **Note:** `docker` refers to the Docker CLI, which is included with Docker Desktop for Mac.
+    ```bash
+    brew tap pallotron/pvmlab
+    brew install pvmlab
+    sudo pvmlab system setup-launchd
+    ```
 
-2. **Clone the Repository:**
+    This will install `pvmlab` and all its dependencies (QEMU, cdrtools, socat, socket_vmnet, go, docker).
 
-   ```bash
-   git clone https://github.com/pallotron/pvmlab.git
-   cd pvmlab
-   ```
+### Manual Installation (Alternative)
 
-3. **Build and Install:**
-   This command compiles the `pvmlab` CLI, builds the pxeboot stack Docker container, and sets up shell completion.
+If you prefer to install manually, or are on a different operating system, follow these steps:
 
-   ```bash
-   make install
-   ```
+1.  **Install Dependencies:**
+    You must install the following dependencies manually. On macOS, you can use Homebrew for this:
+
+    ```bash
+    brew install qemu cdrtools socat socket_vmnet docker go
+    ```
+
+    > **Note:** `docker` refers to the Docker CLI, which is included with Docker Desktop for Mac.
+
+2.  **Clone the Repository:**
+
+    ```bash
+    git clone https://github.com/pallotron/pvmlab.git
+    cd pvmlab
+    ```
+
+3.  **Build and Install:**
+    This command compiles the `pvmlab` CLI, builds the pxeboot stack Docker container, and sets up shell completion.
+
+    ```bash
+    make install
+    ```
 
 4. **Set up the Lab Environment:**
    This command creates the `~/.pvmlab/` directory structure and generates an SSH key for accessing the VMs. It may require your `sudo` password to configure `socket_vmnet`.

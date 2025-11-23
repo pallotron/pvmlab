@@ -2,6 +2,9 @@ package util
 
 import (
 	"fmt"
+	"io"
+	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -38,4 +41,44 @@ var ParseSize = func(sizeStr string) (int64, error) {
 	}
 
 	return value, nil
+}
+
+// FileExists checks if a file exists and is not a directory.
+func FileExists(path string) bool {
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
+}
+
+// CopyFile copies a file from src to dst with the given file mode.
+func CopyFile(src, dst string, mode os.FileMode) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	if _, err := io.Copy(destFile, sourceFile); err != nil {
+		return err
+	}
+
+	return os.Chmod(dst, mode)
+}
+
+// RunCommand executes a command and returns an error if it fails.
+func RunCommand(name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%v: %s", err, string(out))
+	}
+	return nil
 }
