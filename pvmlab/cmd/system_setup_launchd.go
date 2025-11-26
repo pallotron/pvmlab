@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"pvmlab/internal/assets"
 	"pvmlab/internal/util"
 
 	"github.com/fatih/color"
@@ -13,11 +15,8 @@ import (
 var (
 	osGeteuid      = os.Geteuid
 	osMkdirAll     = os.MkdirAll
-	osExecutable   = os.Executable
-	osGetwd        = os.Getwd
 	utilCopyFile   = util.CopyFile
 	utilRunCommand = util.RunCommand
-	utilFileExists = util.FileExists
 )
 
 // systemSetupLaunchdCmd represents the setup-launchd command
@@ -40,10 +39,13 @@ It performs the following operations:
 		color.Cyan("i Setting up socket_vmnet launchd service...")
 
 		// Find source files
-		wrapperSource, plistSource, err := findSourceFiles()
+		wrapperSource, plistSource, err := extractEmbeddedFiles()
 		if err != nil {
 			return err
 		}
+		// Clean up temporary files after installation
+		defer os.Remove(wrapperSource)
+		defer os.Remove(plistSource)
 
 		// 1. Create libexec directory
 		libexecDir := "/opt/pvmlab/libexec"
@@ -91,47 +93,28 @@ It performs the following operations:
 	},
 }
 
-func findSourceFiles() (string, string, error) {
-	exePath, err := osExecutable()
+func extractEmbeddedFiles() (string, string, error) {
+	wrapperTempFile, err := ioutil.TempFile("", "socket_vmnet_wrapper_*.sh")
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("failed to create temporary wrapper file: %w", err)
 	}
-	exeDir := filepath.Dir(exePath)
+	defer wrapperTempFile.Close()
 
-	// Possible locations for wrapper and plist
-	// 1. Homebrew layout:
-	//    bin/pvmlab
-	//    libexec/socket_vmnet_wrapper.sh
-	//    io.github.pallotron.pvmlab.socket_vmnet.plist (in prefix, parent of bin)
-
-	// Check Homebrew layout
-	brewWrapper := filepath.Join(exeDir, "..", "libexec", "socket_vmnet_wrapper.sh")
-	brewPlist := filepath.Join(exeDir, "..", "io.github.pallotron.pvmlab.socket_vmnet.plist")
-
-	if utilFileExists(brewWrapper) && utilFileExists(brewPlist) {
-		return brewWrapper, brewPlist, nil
-	}
-	// 2. Dev/Source layout (cwd or relative to binary if built in-place)
-	//    pvmlab/cmd/../../launchd/...
-	//    or just ./launchd if run from root
-
-	// Try finding relative to executable (assuming binary is in root or build/)
-	// If binary is in build/, launchd is in ../launchd
-	devWrapper := filepath.Join(exeDir, "..", "launchd", "socket_vmnet_wrapper.sh")
-	devPlist := filepath.Join(exeDir, "..", "launchd", "io.github.pallotron.pvmlab.socket_vmnet.plist")
-	if utilFileExists(devWrapper) && utilFileExists(devPlist) {
-		return devWrapper, devPlist, nil
+	if _, err := wrapperTempFile.Write(assets.SocketVMNetWrapper); err != nil {
+		return "", "", fmt.Errorf("failed to write embedded wrapper to temporary file: %w", err)
 	}
 
-	// Try relative to CWD
-	cwd, _ := osGetwd()
-	localWrapper := filepath.Join(cwd, "launchd", "socket_vmnet_wrapper.sh")
-	localPlist := filepath.Join(cwd, "launchd", "io.github.pallotron.pvmlab.socket_vmnet.plist")
-	if utilFileExists(localWrapper) && utilFileExists(localPlist) {
-		return localWrapper, localPlist, nil
+	plistTempFile, err := ioutil.TempFile("", "socket_vmnet_plist_*.plist")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create temporary plist file: %w", err)
+	}
+	defer plistTempFile.Close()
+
+	if _, err := plistTempFile.Write(assets.SocketVMNetPlist); err != nil {
+		return "", "", fmt.Errorf("failed to write embedded plist to temporary file: %w", err)
 	}
 
-	return "", "", fmt.Errorf("could not locate installation files (wrapper script and plist). Ensure you are running this from a Homebrew installation or source root")
+	return wrapperTempFile.Name(), plistTempFile.Name(), nil
 }
 
 func init() {
